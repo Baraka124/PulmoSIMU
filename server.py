@@ -1,7 +1,7 @@
 """
 PNEUMO·VR — Pipeline Server
 ============================
-FastAPI server that accepts a DICOM zip upload, runs the segmentation
+FastAPI server that accepts a DICOM zip upload, runs the segmentation 
 pipeline, and serves the resulting GLB + JSON back to the browser.
 
 No Python required on the planning workstation — just upload and load.
