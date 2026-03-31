@@ -1,7 +1,5 @@
-# PNEUMO-VR server dependencies - v2
 fastapi
 uvicorn[standard]
 python-multipart
-aiofiles
 numpy
 trimesh
