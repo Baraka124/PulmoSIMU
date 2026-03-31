@@ -5,7 +5,7 @@ FastAPI server that accepts a DICOM zip upload, runs the segmentation
 pipeline, and serves the resulting GLB + JSON back to the browser.
 
 No Python required on the planning workstation — just upload and load.
-
+ 
 Usage:
     pip install fastapi uvicorn python-multipart
     python server.py
