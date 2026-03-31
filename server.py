@@ -7,7 +7,7 @@ pipeline, and serves the resulting GLB + JSON back to the browser.
 No Python required on the planning workstation — just upload and load.
 
 Usage:
-    pip install fastapi uvicorn python-multipart aiofiles
+    pip install fastapi uvicorn python-multipart
     python server.py
 
 Endpoints:
@@ -36,7 +36,6 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-import aiofiles
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -130,9 +129,9 @@ async def process_dicom(
     # Save and extract zip
     zip_path = job_dir / "upload.zip"
     try:
-        async with aiofiles.open(zip_path, "wb") as f:
-            content = await file.read()
-            await f.write(content)
+        raw = await file.read()
+        with open(zip_path, "wb") as f:
+            f.write(raw)
     except Exception as e:
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["error"]  = f"Upload write failed: {e}"
