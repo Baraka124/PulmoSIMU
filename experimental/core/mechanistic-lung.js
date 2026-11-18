@@ -19,7 +19,7 @@ export const SCENARIOS=Object.freeze({
   asthma:{bronchoconstriction:0.65,inflammation:0.70,mucus:0.42,remodeling:0.28,emphysema:0,infection:0,tumor:0},
   copd:{bronchoconstriction:0.28,inflammation:0.35,mucus:0.42,remodeling:0.50,emphysema:0.58,infection:0,tumor:0},
   bronchiectasis:{bronchoconstriction:0.13,inflammation:0.56,mucus:0.73,remodeling:0.36,emphysema:0,infection:0.64,tumor:0},
-  lung_cancer:{bronchoconstriction:0.08,inflammation:0.20,mucus:0.16,remodeling:0.08,emphysema:0,infection:0,tumor:0.70}
+  lung_cancer:{bronchoconstriction:0.08,inflammation:0.20,mucus:0.16,remodeling:0.08,emphysema:0,infection:0,tumor:0}
 });
 /** Time constants in simulated days. Coefficients are exploratory, not PK/PD fits. */
 export const THERAPIES=Object.freeze({
@@ -35,7 +35,7 @@ export function createState(scenario='healthy',severity=1){
   return {
     schema:'pulmosimu-mechanistic-r1',scenario,severity:s,timeDays:0,therapy:'none',
     baseline:Object.fromEntries(Object.entries(SCENARIOS[scenario]).map(([k,v])=>[k,clamp(v*s)])),
-    regions:REGIONS.map((r)=>({id:r.id,modifiers:{},tumorFraction:0})),
+    regions:REGIONS.map((r)=>({id:r.id,modifiers:{},tumorFraction:scenario==='lung_cancer'&&r.id==='RUL'?0.70*s:0})),
     provenance:{model:'illustrative reduced-order',validated:false,patientSpecific:false}
   };
 }
