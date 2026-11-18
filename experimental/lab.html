@@ -59,9 +59,10 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="stat"><span>Heterogeneity</span><b id="hetero">—</b></div></section>
 <div class="caution">Outputs are dimensionless research surrogates, not measured pulmonary function, treatment response estimates or clinical predictions.</div>
 </aside></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
-import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
 const $=id=>document.getElementById(id);let state=createState(),result=calculate(state),selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
