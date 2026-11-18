@@ -32,3 +32,16 @@ The viewer uses schematic ellipsoid lobe geometry and simple visual branches, **
 5. Merge the experimental page into a shared laboratory shell only after the preservation gate passes.
 
 There is no automatic navigation link from the existing surgical UI: intentional to avoid unintended regressions.
+
+## R2 — anatomical canvas expansion (development branch)
+
+- `anatomy/reference-airways.json` is a **versioned snapshot of the 18 airway branches from the existing `index.html` `SEGS` array**, without editing that source.
+- `anatomy/airway-graph.js` validates IDs, coordinates, positive radii, root-connected acyclic topology, and supplies airway-to-lobe mapping and ancestor navigation.
+- The experimental canvas replaces its earlier hand-drawn demonstration tubes with tapered 3D meshes constructed from these original airway centerlines. The airway graph remains in its **original coordinate orientation**: right branches at positive X and left branches at negative X.
+- Lobar overlays remain schematic ellipsoids, not patient-derived surface anatomy, and branch geometry is visually scaled to the demonstration canvas. The source radii are procedural scene units, **not validated measurements**.
+- Stage controls now toggle the airway graph, isolate a selected lobe and reset the camera. Picking works on airway branches and on visible lobar surfaces. No original PNEUMO·VR controls were modified.
+- Run `cd experimental && npm test` to check numerical and anatomical graph invariants. **Tests have been authored but not yet executed through this GitHub connection.** Manual browser review and comparison against the original procedure are still required.
+
+### R2 limits and next physical gate
+
+This does not claim complete bronchial generations, alveolar tissue, 3D vascular anatomy, tumor morphology, accurate bronchoscopy geometry or physiologically validated values. The next gate is to load real reference CT-derived geometry with known units, confirm airway orientation/registration and replace schematic lobar surfaces with appropriately sourced anatomy. The original procedural application remains the canonical functionality.
