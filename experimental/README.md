@@ -45,3 +45,19 @@ There is no automatic navigation link from the existing surgical UI: intentional
 ### R2 limits and next physical gate
 
 This does not claim complete bronchial generations, alveolar tissue, 3D vascular anatomy, tumor morphology, accurate bronchoscopy geometry or physiologically validated values. The next gate is to load real reference CT-derived geometry with known units, confirm airway orientation/registration and replace schematic lobar surfaces with appropriately sourced anatomy. The original procedural application remains the canonical functionality.
+
+## R3 — Reduced-order airway physiology (development branch)
+
+- `core/breathing-network.js` implements a deterministic **linear resistance–compliance tree**, indexed by the same 18 branches in the versioned PulmoSIMU source reference.
+- Branch resistance is a laminar Poiseuille approximation from assumed converted source lengths/radii (scene units × 0.1 m), air viscosity and a disease-dependent relative caliber. Terminal compartments include unmeasured distal resistance and regional compliance, with SI units internally.
+- The simulator solves the coupled tree using a backward-implicit terminal compliance step, producing pressure [Pa / cmH2O], net volume [m³ / L], airway and regional flow [m³/s / L/s], an approximate tidal volume, and numerical conservation residual.
+- The canvas includes model tidal volume, peak inspiratory flow, compartment count, a volume-cycle trace, and research pressure/frequency inputs.
+- Tests cover continuity, flow conservation, approximate breathing dynamics, resistance sensitivity, regional tumor effects, and therapy-linked resistance changes. GitHub Actions executes `npm test` on branch pushes and pull requests.
+
+### Important R3 scientific limitations
+
+**This is a mathematically testable reduced-order model, not a validated clinical simulator.** The reference centerline scale is assumed (not calibrated CT geometry). Distal airway resistance, tissue compliance, local narrowing, driving waveform and regional weights are demonstration parameters. It does not reproduce nonlinear airway collapse, full airway generations, forced expiratory spirometry (FEV1/FVC), perfusion, gas exchange, whole-lung CFD, or patient-specific outcomes. In this model, 'driving pressure' is a mathematical analogue of a transpulmonary input rather than a measured airway or pleural pressure. Simulated bronchodilator effects are exploratory state perturbations, not efficacy predictions.
+
+### R3 verification and merge gate
+
+GitHub Actions should pass all R1–R3 numerical tests; then visually smoke-test the 3D laboratory and the unmodified PNEUMO·VR procedure before merging. Quantitative physiological validity requires independently curated geometry, measurement data and uncertainty analysis. This branch stays a draft review until that gate is satisfied.
