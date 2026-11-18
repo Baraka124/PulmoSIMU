@@ -40,12 +40,12 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <option value="anti_il4r">Anti-IL-4R pathway · illustration</option></select>
 <label for="days">Simulated treatment time <strong id="daysText">0 days</strong></label><input id="days" type="range" min="0" max="120" value="0">
 </section>
-<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="resetCamera">Reset camera</button></section>
+<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
 <div class="caution">This is a separate experimental workspace. The original PNEUMO·VR surgical procedures and navigation remain unchanged.</div>
 </aside>
 <div class="stage"><canvas id="lungCanvas"></canvas>
-<div class="topline"><span><span class="dot"></span> BILATERAL LUNG · SCHEMATIC LOBAR GEOMETRY</span><span id="overlayLabel">VENTILATION</span></div>
-<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span>REFERENCE MODEL · NOT CT-DERIVED</span></div></div>
+<div class="topline"><span><span class="dot"></span> BILATERAL LUNG · PNEUMO·VR AIRWAY REFERENCE</span><span id="overlayLabel">VENTILATION</span></div>
+<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span>PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
 <aside class="right"><section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
 <section><div class="eyebrow">Computed regional proxies</div>
 <div class="stat"><span>Ventilation share</span><b id="vent">—</b></div>
@@ -64,6 +64,7 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
+import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 const $=id=>document.getElementById(id);let state=createState(),result=calculate(state),selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -74,33 +75,62 @@ const rim=new THREE.DirectionalLight(0x91bed4,1.5);rim.position.set(3,1,-4);scen
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.minDistance=4;controls.maxDistance=15;controls.target.set(0,.12,0);
 const group=new THREE.Group();scene.add(group);
 const lobes=[
-{id:'RUL',pos:[-1.0,1.1,0],scale:[.78,1.10,.75],rotation:-.20},
-{id:'RML',pos:[-.98,.04,.38],scale:[.72,.65,.60],rotation:-.16},
-{id:'RLL',pos:[-1.08,-1.03,-.08],scale:[.85,1.05,.77],rotation:.08},
-{id:'LUL',pos:[1.02,.82,0],scale:[.82,1.30,.76],rotation:.13},
-{id:'LLL',pos:[1.10,-.95,-.10],scale:[.88,1.17,.82],rotation:-.10}
+{id:'RUL',pos:[1.0,1.1,0],scale:[.78,1.10,.75],rotation:-.20},
+{id:'RML',pos:[.98,.04,.38],scale:[.72,.65,.60],rotation:-.16},
+{id:'RLL',pos:[1.08,-1.03,-.08],scale:[.85,1.05,.77],rotation:.08},
+{id:'LUL',pos:[-1.02,.82,0],scale:[.82,1.30,.76],rotation:.13},
+{id:'LLL',pos:[-1.10,-.95,-.10],scale:[.88,1.17,.82],rotation:-.10}
 ];
 const meshes={};
 for(const l of lobes){const g=new THREE.SphereGeometry(1,48,32),m=new THREE.MeshPhysicalMaterial({color:0xae7578,roughness:.55,metalness:0,transparent:true,opacity:.84,clearcoat:.18,depthWrite:false,side:THREE.DoubleSide});
 const mesh=new THREE.Mesh(g,m);mesh.position.set(...l.pos);mesh.scale.set(...l.scale);mesh.rotation.z=l.rotation;mesh.userData.region=l.id;group.add(mesh);meshes[l.id]=mesh;
 const edge=new THREE.LineSegments(new THREE.EdgesGeometry(g,34),new THREE.LineBasicMaterial({color:0x9fc2ce,transparent:true,opacity:.08}));mesh.add(edge);
 }
-const airwayMat=new THREE.MeshStandardMaterial({color:0xd9bac1,roughness:.57});
-function tube(points,r){const c=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));const mesh=new THREE.Mesh(new THREE.TubeGeometry(c,32,r,10,false),airwayMat);group.add(mesh)}
-tube([[0,2.6,.05],[0,1.8,.07],[0,1.2,.13]],.115);
-tube([[0,1.2,.13],[-.42,.8,.13],[-.9,.3,.14]],.09);
-tube([[0,1.2,.13],[.44,.79,.13],[.95,.25,.14]],.09);
-tube([[-.65,.54,.14],[-.95,1.12,.17],[-1.1,1.54,.18]],.055);
-tube([[-.85,.29,.14],[-1.06,-.55,.15],[-1.13,-1.35,.15]],.052);
-tube([[.7,.47,.14],[1.05,1.02,.17],[1.16,1.45,.18]],.055);
-tube([[.89,.28,.14],[1.15,-.58,.15],[1.19,-1.45,.15]],.052);
+// R2: source airway topology is imported unchanged from PulmoSIMU's original SEGS.
+const airwayGroup=new THREE.Group();group.add(airwayGroup);
+const airwayMat=new THREE.MeshStandardMaterial({color:0xcad4d6,roughness:.46,metalness:.03,transparent:true,opacity:.90});
+let airwayGraph=null,airwaysVisible=true,isolation=false;
+async function loadAirways(){
+ try{
+  airwayGraph=await fetchReferenceAirwayGraph();
+  const materialMap=new Map();
+  for(const node of airwayGraph.nodes){
+   const pts=node.points.map(p=>new THREE.Vector3(p[0]*1.55,p[1]*1.55,p[2]*1.55));
+   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
+   const lengthSamples=Math.max(24,pts.length*8);
+   // Taper from proximal to distal cross-sectional radius along segment.
+   const frames=curve.computeFrenetFrames(lengthSamples,false);
+   const vertices=[],normals=[],triangles=[];
+   const sides=12;
+   for(let i=0;i<=lengthSamples;i++){
+    const t=i/lengthSamples,point=curve.getPoint(t);
+    const rad=(node.radiusStart*(1-t)+node.radiusEnd*t)*1.55;
+    for(let j=0;j<=sides;j++){
+     const angle=j/sides*Math.PI*2;
+     const normal=frames.normals[i].clone().multiplyScalar(Math.cos(angle)).addScaledVector(frames.binormals[i],Math.sin(angle));
+     const pos=point.clone().addScaledVector(normal,rad);
+     vertices.push(pos.x,pos.y,pos.z);normals.push(normal.x,normal.y,normal.z);
+     if(i<lengthSamples&&j<sides){const a=i*(sides+1)+j,b=a+sides+1;triangles.push(a,b,a+1,b,b+1,a+1)}
+    }
+   }
+   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+   geo.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geo.setIndex(triangles);
+   const mesh=new THREE.Mesh(geo,airwayMat.clone());mesh.userData.airwayId=node.id;
+   mesh.userData.region=airwayGraph.regionOf(node.id);airwayGroup.add(mesh);materialMap.set(node.id,mesh);
+  }
+  $('regionNote').textContent='Original PulmoSIMU airway hierarchy loaded · '+airwayGraph.nodes.length+' branches';
+  draw();
+ }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;}
+}
+loadAirways();
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
-canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects(Object.values(meshes))[0];if(hit){selected=hit.object.userData.region;draw()}});
+canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;draw()}}});
 function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
 const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
 function draw(){
 result=calculate(state);for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
+airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
 const r=result.regions.find(x=>x.id===selected);$('selected').textContent=r.label+' lobe';$('regionNote').textContent='Region '+r.id+' · dimensionless experimental state';
 $('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').textContent=r.radiusIndex.toFixed(3);
 $('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
@@ -112,6 +142,8 @@ $('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESIS
 function rebuild(){state=createState($('scenario').value,Number($('severity').value)/100);state=withTherapy(state,$('therapy').value);state=advance(state,Number($('days').value));draw()}
 for(const id of ['scenario','severity','therapy','days'])$(id).addEventListener('input',rebuild);
 for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
+$('toggleAirways').onclick=()=>{airwaysVisible=!airwaysVisible;$('toggleAirways').textContent=airwaysVisible?'Hide airway hierarchy':'Show airway hierarchy';draw()};
+$('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all lobes':'Isolate selected lobe';draw()};
 $('resetCamera').onclick=()=>{camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update()};
 const resize=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(canvas);
 function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}draw();animate();
