@@ -1,0 +1,25 @@
+name: Experimental Lung Model Checks
+on:
+  pull_request:
+    paths:
+      - 'experimental/**'
+      - '.github/workflows/experimental-lung.yml'
+  push:
+    branches:
+      - feature/mechanistic-lung-foundation
+    paths:
+      - 'experimental/**'
+      - '.github/workflows/experimental-lung.yml'
+jobs:
+  model-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test respiratory physiology and anatomy invariants
+        run: npm test
+        working-directory: experimental
