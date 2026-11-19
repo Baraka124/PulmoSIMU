@@ -39,8 +39,16 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <section><div class="eyebrow">Intervention</div><select id="therapy"><option value="none">No intervention</option>
 <option value="bronchodilator">Bronchodilator · illustration</option>
 <option value="ics">Inhaled corticosteroid · illustration</option>
-<option value="anti_il5">Anti-IL-5 pathway · illustration</option>
-<option value="anti_il4r">Anti-IL-4R pathway · illustration</option></select>
+<option value="anti_ige">Anti-IgE pathway · illustration</option>
+<option value="anti_il5">Anti-IL-5 pathway · illustration</option><option value="anti_il5r">Anti-IL-5R pathway · illustration</option>
+<option value="anti_il4r">Anti-IL-4R pathway · illustration</option><option value="anti_tslp">Anti-TSLP pathway · illustration</option></select>
+<label for="phenotype">Illustrative endotype</label><select id="phenotype">
+<option value="unspecified">Unspecified</option><option value="type2_high">Type 2-high</option>
+<option value="eosinophilic">Eosinophilic</option><option value="allergic">Allergic</option>
+<option value="type2_low">Type 2-low</option></select>
+<label for="responseScale">Pathway response factor <strong id="responseText">100%</strong></label>
+<input id="responseScale" type="range" min="0" max="100" value="100">
+<div class="help" id="pathwayNote">Hypothesis-only pathway attenuation; not predicted patient response.</div>
 <label for="days">Simulated treatment time <strong id="daysText">0 days</strong></label><input id="days" type="range" min="0" max="120" value="0">
 </section>
 <section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayMucus">Mucus burden</button><button class="wide" id="overlayTumor">Tumor burden</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
@@ -55,6 +63,12 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="stat"><span>Relative airway caliber</span><b id="radius">—</b></div>
 <div class="stat"><span>Resistance index</span><b id="resist">—</b></div>
 <div class="stat"><span>Compliance index</span><b id="comp">—</b></div></section>
+<section><div class="eyebrow">Treatment experiment · R5</div>
+<div class="stat"><span>Inflammation Δ</span><b id="deltaInfl">—</b></div>
+<div class="stat"><span>Resistance index Δ</span><b id="deltaResistance">—</b></div>
+<div class="stat"><span>Ventilation index Δ</span><b id="deltaVent">—</b></div>
+<div class="stat"><span>Model tidal volume Δ</span><b id="deltaTidal">—</b></div>
+<div class="help">Differences are simulated counterfactuals under assumed parameters, not drug efficacy or clinical predictions.</div></section>
 <section><div class="eyebrow">Mechanistic variables</div><div id="mechanisms"></div></section>
 <section><div class="eyebrow">Breathing network · R3</div>
 <div class="stat"><span>Tidal volume · model</span><b id="tidal">—</b></div>
@@ -81,8 +95,9 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {buildNetwork,simulateBreathing} from './core/breathing-network.js';
-import {createDiseaseExperiment,DISEASE_LIBRARY,diseaseReadout} from './core/disease-engine.js';
-const $=id=>document.getElementById(id);let state=createDiseaseExperiment(),result=calculate(state),selected='RUL',overlay='vent';
+import {createDiseaseExperiment,DISEASE_LIBRARY} from './core/disease-engine.js';
+import {createTherapyExperiment,PHENOTYPES,INTERVENTIONS} from './core/therapeutics-engine.js';
+const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(34,1,.1,100);
@@ -146,7 +161,7 @@ canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e
 function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
 const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
 function draw(){
-result=calculate(state);for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
+result=experiment.after;for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
 airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
 $('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
 $('burdenText').textContent=$('burden').value+'%';
@@ -155,22 +170,32 @@ $('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').tex
 $('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
 $('mechanisms').replaceChildren(...Object.entries(r.mechanisms).map(([k,v])=>{const d=document.createElement('div');d.className='stat';const a=document.createElement('span'),b=document.createElement('b');a.textContent=k.replace(/([A-Z])/g,' $1');b.textContent=(v*100).toFixed(0)+'%';d.append(a,b);return d}));
 $('globalVent').textContent=result.summary.overallVentilationIndex.toFixed(3);$('globalRes').textContent=result.summary.meanResistanceIndex.toFixed(2)+'×';$('hetero').textContent=result.summary.ventilationHeterogeneity.toFixed(3);
+const c=experiment.comparison;
+$('deltaInfl').textContent=(c.mechanisms.inflammation.delta*100).toFixed(1)+' pp';
+$('deltaResistance').textContent=c.resistanceIndex.delta.toFixed(3);
+$('deltaVent').textContent=c.ventilationIndex.delta.toFixed(3);
+$('responseText').textContent=$('responseScale').value+'%';
+$('pathwayNote').textContent=INTERVENTIONS[experiment.response.intervention].pathway+' · '+PHENOTYPES[experiment.response.phenotype].label+' · assumed pathway sensitivity '+(experiment.response.phenotypeSensitivity*100).toFixed(0)+'%';
 updateNumerics();
 $('daysText').textContent=state.timeDays+' days';$('severityText').textContent=Math.round(state.severity*100)+'%';
 $('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',mucus:'MUCUS',tumor:'TUMOR',base:'ANATOMY'}[overlay];
 }
-function rebuild(){state=createDiseaseExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},therapy:$('therapy').value,days:Number($('days').value)});draw()}
-for(const id of ['scenario','severity','focusRegion','burden','therapy','days'])$(id).addEventListener('input',rebuild);
+function rebuild(){experiment=createTherapyExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},intervention:$('therapy').value,phenotype:$('phenotype').value,responseScale:Number($('responseScale').value)/100,days:Number($('days').value)});state=experiment.treated;draw()}
+for(const id of ['scenario','severity','focusRegion','burden','therapy','phenotype','responseScale','days'])$(id).addEventListener('input',rebuild);
 for(const id of ['frequency','pressureAmplitude'])$(id).addEventListener('input',draw);
 function updateNumerics(){
  if(!airwayGraph)return;
  const bpm=Number($('frequency').value),pressure=Number($('pressureAmplitude').value);
  $('frequencyText').textContent=bpm+' /min';$('pressureText').textContent=pressure.toFixed(1)+' cmH₂O';
  try{
-  const network=buildNetwork(airwayGraph,state,{
-   breathingFrequencyPerMin:bpm,pressureAmplitudeCmH2O:pressure
+  const overrides={breathingFrequencyPerMin:bpm,pressureAmplitudeCmH2O:pressure};
+  const network=buildNetwork(airwayGraph,experiment.treated,{
+   ...overrides
   });
-  const numerical=simulateBreathing(network,Math.max(12,4*60/bpm));
+  const duration=Math.max(12,4*60/bpm);
+  const numerical=simulateBreathing(network,duration);
+  const baselineNumerical=simulateBreathing(buildNetwork(airwayGraph,experiment.untreated,overrides),duration);
+  $('deltaTidal').textContent=(numerical.summary.approximateTidalVolumeL-baselineNumerical.summary.approximateTidalVolumeL).toFixed(3)+' L';
   $('tidal').textContent=numerical.summary.approximateTidalVolumeL.toFixed(3)+' L';
   $('peakFlow').textContent=numerical.summary.peakInspiratoryFlowLPerS.toFixed(3)+' L/s';
   $('terminals').textContent=numerical.network.terminalCount;
