@@ -81,7 +81,12 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="eyebrow" style="margin-top:18px">Pressure · flow · volume</div>
 <canvas class="trace" id="breathingTrace" aria-label="Numerical lung volume over time"></canvas>
 <div class="trace-row"><span>Reference breathing cycle</span><span>Volume [L] · time [s]</span></div>
-<p id="networkStatus">Awaiting airway geometry…</p></section>
+<p id="networkStatus">Awaiting airway geometry…</p>
+<div class="eyebrow" style="margin-top:18px">Assumption sensitivity</div>
+<button id="runSensitivity" class="wide">Evaluate model assumptions</button>
+<div id="sensitivityStatus" class="help">Perturb assumed parameters by ±20%. Research sensitivity only; not a confidence interval.</div>
+<div class="stat"><span>Largest modeled sensitivity</span><b id="sensitivityParameter">—</b></div>
+<div class="stat"><span>Tidal-volume spread</span><b id="sensitivitySpread">—</b></div></section>
 <section><div class="eyebrow">Whole lung</div>
 <div class="stat"><span>Ventilation index</span><b id="globalVent">—</b></div>
 <div class="stat"><span>Mean resistance</span><b id="globalRes">—</b></div>
@@ -97,6 +102,7 @@ import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {buildNetwork,simulateBreathing} from './core/breathing-network.js';
 import {createDiseaseExperiment,DISEASE_LIBRARY} from './core/disease-engine.js';
 import {createTherapyExperiment,PHENOTYPES,INTERVENTIONS} from './core/therapeutics-engine.js';
+import {parameterSensitivity} from './core/sensitivity-analysis.js';
 const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -203,6 +209,19 @@ function updateNumerics(){
   renderTrace(numerical.samples);
  }catch(err){$('networkStatus').textContent='Numerical model error: '+err.message}
 }
+$('runSensitivity').onclick=()=>{
+ if(!airwayGraph){$('sensitivityStatus').textContent='Load the reference airway graph first.';return;}
+ try{
+  const result=parameterSensitivity(airwayGraph,experiment.treated,{overrides:{
+   breathingFrequencyPerMin:Number($('frequency').value),
+   pressureAmplitudeCmH2O:Number($('pressureAmplitude').value)
+  }});
+  const most=result.effects[0];
+  $('sensitivityParameter').textContent=most.parameter.replace(/([A-Z])/g,' $1').trim();
+  $('sensitivitySpread').textContent=most.spreadL.toFixed(3)+' L';
+  $('sensitivityStatus').textContent='Largest spread from ±20% perturbation of one assumed parameter at a time. Not statistical uncertainty.';
+ }catch(error){$('sensitivityStatus').textContent='Sensitivity failed: '+error.message;}
+};
 function renderTrace(samples){
  const c=$('breathingTrace'),ctx=c.getContext('2d'),w=c.clientWidth||260,h=c.clientHeight||118;
  const dpr=Math.min(window.devicePixelRatio||1,2);c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);
