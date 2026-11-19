@@ -32,6 +32,9 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <option value="copd">COPD</option><option value="bronchiectasis">Bronchiectasis</option>
 <option value="lung_cancer">Lung cancer · localized prototype</option></select>
 <label for="severity">Scenario intensity <strong id="severityText">100%</strong></label><input id="severity" type="range" min="0" max="100" value="100">
+<label for="focusRegion">Spatial focus</label><select id="focusRegion"><option value="RUL">Right upper lobe</option><option value="RML">Right middle lobe</option><option value="RLL">Right lower lobe</option><option value="LUL">Left upper lobe</option><option value="LLL">Left lower lobe</option></select>
+<label for="burden">Local inflammation adjustment <strong id="burdenText">0%</strong></label><input id="burden" type="range" min="0" max="100" value="0">
+<div class="help" id="diseaseNarrative">Exploratory spatial mechanisms. No patient-specific model.</div>
 </section>
 <section><div class="eyebrow">Intervention</div><select id="therapy"><option value="none">No intervention</option>
 <option value="bronchodilator">Bronchodilator · illustration</option>
@@ -40,7 +43,7 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <option value="anti_il4r">Anti-IL-4R pathway · illustration</option></select>
 <label for="days">Simulated treatment time <strong id="daysText">0 days</strong></label><input id="days" type="range" min="0" max="120" value="0">
 </section>
-<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
+<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayMucus">Mucus burden</button><button class="wide" id="overlayTumor">Tumor burden</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
 <div class="caution">This is a separate experimental workspace. The original PNEUMO·VR surgical procedures and navigation remain unchanged.</div>
 </aside>
 <div class="stage"><canvas id="lungCanvas"></canvas>
@@ -78,7 +81,8 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {buildNetwork,simulateBreathing} from './core/breathing-network.js';
-const $=id=>document.getElementById(id);let state=createState(),result=calculate(state),selected='RUL',overlay='vent';
+import {createDiseaseExperiment,DISEASE_LIBRARY,diseaseReadout} from './core/disease-engine.js';
+const $=id=>document.getElementById(id);let state=createDiseaseExperiment(),result=calculate(state),selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(34,1,.1,100);
@@ -138,12 +142,14 @@ async function loadAirways(){
 loadAirways();
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
-canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;draw()}}});
-function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
+canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild()}}});
+function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
 const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
 function draw(){
 result=calculate(state);for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
 airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
+$('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
+$('burdenText').textContent=$('burden').value+'%';
 const r=result.regions.find(x=>x.id===selected);$('selected').textContent=r.label+' lobe';$('regionNote').textContent='Region '+r.id+' · dimensionless experimental state';
 $('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').textContent=r.radiusIndex.toFixed(3);
 $('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
@@ -151,10 +157,10 @@ $('mechanisms').replaceChildren(...Object.entries(r.mechanisms).map(([k,v])=>{co
 $('globalVent').textContent=result.summary.overallVentilationIndex.toFixed(3);$('globalRes').textContent=result.summary.meanResistanceIndex.toFixed(2)+'×';$('hetero').textContent=result.summary.ventilationHeterogeneity.toFixed(3);
 updateNumerics();
 $('daysText').textContent=state.timeDays+' days';$('severityText').textContent=Math.round(state.severity*100)+'%';
-$('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',base:'ANATOMY'}[overlay];
+$('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',mucus:'MUCUS',tumor:'TUMOR',base:'ANATOMY'}[overlay];
 }
-function rebuild(){state=createState($('scenario').value,Number($('severity').value)/100);state=withTherapy(state,$('therapy').value);state=advance(state,Number($('days').value));draw()}
-for(const id of ['scenario','severity','therapy','days'])$(id).addEventListener('input',rebuild);
+function rebuild(){state=createDiseaseExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},therapy:$('therapy').value,days:Number($('days').value)});draw()}
+for(const id of ['scenario','severity','focusRegion','burden','therapy','days'])$(id).addEventListener('input',rebuild);
 for(const id of ['frequency','pressureAmplitude'])$(id).addEventListener('input',draw);
 function updateNumerics(){
  if(!airwayGraph)return;
@@ -181,7 +187,7 @@ function renderTrace(samples){
  ctx.beginPath();for(let i=0;i<last.length;i++){const x=10+i/Math.max(1,last.length-1)*(w-20),y=h-10-(last[i].volumeL-min)/range*(h-20);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
  ctx.strokeStyle='#aed4de';ctx.lineWidth=1.8;ctx.stroke();
 }
-for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
+for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayMucus','mucus'],['overlayTumor','tumor'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
 $('toggleAirways').onclick=()=>{airwaysVisible=!airwaysVisible;$('toggleAirways').textContent=airwaysVisible?'Hide airway hierarchy':'Show airway hierarchy';draw()};
 $('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all lobes':'Isolate selected lobe';draw()};
 $('resetCamera').onclick=()=>{camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update()};
