@@ -12,7 +12,7 @@ section{margin-bottom:26px}.eyebrow{font-size:10px;color:var(--muted);letter-spa
 button,select,input{font:inherit}button{cursor:pointer;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:4px;padding:8px 10px}button:hover,button.active{border-color:var(--accent);background:#21323b}
 button.wide{display:block;width:100%;text-align:left;margin:6px 0}
 select{width:100%;background:#10191f;border:1px solid var(--line);color:var(--ink);padding:10px;border-radius:4px}
-label{display:block;color:var(--muted);margin:10px 0 5px;font-size:11px}
+input[type=file]{max-width:100%;font-size:11px;color:var(--muted)}input[type=file]::file-selector-button{margin:5px 5px 5px 0;border:1px solid var(--line);background:transparent;color:var(--ink);padding:5px;border-radius:3px}label{display:block;color:var(--muted);margin:10px 0 5px;font-size:11px}
 input[type=range]{width:100%;accent-color:#b5d6d9}.stat{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #29363e;padding:9px 0;gap:10px}
 .stat b{font-size:14px;font-weight:530;font-variant-numeric:tabular-nums}.stat span{font-size:11px;color:var(--muted)}
 .stage{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,#27343c 0%,#111a20 60%,#0d151a 100%)}
@@ -25,8 +25,9 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 @media(max-width:680px){main{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:55px 52vh auto auto}header{grid-column:1}.stage{grid-row:2}aside.left,aside.right{border:0;border-top:1px solid var(--line)}aside.left{grid-row:3}aside.right{grid-row:4}.topline,.bottomline{left:12px;right:12px;font-size:10px}}
 </style></head><body>
 <main>
-<header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · R1</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
+<header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · EXPERIMENTAL</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
 <aside class="left">
+<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Procedural reference · schematic</option><option value="ct" disabled>CT-derived airway · local pair required</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to reference</button><div id="ctStatus" class="help" role="status">Local-only inspection. Paired GLB + metadata must come from the same pipeline run. No patient files are uploaded by this application.</div></section>
 <section><div class="eyebrow">Disease state</div><select id="scenario">
 <option value="healthy">Reference baseline</option><option value="asthma">Asthma</option>
 <option value="copd">COPD</option><option value="bronchiectasis">Bronchiectasis</option>
@@ -56,7 +57,7 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 </aside>
 <div class="stage"><canvas id="lungCanvas"></canvas>
 <div class="topline"><span><span class="dot"></span> BILATERAL LUNG · PNEUMO·VR AIRWAY REFERENCE</span><span id="overlayLabel">VENTILATION</span></div>
-<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span>PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
+<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
 <aside class="right"><section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
 <section><div class="eyebrow">Computed regional proxies</div>
 <div class="stat"><span>Ventilation share</span><b id="vent">—</b></div>
@@ -97,12 +98,15 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {buildNetwork,simulateBreathing} from './core/breathing-network.js';
 import {createDiseaseExperiment,DISEASE_LIBRARY} from './core/disease-engine.js';
 import {createTherapyExperiment,PHENOTYPES,INTERVENTIONS} from './core/therapeutics-engine.js';
 import {parameterSensitivity} from './core/sensitivity-analysis.js';
+import {adaptCtMetadata} from './anatomy/ct-metadata-adapter.js';
+import {validateCtSceneAlignment} from './anatomy/ct-geometry-validation.js';
 const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -112,6 +116,22 @@ const lamp=new THREE.DirectionalLight(0xffffff,2.2);lamp.position.set(-2,4,6);sc
 const rim=new THREE.DirectionalLight(0x91bed4,1.5);rim.position.set(3,1,-4);scene.add(rim);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.minDistance=4;controls.maxDistance=15;controls.target.set(0,.12,0);
 const group=new THREE.Group();scene.add(group);
+// CT data is rendered in a separate scene group, never combined spatially
+// with the original reference lung / lobe overlays.
+const ctGroup=new THREE.Group();ctGroup.visible=false;scene.add(ctGroup);
+let ctSource=null,ctMode=false;
+function disposeCt(){
+ ctGroup.traverse(o=>{if(o.isMesh){o.geometry?.dispose();const arr=Array.isArray(o.material)?o.material:[o.material];for(const m of arr)if(m)m.dispose()}});
+ ctGroup.clear();ctSource=null;ctMode=false;ctGroup.visible=false;
+}
+function syncAnatomyMode(){
+ group.visible=!ctMode;ctGroup.visible=ctMode;
+ $('anatomyMode').value=ctMode?'ct':'reference';
+ $('anatomyProvenance').textContent=ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'PROCEDURAL REFERENCE · NOT CT-DERIVED';
+ // The R3/R5 models remain derived from the source reference graph.
+ $('networkStatus').textContent=ctMode?'Reference R3 numerical model — NOT computed from this CT':$('networkStatus').textContent;
+}
+
 const lobes=[
 {id:'RUL',pos:[1.0,1.1,0],scale:[.78,1.10,.75],rotation:-.20},
 {id:'RML',pos:[.98,.04,.38],scale:[.72,.65,.60],rotation:-.16},
@@ -161,6 +181,56 @@ async function loadAirways(){
  }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;$('networkStatus').textContent='Network unavailable';}
 }
 loadAirways();
+$('restoreReference').onclick=()=>{
+ disposeCt();syncAnatomyMode();$('ctStatus').textContent='Reference model active. CT geometry cleared from memory.';
+ camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
+};
+$('loadCt').onclick=async()=>{
+ const metaFile=$('ctMetaFile').files?.[0],meshFile=$('ctMeshFile').files?.[0];
+ if(!metaFile||!meshFile){$('ctStatus').textContent='Select both JSON metadata and its matching GLB mesh.';return;}
+ if(metaFile.size>20*1024*1024||meshFile.size>100*1024*1024){
+  $('ctStatus').textContent='File size exceeds local inspection limit (JSON 20 MB; GLB 100 MB).';return;
+ }
+ $('ctStatus').textContent='Validating selected files locally…';
+ let parsed=null;
+ try {
+  const metadata=JSON.parse(await metaFile.text());
+  const adapted=adaptCtMetadata(metadata);
+  // GLTFLoader.parse uses in-memory ArrayBuffer; no server upload occurs.
+  const bytes=await meshFile.arrayBuffer();
+  parsed=await new Promise((resolve,reject)=>new GLTFLoader().parse(bytes,'',resolve,reject));
+  const loaded=parsed.scene;
+  loaded.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(loaded);
+  if(box.isEmpty())throw Error('GLB has no mesh geometry');
+  const min=box.min.toArray(),max=box.max.toArray();
+  validateCtSceneAlignment(adapted.graph,{min,max});
+  let meshCount=0;
+  loaded.traverse(o=>{if(o.isMesh){meshCount++;o.material=new THREE.MeshPhysicalMaterial({
+   color:0xc7a3a4,roughness:.54,metalness:0,transparent:true,opacity:.88,
+   side:THREE.DoubleSide,depthWrite:true
+  });o.userData.ctSource=true;}});
+  if(!meshCount)throw Error('GLB contains no renderable airway meshes');
+  disposeCt();
+  ctGroup.add(loaded);
+  // A validated graph is retained locally for inspection, not passed into
+  // the reference physiology solver because CT lobe identity is unresolved.
+  ctSource={graph:adapted.graph,provenance:adapted.provenance,meshCount};
+  ctMode=true;syncAnatomyMode();
+  const center=box.getCenter(new THREE.Vector3()),radius=box.getBoundingSphere(new THREE.Sphere()).radius;
+  controls.target.copy(center);camera.position.copy(center).add(new THREE.Vector3(0,radius*.3,Math.max(3,radius*2.7)));
+  camera.near=Math.max(.001,radius/1000);camera.far=Math.max(100,radius*100);camera.updateProjectionMatrix();controls.update();
+  $('ctStatus').textContent='CT-derived airway mesh + '+adapted.graph.nodes.length+' branches loaded locally. Coordinate alignment plausible; segmentation and lobe labels unvalidated.';
+  $('networkStatus').textContent='Reference R3 numerical model — NOT computed from this CT';
+ }catch(error){
+  // The previous successfully loaded CT is retained if replacement fails.
+  $('ctStatus').textContent='CT pair rejected: '+error.message;
+  if(parsed?.scene&&!ctGroup.children.includes(parsed.scene)){
+   parsed.scene.traverse(o=>{if(o.isMesh)o.geometry?.dispose()});
+  }
+ }
+};
+
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
 canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild()}}});
@@ -205,7 +275,7 @@ function updateNumerics(){
   $('tidal').textContent=numerical.summary.approximateTidalVolumeL.toFixed(3)+' L';
   $('peakFlow').textContent=numerical.summary.peakInspiratoryFlowLPerS.toFixed(3)+' L/s';
   $('terminals').textContent=numerical.network.terminalCount;
-  $('networkStatus').textContent='SI-unit reduced-order RC model · uncalibrated';
+  $('networkStatus').textContent=ctMode?'Reference R3 numerical model — NOT computed from this CT':'SI-unit reduced-order RC model · uncalibrated';
   renderTrace(numerical.samples);
  }catch(err){$('networkStatus').textContent='Numerical model error: '+err.message}
 }
@@ -234,7 +304,7 @@ function renderTrace(samples){
 for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayMucus','mucus'],['overlayTumor','tumor'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
 $('toggleAirways').onclick=()=>{airwaysVisible=!airwaysVisible;$('toggleAirways').textContent=airwaysVisible?'Hide airway hierarchy':'Show airway hierarchy';draw()};
 $('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all lobes':'Isolate selected lobe';draw()};
-$('resetCamera').onclick=()=>{camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update()};
+$('resetCamera').onclick=()=>{if(ctMode&&ctGroup.children.length){const b=new THREE.Box3().setFromObject(ctGroup),c=b.getCenter(new THREE.Vector3()),radius=b.getBoundingSphere(new THREE.Sphere()).radius;camera.position.copy(c).add(new THREE.Vector3(0,radius*.3,Math.max(3,radius*2.7)));controls.target.copy(c)}else{camera.position.set(0,.25,9);controls.target.set(0,.12,0)}controls.update()};
 const resize=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(canvas);
 function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}draw();animate();
 </script></body></html>
