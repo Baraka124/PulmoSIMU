@@ -8,7 +8,7 @@ const metadata={version:'pneumovr-1.1',transform:{centre_mm:[0,0,0],scale:2},seg
 ]};
 const graph=adaptCtMetadata(metadata).graph;
 test('co-framed CT GLB bounds and metadata centerlines accepted',()=>{
- const b=ctBoundingBoxFromPoints([[-.4,-.5,-.2],[.4,.5,.3]]);
+ const b=ctBoundingBoxFromPoints([[-.4,-.5,-.2],[.4,.5,.3],[0,.1,0]]);
  const alignment=validateCtSceneAlignment(graph,b);
  assert.equal(alignment.centerlinePoints,4);
  assert.equal(alignment.anatomicallyValidated,false);
