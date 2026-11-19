@@ -58,7 +58,8 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="stage"><canvas id="lungCanvas"></canvas>
 <div class="topline"><span><span class="dot"></span> BILATERAL LUNG · PNEUMO·VR AIRWAY REFERENCE</span><span id="overlayLabel">VENTILATION</span></div>
 <div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
-<aside class="right"><section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
+<aside class="right"><section id="ctInspection" hidden><div class="eyebrow">CT source inspection · local</div><div class="stat"><span>Centerline branches</span><b id="ctBranchCount">—</b></div><div class="stat"><span>Physical scene scale</span><b id="ctUnitScale">—</b></div><div class="stat"><span>Selected airway</span><b id="ctSelectedBranch">None</b></div><div class="help" id="ctPickNote">Select an airway centreline or reconstructed surface. Segment labels are not clinically verified.</div></section>
+<section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
 <section><div class="eyebrow">Computed regional proxies</div>
 <div class="stat"><span>Ventilation share</span><b id="vent">—</b></div>
 <div class="stat"><span>Relative airway caliber</span><b id="radius">—</b></div>
@@ -120,12 +121,13 @@ const group=new THREE.Group();scene.add(group);
 // with the original reference lung / lobe overlays.
 const ctGroup=new THREE.Group();ctGroup.visible=false;scene.add(ctGroup);
 let ctSource=null,ctMode=false;
+const ctBranchGroup=new THREE.Group();ctGroup.add(ctBranchGroup);
 function disposeCt(){
  ctGroup.traverse(o=>{if(o.isMesh){o.geometry?.dispose();const arr=Array.isArray(o.material)?o.material:[o.material];for(const m of arr)if(m)m.dispose()}});
- ctGroup.clear();ctSource=null;ctMode=false;ctGroup.visible=false;
+ ctGroup.clear();ctBranchGroup.clear();ctGroup.add(ctBranchGroup);ctSource=null;ctMode=false;ctGroup.visible=false;
 }
 function syncAnatomyMode(){
- group.visible=!ctMode;ctGroup.visible=ctMode;
+ group.visible=!ctMode;ctGroup.visible=ctMode;$('ctInspection').hidden=!ctMode;
  $('anatomyMode').value=ctMode?'ct':'reference';
  $('anatomyProvenance').textContent=ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'PROCEDURAL REFERENCE · NOT CT-DERIVED';
  // The R3/R5 models remain derived from the source reference graph.
@@ -183,7 +185,7 @@ async function loadAirways(){
 loadAirways();
 $('restoreReference').onclick=()=>{
  disposeCt();syncAnatomyMode();$('ctStatus').textContent='Reference model active. CT geometry cleared from memory.';
- camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
+ camera.near=.1;camera.far=100;camera.updateProjectionMatrix();camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
 };
 $('loadCt').onclick=async()=>{
  const metaFile=$('ctMetaFile').files?.[0],meshFile=$('ctMeshFile').files?.[0];
@@ -213,6 +215,22 @@ $('loadCt').onclick=async()=>{
   if(!meshCount)throw Error('GLB contains no renderable airway meshes');
   disposeCt();
   ctGroup.add(loaded);
+  const traceMaterial=new THREE.MeshStandardMaterial({color:0xd8e9ed,roughness:.47,emissive:0x182f3a,emissiveIntensity:.10,transparent:true,opacity:.75});
+  // Overlay CT centreline geometry in its *native GLB scene coordinates*.
+  // No arbitrary visual scaling or inferred lobe classifications.
+  for(const node of adapted.graph.nodes){
+   const curve=new THREE.CatmullRomCurve3(node.points.map(p=>new THREE.Vector3(...p)));
+   const mesh=new THREE.Mesh(
+     new THREE.TubeGeometry(curve,Math.max(12,node.points.length*5),Math.max(0.002,(node.radiusStart+node.radiusEnd)/2*.15),8,false),
+     traceMaterial.clone()
+   );
+   mesh.userData.ctSourceBranchId=node.sourceId;
+   ctBranchGroup.add(mesh);
+  }
+  $('ctBranchCount').textContent=String(adapted.graph.nodes.length);
+  $('ctUnitScale').textContent=(adapted.provenance.sceneUnitMetres*1000).toPrecision(4)+' mm/unit';
+  $('ctSelectedBranch').textContent='None';
+  $('ctPickNote').textContent='CT airway centreline overlays are exploratory. No patient-specific disease or drug simulation is connected.';
   // A validated graph is retained locally for inspection, not passed into
   // the reference physiology solver because CT lobe identity is unresolved.
   ctSource={graph:adapted.graph,provenance:adapted.provenance,meshCount};
@@ -233,7 +251,7 @@ $('loadCt').onclick=async()=>{
 
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
-canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild()}}});
+canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild()}}});
 function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
 const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
 function draw(){
