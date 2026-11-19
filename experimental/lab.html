@@ -248,7 +248,8 @@ $('loadSurfaceAtlas').onclick=async()=>{
  let parsed;
  try{
   const manifest=validateSurfaceManifest(JSON.parse(await manifestFile.text()));
-  parsed=await new Promise((resolve,reject)=>new GLTFLoader().parse(await glbFile.arrayBuffer(),'',resolve,reject));
+  const surfaceBytes=await glbFile.arrayBuffer();
+  parsed=await new Promise((resolve,reject)=>new GLTFLoader().parse(surfaceBytes,'',resolve,reject));
   const root=parsed.scene;
   root.updateMatrixWorld(true);
   const named=[];
