@@ -67,7 +67,7 @@ try {
  await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/);
  assert.ok(await page.locator('#anatomicalAtlas').isHidden(),'reference atlas hidden during CT-source inspection');
- assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from this CT/);
+ assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from/);
  assert.equal(await page.locator('#ctBranchCount').innerText(),'2','CT-derived branch inspection');
  assert.match(await page.locator('#ctUnitScale').innerText(),/500\.0 mm\/unit/);
  // A deliberately mismatched CT metadata frame must be rejected while
@@ -86,6 +86,58 @@ try {
  assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
  assert.ok(await page.locator('#anatomicalAtlas').isVisible(),'reference topology restored');
  assert.match(await page.locator('#ctStatus').innerText(),/cleared/);
+ // Surface-atlas fixture: authored geometric primitives for integration only.
+ await page.evaluate(async()=>{
+   const THREE=await import('three');
+   const {GLTFExporter}=await import('three/addons/exporters/GLTFExporter.js');
+   const scene=new THREE.Scene();
+   const a=new THREE.Mesh(new THREE.BoxGeometry(120,160,75),new THREE.MeshStandardMaterial());
+   a.name='fixture_RUL';a.position.x=65;scene.add(a);
+   const b=new THREE.Mesh(new THREE.CylinderGeometry(10,12,130,12),new THREE.MeshStandardMaterial());
+   b.name='fixture_RPA';b.position.x=-50;scene.add(b);
+   const binary=await new Promise((resolve,reject)=>new GLTFExporter().parse(scene,resolve,reject,{binary:true}));
+   const manifest={
+     schema:'pulmosimu-surface-atlas-v1',datasetId:'browser-test-only',
+     source:'Synthetic automated fixture',license:'Test-generated',
+     rightsStatement:'Synthetic data solely for automated checks',
+     coordinateFrame:'fixture-local',unit:'mm',patientSpecific:false,
+     structures:[
+       {id:'RUL',kind:'lobe',objectName:'fixture_RUL',geometryOrigin:'authored',
+        evidence:'Generated primitive, not anatomy',sourceValidated:false},
+       {id:'RPA',kind:'vessel',objectName:'fixture_RPA',geometryOrigin:'authored',
+        evidence:'Generated primitive, not vasculature',sourceValidated:false}
+     ]
+   };
+   const assign=(id,file)=>{const dt=new DataTransfer();dt.items.add(file);document.getElementById(id).files=dt.files;};
+   assign('surfaceManifest',new File([JSON.stringify(manifest)],'surface_manifest.json',{type:'application/json'}));
+   assign('surfaceMesh',new File([binary],'synthetic_surfaces.glb',{type:'model/gltf-binary'}));
+ });
+ await page.locator('#loadSurfaceAtlas').click();
+ await page.waitForFunction(()=>document.getElementById('surfaceStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/EXTERNAL SURFACE ATLAS/);
+ assert.equal(await page.locator('#surfaceLobeCount').innerText(),'1/5');
+ assert.equal(await page.locator('#surfaceVesselCount').innerText(),'1');
+ assert.equal(await page.locator('#surfaceUnit').innerText(),'mm');
+ assert.ok(await page.locator('#anatomicalAtlas').isHidden());
+ assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from displayed geometry/);
+ await page.locator('#surfaceVessels').click();
+ assert.match(await page.locator('#surfaceVessels').innerText(),/Show vessels/);
+ await page.locator('#surfaceVessels').click();
+ await page.locator('#surfaceLobes').click();
+ assert.match(await page.locator('#surfaceLobes').innerText(),/Show lobar surfaces/);
+ await page.locator('#surfaceLobes').click();
+ // Unsupported patient-specific manifests must be refused without replacing the loaded scene.
+ await page.evaluate(async()=>{
+   const el=document.getElementById('surfaceManifest');
+   const bad=JSON.parse(await el.files[0].text());bad.patientSpecific=true;
+   const dt=new DataTransfer();dt.items.add(new File([JSON.stringify(bad)],'invalid_manifest.json',{type:'application/json'}));el.files=dt.files;
+ });
+ await page.locator('#loadSurfaceAtlas').click();
+ await page.waitForFunction(()=>document.getElementById('surfaceStatus')?.textContent?.includes('rejected'),null,{timeout:15000});
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/EXTERNAL SURFACE ATLAS/);
+ await page.locator('#restoreReference').click();
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
+ assert.ok(await page.locator('#anatomicalAtlas').isVisible());
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
