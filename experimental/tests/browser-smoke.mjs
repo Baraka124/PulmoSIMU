@@ -58,6 +58,20 @@ try {
  await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/);
  assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from this CT/);
+ assert.equal(await page.locator('#ctBranchCount').innerText(),'2','CT-derived branch inspection');
+ assert.match(await page.locator('#ctUnitScale').innerText(),/500\.0 mm\/unit/);
+ // A deliberately mismatched CT metadata frame must be rejected while
+ // preserving the last successful local scene.
+ await page.evaluate(async()=>{
+   const el=document.getElementById('ctMetaFile');
+   const previous=JSON.parse(await el.files[0].text());
+   for(const segment of previous.segments)segment.pts=segment.pts.map(p=>p.map(v=>v+50));
+   const dt=new DataTransfer();dt.items.add(new File([JSON.stringify(previous)],'mismatch.json',{type:'application/json'}));
+   el.files=dt.files;
+ });
+ await page.locator('#loadCt').click();
+ await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('rejected'),null,{timeout:15000});
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/,'Rejected replacement leaves existing source active');
  await page.locator('#restoreReference').click();
  assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
  assert.match(await page.locator('#ctStatus').innerText(),/cleared/);
