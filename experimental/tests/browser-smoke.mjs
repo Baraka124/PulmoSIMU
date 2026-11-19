@@ -19,6 +19,15 @@ try {
  assert.ok(canvas?.width>250&&canvas.height>250,'Canvas has nonzero stage dimensions');
  assert.notEqual(await page.locator('#tidal').innerText(),'—','R3 breathing model mounted');
  assert.notEqual(await page.locator('#terminals').innerText(),'—','Airway graph loaded');
+ assert.equal(await page.locator('#atlasSegmentCount').innerText(),'3','RUL segment allocation present');
+ assert.match(await page.locator('#atlasFissures').innerText(),/oblique fissure/);
+ assert.match(await page.locator('#atlasVessels').innerText(),/pulmonary artery/);
+ await page.locator('#focusRegion').selectOption('LLL');
+ await page.locator('#scenario').selectOption('asthma');
+ // Focus-region selection affects disease location but the anatomical inspector
+ // follows the lobe actually selected in the 3D stage.
+ assert.equal(await page.locator('#atlasSegmentCount').innerText(),'3');
+
  await page.locator('#scenario').selectOption('asthma');
  await page.locator('#therapy').selectOption('anti_il5');
  await page.locator('#phenotype').selectOption('eosinophilic');
@@ -57,6 +66,7 @@ try {
  await page.locator('#loadCt').click();
  await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/);
+ assert.ok(await page.locator('#anatomicalAtlas').isHidden(),'reference atlas hidden during CT-source inspection');
  assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from this CT/);
  assert.equal(await page.locator('#ctBranchCount').innerText(),'2','CT-derived branch inspection');
  assert.match(await page.locator('#ctUnitScale').innerText(),/500\.0 mm\/unit/);
@@ -74,6 +84,7 @@ try {
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/,'Rejected replacement leaves existing source active');
  await page.locator('#restoreReference').click();
  assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
+ assert.ok(await page.locator('#anatomicalAtlas').isVisible(),'reference topology restored');
  assert.match(await page.locator('#ctStatus').innerText(),/cleared/);
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
