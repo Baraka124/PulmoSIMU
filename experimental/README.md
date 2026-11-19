@@ -61,3 +61,15 @@ This does not claim complete bronchial generations, alveolar tissue, 3D vascular
 ### R3 verification and merge gate
 
 GitHub Actions should pass all R1–R3 numerical tests; then visually smoke-test the 3D laboratory and the unmodified PNEUMO·VR procedure before merging. Quantitative physiological validity requires independently curated geometry, measurement data and uncertainty analysis. This branch stays a draft review until that gate is satisfied.
+
+## R4 — Spatial disease mechanisms
+
+`core/disease-engine.js` provides a disease registry and spatial mechanism composer for asthma, COPD, bronchiectasis and lung cancer, with healthy reference. Focus and intensity can be changed without touching the original procedural UI. In the R4 experimental viewer, selecting a lobe also updates the focus; the sidebar offers an inflammation adjustment, mucus and tumor overlays, and the R3 breathing network receives the resulting regional resistance and compliance changes.
+
+- **Asthma:** exploratory diffuse bronchoconstriction, mucus and inflammation perturbations.
+- **COPD:** illustrative basal-weighted emphysema, remodeling, mucus and inflammation.
+- **Bronchiectasis:** focal inflammation, mucus and infection burden with attenuated background burden; the simulation does not represent bronchial dilation or ciliary transport.
+- **Lung cancer:** one localized tumor-occupancy placeholder, movable to one lobe; it is neither tumor growth nor an oncological treatment model.
+- **Mechanistic propagation:** the existing R1 state → relative regional caliber/compliance → R3 numerical airway resistance and simulated breathing. No independent claim of clinical outcome accuracy follows from mathematical conservation.
+
+`tests/disease-engine.test.mjs` checks localization, mechanistic isolation, downstream resistance effects and invalid inputs. Parameters and spatial weights are deliberately marked as **not calibrated**, and therapy adjustments are illustrative rather than validated pharmacological response curves. Disease-specific anatomical realism, overlap phenotypes, actual measured regional perfusion, individual biomarkers and patient CT registration remain future validation gates.
