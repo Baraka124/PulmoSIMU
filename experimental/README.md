@@ -73,3 +73,15 @@ GitHub Actions should pass all R1–R3 numerical tests; then visually smoke-test
 - **Mechanistic propagation:** the existing R1 state → relative regional caliber/compliance → R3 numerical airway resistance and simulated breathing. No independent claim of clinical outcome accuracy follows from mathematical conservation.
 
 `tests/disease-engine.test.mjs` checks localization, mechanistic isolation, downstream resistance effects and invalid inputs. Parameters and spatial weights are deliberately marked as **not calibrated**, and therapy adjustments are illustrative rather than validated pharmacological response curves. Disease-specific anatomical realism, overlap phenotypes, actual measured regional perfusion, individual biomarkers and patient CT registration remain future validation gates.
+
+## R5 — Therapeutic Interaction Laboratory
+
+The **new independent** `core/therapeutics-engine.js` implements a treatment experiment against an untreated counterfactual, avoiding double application of the older R1 therapy multipliers. It has explicit pathway metadata, a selectable research phenotype, elapsed simulated days and a dimensionless sensitivity factor.
+
+Supported illustrative interventions: bronchodilator, ICS, anti-IgE, anti-IL-5, anti-IL-5R, anti-IL-4R and anti-TSLP. Endotype demonstrations: unspecified, Type 2-high, eosinophilic, allergic and Type 2-low. A response factor of zero or elapsed time of zero MUST produce no therapeutic difference. Biologic examples influence inflammation and/or mucus state only; they **do not remove tumors, reverse emphysema or produce immediate bronchodilation**.
+
+The experimental 3D laboratory includes a phenotype selector, pathway-response factor, treatment timeline and side-by-side numerical counterfactual deltas (inflammation, resistance index, ventilation index, model tidal volume). Both control and treatment states are passed separately through the R3 airway network using the same assumptions and driving pressure.
+
+**Scope limits:** The mechanism coefficients, activation time constants, endotype scores and response factors are invented exploratory teaching/research parameters, **not empirical drug PK/PD, clinical response likelihood or treatment eligibility rules**. They should not be used for medication selection. Time-dependent disease progression, dose, drug distribution, adverse events, treatment combinations, biological feedback and interactions are not modeled. Source-grounded model parameters and clinical calibration belong to the subsequent validation program.
+
+Verification: `tests/therapeutics-engine.test.mjs` verifies zero-effect invariants, endotype sensitivity, absence of inappropriate tumor effect, targeted pathway specificity, model determinism and downstream physical-network coupling. `npm test` is executed by the GitHub workflow, but browser visual inspection remains a separate gate.
