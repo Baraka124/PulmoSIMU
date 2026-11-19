@@ -60,6 +60,12 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
 <aside class="right"><section id="ctInspection" hidden><div class="eyebrow">CT source inspection · local</div><div class="stat"><span>Centerline branches</span><b id="ctBranchCount">—</b></div><div class="stat"><span>Physical scene scale</span><b id="ctUnitScale">—</b></div><div class="stat"><span>Selected airway</span><b id="ctSelectedBranch">None</b></div><div class="help" id="ctPickNote">Select an airway centreline or reconstructed surface. Segment labels are not clinically verified.</div></section>
 <section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
+<section id="anatomicalAtlas"><div class="eyebrow">Anatomical atlas · topological reference</div>
+<div class="stat"><span>Bronchopulmonary segments</span><b id="atlasSegmentCount">—</b></div>
+<div class="help" id="atlasSegments" style="margin:9px 0 12px">Select a lobe to examine segment nomenclature.</div>
+<div class="eyebrow">Fissure relationships</div><div id="atlasFissures" class="help">—</div>
+<div class="eyebrow" style="margin-top:13px">Major pulmonary vessels</div><div id="atlasVessels" class="help">—</div>
+<div class="caution">Named anatomical relationships only. No fissure surface, vascular path, patient segment coordinates, or validated organ geometry is implied.</div></section>
 <section><div class="eyebrow">Computed regional proxies</div>
 <div class="stat"><span>Ventilation share</span><b id="vent">—</b></div>
 <div class="stat"><span>Relative airway caliber</span><b id="radius">—</b></div>
@@ -108,6 +114,7 @@ import {createTherapyExperiment,PHENOTYPES,INTERVENTIONS} from './core/therapeut
 import {parameterSensitivity} from './core/sensitivity-analysis.js';
 import {adaptCtMetadata} from './anatomy/ct-metadata-adapter.js';
 import {validateCtSceneAlignment} from './anatomy/ct-geometry-validation.js';
+import {describeLobe,validateAtlas,ATLAS_PROVENANCE} from './anatomy/whole-lung-atlas.js';
 const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -127,7 +134,7 @@ function disposeCt(){
  ctGroup.clear();ctBranchGroup.clear();ctGroup.add(ctBranchGroup);ctSource=null;ctMode=false;ctGroup.visible=false;
 }
 function syncAnatomyMode(){
- group.visible=!ctMode;ctGroup.visible=ctMode;$('ctInspection').hidden=!ctMode;
+ group.visible=!ctMode;ctGroup.visible=ctMode;$('ctInspection').hidden=!ctMode;$('anatomicalAtlas').hidden=ctMode;
  $('anatomyMode').value=ctMode?'ct':'reference';
  $('anatomyProvenance').textContent=ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'PROCEDURAL REFERENCE · NOT CT-DERIVED';
  // The R3/R5 models remain derived from the source reference graph.
@@ -182,6 +189,7 @@ async function loadAirways(){
   draw();
  }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;$('networkStatus').textContent='Network unavailable';}
 }
+validateAtlas();
 loadAirways();
 $('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&ctMode)$('restoreReference').click()});
 $('restoreReference').onclick=()=>{
@@ -260,6 +268,12 @@ result=experiment.after;for(const row of result.regions){const m=meshes[row.id];
 airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
 $('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
 $('burdenText').textContent=$('burden').value+'%';
+const detail=describeLobe(selected);
+$('atlasSegmentCount').textContent=String(detail.segments.length);
+$('atlasSegments').textContent=detail.segments.map(x=>x.id.replace(/^[RL]-/,'')+' · '+x.name).join('  |  ');
+$('atlasFissures').textContent=detail.fissures.map(x=>x.name).join(' · ')||'No fissure recorded';
+$('atlasVessels').textContent=detail.vessels.map(x=>x.name).join(' · ')||'No vascular relation recorded';
+$('anatomicalAtlas').hidden=ctMode;
 const r=result.regions.find(x=>x.id===selected);$('selected').textContent=r.label+' lobe';$('regionNote').textContent='Region '+r.id+' · dimensionless experimental state';
 $('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').textContent=r.radiusIndex.toFixed(3);
 $('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
