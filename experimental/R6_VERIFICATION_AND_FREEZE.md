@@ -73,3 +73,38 @@ The experimental laboratory offers a contextual atlas inspector showing a select
 
 ### Precise scope boundary
 This feature deliberately **does not invent** 3D vessel trajectories, patient fissure locations, alveoli, vascular caliber, distal airway centerlines, realistic lobar surfaces or cancer staging. The 3D reference surfaces remain schematic. The anatomical relationship registry can later serve as the label schema for properly licensed, annotated lung CT segmentations or validated whole-organ 3D models. Before connecting any of those datasets, require image orientation, physical voxel spacing, verified patient consent/rights, robust lobe/segment and vessel correspondence, and anatomical expert review.
+
+## Anatomical surface-atlas loading gate — licensed external meshes
+
+The experimental laboratory now supports a **third mutually exclusive source mode**, separate from both procedural schematic lobes and CT-derived airway segmentation: a non-patient-specific surface atlas with an explicit `pulmosimu-surface-atlas-v1` JSON manifest and a corresponding multi-object GLB. This enables actual imported meshes for known lobar and pulmonary vessel structures **when the operator supplies them with appropriate rights and anatomical provenance**. It does not generate anatomy from names.
+
+The manifest contract lives in `anatomy/surface-atlas.js`. Every registered mesh must map one GLB object name to one declared known lobe or major vessel ID, with its geometry origin, evidence note, license, rights statement, coordinate-frame name, and physical unit (`mm` or `m`). Synthetic browser fixtures use authored boxes/cylinders and are explicitly not anatomical references. Input marked `patientSpecific: true` is rejected in this research-only mode.
+
+Example for a *single* surface object (not a real dataset):
+
+```json
+{
+  "schema": "pulmosimu-surface-atlas-v1",
+  "datasetId": "example-nonclinical",
+  "source": "Insert verified dataset credit",
+  "license": "Insert actual license",
+  "rightsStatement": "Document reuse rights",
+  "coordinateFrame": "source-local",
+  "unit": "mm",
+  "patientSpecific": false,
+  "structures": [{
+    "id": "RUL",
+    "kind": "lobe",
+    "objectName": "mesh_right_upper_lobe",
+    "geometryOrigin": "segmented",
+    "evidence": "Provide curation/segmentation reference",
+    "sourceValidated": false
+  }]
+}
+```
+
+The canvas renders registered structure meshes in their own scene container, with independent lobar and vascular visibility, source details, coverage and a structure picker. It applies a **display-only fit transform** for camera framing; it does not reinterpret the GLB as registered to the procedural or CT frame. The original physical unit is retained in the manifest and inspector, not inferred from display scale. All R3–R5 numerical outputs remain based on the separate reference airway graph and are explicitly labeled **not computed from the loaded surfaces**.
+
+A syntactically valid manifest and matching object names **cannot certify anatomical correctness or same-frame alignment**. The loader does not infer missing lung lobes, fissure surfaces, missing vessel branches or pulmonary physiology. Automated testing covers declared object coverage, missing mesh names, identity consistency, unit provenance, simulated browser import, visibility controls, rejected patient-specific replacement and return-to-reference. The code includes no upload endpoint; nevertheless, external CDN dependencies and an unreviewed public client mean **identifiable patient data must not be loaded**.
+
+To advance from this loader to scientifically valid organ geometry, choose an appropriately licensed anatomically segmented reference CT/MRI atlas with five lobar surfaces and independently validated vessel segmentation, verify its coordinate frame and orientation, and complete a visual/quantitative morphology review. Merely importing a GLB is **not** that validation.
