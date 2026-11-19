@@ -32,6 +32,8 @@ jobs:
           git diff --exit-code origin/main -- index.html pipeline.py server.py synthetic.py
   browser-smoke:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
     permissions:
       contents: read
     steps:
@@ -43,7 +45,6 @@ jobs:
         working-directory: experimental
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
       - name: Start static repository server
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/pulmosimu-http.log 2>&1 &
