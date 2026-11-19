@@ -183,6 +183,7 @@ async function loadAirways(){
  }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;$('networkStatus').textContent='Network unavailable';}
 }
 loadAirways();
+$('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&ctMode)$('restoreReference').click()});
 $('restoreReference').onclick=()=>{
  disposeCt();syncAnatomyMode();$('ctStatus').textContent='Reference model active. CT geometry cleared from memory.';
  camera.near=.1;camera.far=100;camera.updateProjectionMatrix();camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
