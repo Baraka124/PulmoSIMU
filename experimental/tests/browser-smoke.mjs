@@ -37,6 +37,30 @@ try {
  await page.locator('#toggleAirways').click();
  assert.match(await page.locator('#toggleAirways').innerText(),/Show airway/);
  await page.locator('#resetCamera').click();
+ // Generate a synthetic GLB and PNEUMO·VR metadata pair entirely within Chromium.
+ // This is a browser integration fixture, NOT patient imaging data.
+ await page.evaluate(async()=>{
+   const THREE=await import('three');
+   const {GLTFExporter}=await import('three/addons/exporters/GLTFExporter.js');
+   const scene=new THREE.Scene();
+   scene.add(new THREE.Mesh(new THREE.BoxGeometry(.6,.6,.6),new THREE.MeshStandardMaterial({color:0xb0b0b0})));
+   const binary=await new Promise((resolve,reject)=>new GLTFExporter().parse(scene,resolve,reject,{binary:true}));
+   const meta={version:'pneumovr-1.1',transform:{centre_mm:[0,0,0],scale:2},
+     segments:[
+       {id:10,parent:-1,name:'Trachea',gen:0,pts:[[0,.2,0],[0,0,0]],r0:.08,r1:.07},
+       {id:21,parent:10,name:'Branch',gen:1,pts:[[0,0,0],[.2,-.2,.1]],r0:.06,r1:.04}
+     ]};
+   function assign(id,file){const el=document.getElementById(id),dt=new DataTransfer();dt.items.add(file);el.files=dt.files}
+   assign('ctMetaFile',new File([JSON.stringify(meta)],'synthetic_meta.json',{type:'application/json'}));
+   assign('ctMeshFile',new File([binary],'synthetic_airway.glb',{type:'model/gltf-binary'}));
+ });
+ await page.locator('#loadCt').click();
+ await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/);
+ assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from this CT/);
+ await page.locator('#restoreReference').click();
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
+ assert.match(await page.locator('#ctStatus').innerText(),/cleared/);
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
