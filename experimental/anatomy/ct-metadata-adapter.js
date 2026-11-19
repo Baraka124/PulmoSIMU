@@ -36,7 +36,7 @@ export function adaptCtMetadata(metadata){
  const visited=new Set(),active=new Set();
  function visit(id){if(active.has(id))fail('cyclic graph');if(visited.has(id))fail('multiple parents');active.add(id);visited.add(id);for(const c of children.get(id))visit(c);active.delete(id)}
  visit(rootId);if(visited.size!==raw.length)fail('disconnected components');
- const sorted=[rootId,...raw.map(x=>x.id).filter(x=>x.id!==rootId)];
+ const sorted=[rootId,...raw.map(x=>x.id).filter(id=>id!==rootId)];
  const rename=new Map(sorted.map((id,i)=>[id,i]));
  const nodes=sorted.map(sourceId=>{
   const s=raw.find(x=>x.id===sourceId);
