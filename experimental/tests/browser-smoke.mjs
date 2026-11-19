@@ -40,6 +40,15 @@ try {
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
+ const legacy=await browser.newPage({viewport:{width:1360,height:820}});
+ try {
+   await legacy.goto(host+'/',{waitUntil:'domcontentloaded',timeout:45000});
+   assert.match(await legacy.title(),/PNEUMO/i,'Original surgical application title');
+   assert.ok(await legacy.locator('#c-ext').count()>0,'Original external 3D procedure canvas exists');
+   assert.ok(await legacy.locator('#c-bro').count()>0,'Original bronchoscopic procedure canvas exists');
+   console.log('PASS original surgical application: expected canvases and page preserved');
+ } finally {await legacy.close();}
+
 } finally {
  await browser.close();
 }
