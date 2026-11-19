@@ -13,7 +13,7 @@ page.on('pageerror',error=>errors.push(error.message));
 page.on('console',message=>{if(message.type()==='error'&&!message.text().includes('WebGL'))errors.push(message.text())});
 try {
  await page.goto(host+'/experimental/lab.html',{waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>document.getElementById('networkStatus')?.textContent?.includes('SI-unit'),{timeout:45000});
+ await page.waitForFunction(()=>document.getElementById('networkStatus')?.textContent?.includes('SI-unit'),null,{timeout:45000});
  assert.ok(await page.locator('#lungCanvas').isVisible(),'3D canvas visible');
  const canvas=await page.locator('#lungCanvas').boundingBox();
  assert.ok(canvas?.width>250&&canvas.height>250,'Canvas has nonzero stage dimensions');
@@ -22,7 +22,7 @@ try {
  await page.locator('#scenario').selectOption('asthma');
  await page.locator('#therapy').selectOption('anti_il5');
  await page.locator('#phenotype').selectOption('eosinophilic');
- await page.locator('#days').fill('80');
+ await page.locator('#days').evaluate(el=>{el.value='80';el.dispatchEvent(new Event('input',{bubbles:true}))});
  await page.waitForTimeout(350);
  assert.match(await page.locator('#pathwayNote').innerText(),/eosinophil/i,'R5 pathway readout');
  assert.notEqual(await page.locator('#deltaInfl').innerText(),'—','R5 counterfactual comparison');
