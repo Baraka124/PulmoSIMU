@@ -43,16 +43,19 @@ export function createDiseaseExperiment({
   state=withTumor(state,focusRegion,0.7*severity);
  }
  // Disease spatial patterns modify the pre-existing mechanism strengths.
+ const referenceBaseline={...state.baseline};
+ if(pattern==='focal'&&disease==='bronchiectasis'){
+   state={...state,baseline:Object.fromEntries(Object.keys(referenceBaseline).map(k=>[k,0]))};
+ }
  for(const region of REGIONS){
   const regionFactor=pattern==='focal'?(region.id===focusRegion?1:0):shape[pattern][region.id];
   for(const mechanism of mechanisms){
-   const baseline=state.baseline[mechanism]||0;
+   const baseline=referenceBaseline[mechanism]||0;
    // Differential burden is expressed through a positive regional increment;
    // focal non-tumor disease is attenuated outside the focus via a global-zero base.
    if(pattern==='focal'&&disease==='bronchiectasis'){
     const local=region.id===focusRegion?baseline:baseline*0.12;
     const target=bound(local+(modifiers[mechanism]||0)*(region.id===focusRegion?1:0));
-    state={...state,baseline:{...state.baseline,[mechanism]:0}};
     state=withRegionModifier(state,region.id,mechanism,target);
    }else{
     const localIncrement=bound(baseline*regionFactor*0.35+
