@@ -39,3 +39,14 @@ The initial **R1–R6 experimental software prototype** may be marked *engineeri
 5. Freeze model versions, validation datasets and regression outputs before publishing performance claims.
 
 **After this software freeze, further work should proceed as explicitly scoped and independently testable increments, rather than an unbounded phase sequence.**
+
+## Post-R6 engineering validation increment — anatomy provenance and sensitivity
+
+This increment **does not reopen** the finite R1–R6 feature roadmap; it addresses two outstanding verification gates.
+
+1. `anatomy/ct-metadata-adapter.js` interprets the original PNEUMO·VR `pipeline.py` JSON metadata format, checks positive scaling, validates a single rooted tree, normalizes arbitrary source airway IDs, and computes **metres per display-scene unit as `1 / transform.scale`**. It includes reversible scene⇄patient-mm coordinate conversion. Input patient identifiers and pathology metadata are **not propagated** into the adapter output. There is no automatic client-side patient upload or external sharing.
+2. `core/sensitivity-analysis.js` runs an explicit one-factor-at-a-time ±20% numerical stress test of assumed scene scale, gas viscosity, unmeasured distal resistance and respiratory compliance, ranking the effect on modeled tidal volume. The experimental canvas exposes an **on-demand** sensitivity inspector so it does not add unnecessary visual or runtime burden.
+
+**Important:** The source reference model is *still not converted to measured anatomy*. CT metadata can be mapped to measured SI units **only when the source patient-derived transform exists and its scale is trustworthy**. The R3 solver continues to use reference parameters until a separate, independently reviewed CT-specific region-mapping adapter is built. The R2 graph's fixed-ID lobe mapping is intentionally NOT reused for patient-derived CT IDs. This avoids silently assigning an incorrect lobe or calculating a misleading physiological result.
+
+The sensitivity result is a mathematical stress test around assumed inputs, **not a clinical confidence interval** or validation against spirometry. Its purpose is to reveal dependence on modelling assumptions before anyone interprets simulated changes.
