@@ -184,6 +184,10 @@ updateWorkspaceLinks();
 function setSelected(regionId){
  if(!regions.has(regionId))return;
  selected=regionId;
+ workbench?.selectRegion(regionId);
+ const state=workbench?.snapshot();
+ $('branchName').textContent=state?.branchName||'—';
+ $('branchGeneration').textContent=state?.generation!=null?'G'+state.generation:'—';
  const r=REGIONS.find(x=>x.id===regionId);
  $('selectedId').textContent=regionId;$('selectedRegion').textContent=r?.label+' lobe'||regionId;
  $('branchCount').textContent=graph?String(graph.nodes.filter(n=>graph.regionOf(n.id)===regionId).length):'—';
@@ -192,6 +196,40 @@ function setSelected(regionId){
  updateWorldLabel();
  updateWorkspaceLinks();
  if(graph)buildRoute();
+}
+let airwayMaterial=null,sectionMaterialEnabled=false;
+function updateSectionPlane(){
+ const state=workbench?.snapshot();
+ if(!state)return;
+ sectionGuide.visible=state.sectionActive;
+ if(sectionMaterialEnabled!==state.sectionActive){
+  sectionMaterialEnabled=state.sectionActive;
+  const planes=state.sectionActive?[sectionPlane]:[];
+  for(const material of lobeMaterials.values()){
+   material.clippingPlanes=planes;material.needsUpdate=true;
+  }
+  if(airwayMaterial){airwayMaterial.clippingPlanes=planes;airwayMaterial.needsUpdate=true}
+ }
+ if(!state.sectionActive)return;
+ const localPoint=sectionalLocalPoint({center:sectionBounds.center,depth:sectionBounds.depth,fraction:state.sectionFraction});
+ sectionGuide.position.set(...localPoint);
+ layers.updateWorldMatrix(true,false);
+ const normal=new THREE.Vector3(0,0,1).transformDirection(layers.matrixWorld);
+ const origin=layers.localToWorld(new THREE.Vector3(...localPoint));
+ sectionPlane.setFromNormalAndCoplanarPoint(normal,origin);
+}
+function setSectionFraction(v){
+ if(!workbench)return;
+ const value=workbench.setSectionFraction(v);
+ $('sectionPosition').value=String(Math.round(value*100));
+ $('sectionPercent').textContent=(value>=0?'+':'')+Math.round(value*100)+'%';
+ updateSectionPlane();
+}
+function moveSection(delta){if(workbench)setSectionFraction(workbench.moveSection(delta))}
+function nextAirwayBranch(){
+ if(!workbench)return;
+ workbench.nextBranch(1);
+ setSelected(workbench.snapshot().regionId);
 }
 const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=164;
 const labelContext=labelCanvas.getContext('2d');
@@ -209,7 +247,8 @@ function updateWorldLabel(){
 async function buildReference(){
  const loaded=await fetchReferenceAirwayGraph();
  graph=loaded;
- const airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.87,transparent:true,opacity:.87,side:THREE.DoubleSide});
+ workbench=createAnatomicalWorkbench(graph,{initialRegion:selected});
+ airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.87,transparent:true,opacity:.87,side:THREE.DoubleSide});
  for(const node of graph.nodes){
    const pts=node.points.map(p=>new THREE.Vector3(...p));
    const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
@@ -239,7 +278,8 @@ async function buildReference(){
 
 function buildRoute(){
  if(!graph)return;
- const leaf=graph.nodes.filter(n=>n.children.length===0&&graph.regionOf(n.id)===selected)
+ const chosen=workbench?.snapshot().branchId;
+ const leaf=chosen!=null?graph.get(chosen):graph.nodes.filter(n=>n.children.length===0&&graph.regionOf(n.id)===selected)
    .sort((a,b)=>b.generation-a.generation||a.id-b.id)[0];
  if(!leaf){routeCurve=null;routeGroup.visible=false;return}
  const coords=[];
@@ -271,7 +311,7 @@ function applyAppearance(){
    mat.emissive.set(id===selected?0x39252b:id===hoveredRegion?0x172f36:0x090c0e);
    mat.emissiveIntensity=id===hoveredRegion?.62:.24;
  }
- routeGroup.visible=mode==='path'&&Boolean(routeCurve);
+ routeGroup.visible=(mode==='path'||mode==='section')&&Boolean(routeCurve);
 }
 function hoverRegion(raycaster){
  const hit=raycaster?.intersectObjects([...airwayGroup.children,...regions.values()],false)
@@ -281,13 +321,18 @@ function hoverRegion(raycaster){
  return next;
 }
 function setMode(next){
- if(!['anatomy','path'].includes(next))return;
+ if(!['anatomy','path','section'].includes(next))return;
  mode=next;
  $('modeAnatomy').setAttribute('aria-pressed',String(next==='anatomy'));
  $('modeAirway').setAttribute('aria-pressed',String(next==='path'));
+ $('modeSection').setAttribute('aria-pressed',String(next==='section'));
+ workbench?.setSection(next==='section');
+ updateSectionPlane();
+ $('sectionControls').classList.toggle('active',next==='section');
  $('routeControls').classList.toggle('active',next==='path');
  $('modeExplanation').textContent=next==='path'?
   'Airway guide: the joystick advances a route marker, never your head. Open Procedures for the original bronchoscopy simulator.':
+  next==='section'?'Display-only section: left thumbstick sweeps a plane through the reference geometry. No tissue cutting or calibrated depth.':
   'In Quest: side grips hold the lungs. Both grips rotate and resize. Triggers select structures.';
  applyAppearance();
 }
@@ -316,6 +361,7 @@ function pick(raycaster){
  const hit=hits.find(h=>h.object.visible&&h.object.userData.regionId);
  if(hit){
   const wasSelected=selected;
+  if(Number.isInteger(hit.object.userData.branchId))workbench?.selectBranch(hit.object.userData.branchId);
   setSelected(hit.object.userData.regionId);
   if(wasSelected!==selected)emitFocus();
   return hit.object.userData.regionId;
@@ -353,12 +399,20 @@ const rig=createSpatialRig({
  onIsolate:toggleIsolate,
  onProcedure:()=>window.location.assign(studioHref('procedure')),
  onRouteStep:delta=>setRouteProgress(routeProgress+delta),
+ onSectionStep:moveSection,
+ onNextBranch:nextAirwayBranch,
  getInfo:()=>({region:selected,
    name:REGIONS.find(r=>r.id===selected)?.label||selected,
-   isolated,progress:Math.round(routeProgress*100)})
+   isolated,progress:Math.round(routeProgress*100),
+   branch:workbench?.snapshot().branchName||'—',
+   generation:workbench?.snapshot().generation,
+   section:workbench?.snapshot().sectionFraction||0})
 });
 $('modeAnatomy').addEventListener('click',()=>rig.setMode('anatomy'));
 $('modeAirway').addEventListener('click',()=>rig.setMode('path'));
+$('modeSection').addEventListener('click',()=>rig.setMode('section'));
+$('nextBranch').addEventListener('click',nextAirwayBranch);
+$('sectionPosition').addEventListener('input',()=>setSectionFraction(Number($('sectionPosition').value)/100));
 $('isolateLobe').addEventListener('click',toggleIsolate);
 $('panelToggle').addEventListener('click',()=>{
  const visible=!rig.getPanelVisible();
@@ -370,6 +424,7 @@ $('routeProgress').addEventListener('input',()=>setRouteProgress(Number($('route
 $('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy')});
 window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
+ workbench:workbench?.snapshot()||null,
  geometrySources:{airways:REFERENCE_SOURCE,lobes:SCHEMATIC_SOURCE,physicalScaleValidated:false},
  version:'XR-05-SPATIAL-INTERACTIONS'});
 const container=$('enterVR');
@@ -418,6 +473,7 @@ renderer.setAnimationLoop((time,frame)=>{
  const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
  if(renderer.xr.isPresenting)rig.update(dt,frame);
  else controls.update();
+ updateSectionPlane();
  // Web page annotations are redundant in VR. In-headset spatial inspector
  // remains world-anchored and never follows the user's controller grips.
  panel.visible=!renderer.xr.isPresenting;
