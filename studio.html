@@ -25,16 +25,18 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <div class="eyebrow">Work environment</div>
 <button type="button" class="mode" id="modeProcedure" aria-pressed="true"><strong>Procedural simulation</strong><small>Virtual bronchoscopy, navigation and surgical planning</small></button>
 <button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional physiology, disease, therapy and anatomical inspection</small></button>
-<a href="./experimental/vr.html" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Immersive anatomy · Quest 2 ↗</a>
-<div class="foot">Experimental research platform.<p>Reference-lobe focus is shared between procedural and mechanistic workspaces. Immersive anatomy opens as a separate, experimental headset page.</p>Not clinically validated.</div>
+<button type="button" class="mode" id="modeXR" aria-pressed="false"><strong>Spatial anatomy · XR</strong><small>Quest 2 anatomy, model manipulation and reference-airway guide</small></button>
+<a href="./experimental/vr.html" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open immersive Quest view ↗</a>
+<div class="foot">Experimental research platform.<p>The five-lobe reference focus is shared across procedures, mechanisms and XR. Headset mode may be opened directly for immersive WebXR. CT-derived geometry and patient data never cross this bridge.</p>Not clinically validated.</div>
 </aside>
 <main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
-<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./procedural-workspace.html" allow="camera" referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">Original procedural engine preserved; work area controls are progressively disclosed.</div></div>
+<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./procedural-workspace.html" allow="camera; fullscreen; xr-spatial-tracking" allowfullscreen referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">Original procedural engine preserved; work area controls are progressively disclosed.</div></div>
 </main></div>
 <script>
 const modes={
  procedure:{src:'./procedural-workspace.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
- mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Regional anatomy · airflow · disease · therapeutic experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Prototype research calculations. No patient-specific treatment prediction or verified full-organ reconstruction.'}
+ mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Regional anatomy · airflow · disease · therapeutic experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Prototype research calculations. No patient-specific treatment prediction or verified full-organ reconstruction.'},
+ xr:{src:'./experimental/vr.html',title:'Spatial anatomy laboratory',subtitle:'Quest 2 · object manipulation · airway guide',context:'XR / REFERENCE SOURCE',note:'Shared reference-lobe selection with other workspaces. For the most reliable headset entry, use Open immersive Quest view.'}
 };
 let current='procedure';
 function activate(which){
@@ -42,6 +44,7 @@ function activate(which){
  current=which;const m=modes[which];
  document.getElementById('modeProcedure').setAttribute('aria-pressed',String(which==='procedure'));
  document.getElementById('modeMechanisms').setAttribute('aria-pressed',String(which==='mechanisms'));
+ document.getElementById('modeXR').setAttribute('aria-pressed',String(which==='xr'));
  document.getElementById('workspaceTitle').textContent=m.title;
  document.getElementById('workspaceSubtitle').textContent=m.subtitle;
  document.getElementById('workspaceContext').textContent=m.context;
@@ -50,12 +53,24 @@ function activate(which){
 }
 document.getElementById('modeProcedure').addEventListener('click',()=>activate('procedure'));
 document.getElementById('modeMechanisms').addEventListener('click',()=>activate('mechanisms'));
+document.getElementById('modeXR').addEventListener('click',()=>activate('xr'));
 </script>
 <script type="module">
 import {readFocus,createFocus} from './experimental/shared/reference-focus.js';
+import {readWorkspaceLaunch,WORKSPACES} from './experimental/shared/workspace-route.js';
 const frame=document.getElementById('workspaceFrame');
 const status=document.getElementById('workspaceContext');
+const xrLink=document.getElementById('launchXR');
+const initial=readWorkspaceLaunch(location.search);
 let focus=null,revision=0;
+if(initial.regionId)focus=createFocus({regionId:initial.regionId,origin:'studio',revision:++revision});
+if(initial.mode!=='procedure')activate(initial.mode);
+function updateQuestLink(){
+ const url=new URL('./experimental/vr.html',location.href);
+ if(focus?.regionId)url.searchParams.set('focus',focus.regionId);
+ xrLink.href=url.toString();
+}
+updateQuestLink();
 function transmit(){
  if(!focus||!frame.contentWindow)return;
  frame.contentWindow.postMessage(focus,location.origin);
@@ -65,13 +80,13 @@ window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==frame.contentWindow)return;
  const incoming=readFocus(event.data);
  if(!incoming)return;
- const expected=frame.getAttribute('src')==='./experimental/lab.html'?'mechanistic':
-   frame.getAttribute('src')==='./procedural-workspace.html'?'procedural':null;
+ const expected=WORKSPACES[current]?.origin||null;
  if(!expected||incoming.origin!==expected)return;
  if(focus?.regionId===incoming.regionId&&focus.branchId===incoming.branchId)return;
  focus=createFocus({regionId:incoming.regionId,branchId:incoming.branchId,
    origin:'studio',revision:++revision});
  status.textContent='REFERENCE '+focus.regionId+' · SHARED FOCUS ONLY';
+ updateQuestLink();
  transmit();
 });
 </script></body></html>
