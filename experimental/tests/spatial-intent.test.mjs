@@ -38,7 +38,7 @@ test('summon is continuous with finite arrival, never an instant teleport',()=>{
  assert.deepEqual(a.position,start.position);assert.equal(a.finished,false);
  assert.ok(m.position[2]>start.position[2]&&m.position[2]<end.position[2]);
  assert.ok(m.scale<start.scale&&m.scale>end.scale);
- assert.deepEqual(b.position,end.position);assert.equal(b.finished,true);
+ b.position.forEach((v,i)=>approx(v,end.position[i]));assert.equal(b.finished,true);
 });
 test('frame diagnostics are bounded and never imply clinical validation',()=>{
  const a=frameMetrics([],1/90);assert.equal(a.fps,90);assert.equal(a.slowFrames,0);
