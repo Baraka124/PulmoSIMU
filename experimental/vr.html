@@ -52,7 +52,7 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
  #routeProgress{width:75px}
 }
 </style></head><body>
-<main><header><div class="brand">PulmoSIMU <small>XR-04 · SPATIAL ANATOMY LAB</small></div><span class="meta">XR-04 · SEATED COMFORT FIT · Not clinically validated</span></header>
+<main><header><div class="brand">PulmoSIMU <small>XR-05 · SPATIAL INTERACTIONS</small></div><span class="meta">XR-05 · Near + far interaction · Not clinically validated</span></header>
 <div class="stage"><canvas id="stageCanvas" aria-label="Interactive anatomical model"></canvas>
 <section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Use controllers to handle and examine the anatomy. Switch deliberately between exterior exploration and airway-route inspection.</p><p class="notes">Source: original PulmoSIMU airway reference and schematic lobe envelopes. Not measured or patient-specific anatomy.</p></section>
 <div class="workspace-actions" aria-label="Spatial mode and object controls">
@@ -72,7 +72,7 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
-import {createSpatialRig} from './xr/controller-rig.js?xr04=20261120-2';
+import {createSpatialRig} from './xr/controller-rig.js?xr05=20261120-1';
 import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {REGIONS} from './core/mechanistic-lung.js';
@@ -276,6 +276,20 @@ function toggleIsolate(){
  $('isolateLobe').textContent=isolated?'Show all lobes':'Isolate lobe';
  applyAppearance();
 }
+function touchNearby(point,radius=.19){
+ if(!point?.isVector3)return null;
+ let best=null,bestDistance=radius;
+ for(const mesh of [...airwayGroup.children,...regions.values()]){
+   if(!mesh.visible||!mesh.userData.regionId||!mesh.geometry)continue;
+   const box=new THREE.Box3().setFromObject(mesh);
+   const distance=box.distanceToPoint(point);
+   if(distance<bestDistance){bestDistance=distance;best=mesh}
+ }
+ if(!best)return null;
+ const regionId=best.userData.regionId;
+ if(regionId!==selected){setSelected(regionId);emitFocus()}
+ return regionId;
+}
 function pick(raycaster){
  // Raycast airway before transparent lobe surfaces for usable selection.
  const hits=raycaster.intersectObjects([...airwayGroup.children,...regions.values()],false);
@@ -313,6 +327,7 @@ const rig=createSpatialRig({
  renderer,scene,camera,anatomy,
  onSelect:ray=>pick(ray),
  onHover:ray=>hoverRegion(ray),
+ onTouch:(point,radius)=>touchNearby(point,radius),
  onMode:setMode,
  onReset:resetExperience,
  onIsolate:toggleIsolate,
@@ -335,7 +350,7 @@ $('routeProgress').addEventListener('input',()=>setRouteProgress(Number($('route
 $('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy')});
 window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
- version:'XR-04-COMFORT-FIT'});
+ version:'XR-05-SPATIAL-INTERACTIONS'});
 const container=$('enterVR');
 const vrButton=VRButton.createButton(renderer);
 container.append(vrButton);
