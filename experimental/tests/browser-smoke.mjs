@@ -205,6 +205,28 @@ try {
   assert.ok(status.originalAnatomyMeshes>=15,'Original lobed lungs and bronchial anatomy, not the five schematic fallback lobes');
   assert.ok(status.originalSegments>=15,'Original procedural bronchial tree is connected');
   assert.ok(status.originalPathologyCount>=3,'Original pathology objects are retained');
+  assert.equal(status.sourceAudit,null,'Reference-only scene cannot claim CT co-registration');
+  assert.equal(status.sourceScaleEligible,false,'Reference scene cannot claim physical scene scale');
+  assert.ok(status.clearance?.wallContactSimulated===false,'Lumen estimate is not tissue mechanics');
+  const coframe=await proceduralXR.evaluate(()=>{
+    const metadata={version:'pneumovr-1.1',transform:{centre_mm:[0,0,0],scale:4},
+     segments:[{id:5,parent:-1,r0:.06,r1:.05,pts:[[0,.3,0],[0,0,0]]}]};
+    const bounds={min:[-.4,-.2,-.3],max:[.4,.7,.3]};
+    return window.PulmoXR08.assessRegistration(metadata,bounds);
+  });
+  assert.equal(coframe.status,'coframed','Browser classic-script CT registration contract available');
+  assert.equal(coframe.sceneUnitMetres,.25);
+  assert.equal(coframe.modelToPatientRegistrationValidated,false);
+  const originalCount=status.originalSegments;
+  await proceduralXR.evaluate(()=>{
+    window._applyPatientMeta({version:'pneumovr-1.1',
+      transform:{centre_mm:[0,0,0],scale:4},
+      segments:[{id:5,parent:-1,r0:.06,r1:.05,pts:[[0,.3,0],[0,0,0]]}]});
+  });
+  const afterReject=await proceduralXR.evaluate(()=>window.pulmoProceduralXRDebug());
+  assert.equal(afterReject.originalSegments,originalCount,
+   'Without a valid GLB, patient metadata must be rejected before touching original procedure graph');
+  assert.equal(afterReject.sourceAudit,null);
   assert.equal(await proceduralXR.locator('#pulmo-procedural-xr').count(),1,'Dedicated immersive original-engine entry is mounted');
   assert.equal(await proceduralXR.locator('#sbtn').count(),1,'Original desktop splash and clinical workflow are preserved');
   assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
