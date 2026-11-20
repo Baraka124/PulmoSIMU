@@ -184,8 +184,8 @@ export function createSpatialRig({
   }
   function placePanel(){
     if(!headPose())return;
-    panel.position.copy(headPosition).addScaledVector(headForward,1.42)
-      .addScaledVector(headRight,.83);
+    panel.position.copy(headPosition).addScaledVector(headForward,1.28)
+      .addScaledVector(headRight,.59);
     panel.position.y-=.05;
     panel.lookAt(headPosition);
     panel.visible=renderer.xr.isPresenting&&menuVisible;
@@ -214,7 +214,8 @@ export function createSpatialRig({
       anatomy.quaternion.identity();
       anatomy.scale.setScalar(1);
     }
-    grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
+    grabbing.fill(false);grabbingSource.fill(null);
+    twoHandStart=null;handAnchors.fill(null);transition=null;
     if(renderer.xr.isPresenting)placePanel();
     onReset?.();
     return true;
@@ -261,6 +262,7 @@ export function createSpatialRig({
     const session=renderer.xr.getSession(),space=renderer.xr.getReferenceSpace();
     if(!session||!frame?.getJointPose||!space)return;
     const seen=[false,false];
+    handSeen.fill(false); // joint tracking validity must be refreshed each XRFrame
     for(const source of session.inputSources){
       if(!source.hand)continue;
       const i=source.handedness==='left'?0:source.handedness==='right'?1:-1;
@@ -353,7 +355,8 @@ export function createSpatialRig({
   function setMode(next){
     if(!['anatomy','path'].includes(next)||next===mode)return;
     mode=next;
-    grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
+    grabbing.fill(false);grabbingSource.fill(null);
+    transition=null;twoHandStart=null;handAnchors.fill(null);
     onMode?.(next);drawPanel(true);
   }
   function setPanelVisible(visible){
@@ -399,6 +402,13 @@ export function createSpatialRig({
   }
   function trigger(controller,source){
     if(mode==='anatomy'&&grabbing.some(Boolean))return;
+    // Quest hand selectstart is also a pinch event. Give spatial panel
+    // priority and leave anatomy pinch to the direct-contact joint path.
+    if(source?.hand){
+      const action=actionHit(pointerRay(controller));
+      if(action)perform(action);
+      return;
+    }
     const ray=pointerRay(controller),action=actionHit(ray);
     const picked=action?(perform(action),true):Boolean(onSelect?.(ray,mode));
     if(picked&&!action&&mode==='anatomy'){
@@ -469,7 +479,7 @@ export function createSpatialRig({
       else welcome.restart();
     }catch{welcome.restart()}
     grabbing.fill(false);grabbingSource.fill(null);pinching.fill(false);
-    handSeen.fill(false);transition=null;metricsSamples=[];handAnchors.fill(null);twoHandStart=null;
+    handSeen.fill(false);transition=null;metricsSamples=[];metrics={fps:null,p95Ms:null,slowFrames:0};handAnchors.fill(null);twoHandStart=null;
     handMarkers.forEach(m=>m.visible=false);
     panel.visible=false;
   });
