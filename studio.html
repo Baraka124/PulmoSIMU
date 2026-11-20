@@ -26,7 +26,7 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <button type="button" class="mode" id="modeProcedure" aria-pressed="true"><strong>Procedural simulation</strong><small>Virtual bronchoscopy, navigation and surgical planning</small></button>
 <button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional physiology, disease, therapy and anatomical inspection</small></button>
 <button type="button" class="mode" id="modeXR" aria-pressed="false"><strong>Spatial anatomy · XR</strong><small>Quest 2 anatomy, model manipulation and reference-airway guide</small></button>
-<a href="./experimental/vr.html" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open immersive Quest view ↗</a>
+<a href="./quest.html" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open immersive Quest view ↗</a>
 <div class="foot">Experimental research platform.<p>The five-lobe reference focus is shared across procedures, mechanisms and XR. Headset mode may be opened directly for immersive WebXR. CT-derived geometry and patient data never cross this bridge.</p>Not clinically validated.</div>
 </aside>
 <main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
@@ -66,7 +66,7 @@ let focus=null,revision=0;
 if(initial.regionId)focus=createFocus({regionId:initial.regionId,origin:'studio',revision:++revision});
 if(initial.mode!=='procedure')activate(initial.mode);
 function updateQuestLink(){
- const url=new URL('./experimental/vr.html',location.href);
+ const url=new URL('./quest.html',location.href);
  if(focus?.regionId)url.searchParams.set('focus',focus.regionId);
  xrLink.href=url.toString();
 }
@@ -76,6 +76,8 @@ function transmit(){
  frame.contentWindow.postMessage(focus,location.origin);
 }
 frame.addEventListener('load',transmit);
+// Frame may complete before the Studio module executes on a fast or cached device.
+if(frame.contentDocument?.readyState==='complete')transmit();
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==frame.contentWindow)return;
  const incoming=readFocus(event.data);
