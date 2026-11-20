@@ -114,7 +114,7 @@ export function createSpatialRig({
     rect(65,305,894,95,'rgba(42,66,77,.42)',null,10);
     ctx.fillStyle='#cfdee3';ctx.font='29px system-ui';
     ctx.fillText(mode==='path'?'LEFT STICK: ADVANCE ROUTE   ·   NO CAMERA MOTION':
-      'SIDE GRIP: HOLD   ·   BOTH GRIPS: RESIZE & ROTATE',89,361);
+      'TRIGGER: SUMMON    ·    NEAR GRIP: HOLD & ROTATE',89,361);
     for(const a of activeActions()){
       const active=a.id===mode || (a.id==='isolate'&&info.isolated);
       const hovered=hoverAction===a.id;
@@ -124,7 +124,7 @@ export function createSpatialRig({
       ctx.font='600 34px system-ui';ctx.fillText(a.label,a.x+26,a.y+68);
     }
     ctx.fillStyle='#b7cad2';ctx.font='29px system-ui';
-    ctx.fillText('TRIGGER: SELECT    ·    A: TOGGLE PANEL    ·    B: SWITCH MODE',65,877);
+    ctx.fillText('TRIGGER: SELECT / SUMMON   ·   SIDE GRIP: NEAR HOLD',65,877);
     ctx.fillStyle='#94aeb8';ctx.font='25px system-ui';
     ctx.fillText('PROCEDURAL REFERENCE  ·  NOT VALIDATED HUMAN ANATOMY',65,933);
     tex.needsUpdate=true;
@@ -223,7 +223,7 @@ export function createSpatialRig({
     if(!headPose())return;
     const offset=tmpVec.copy(anatomy.position).sub(headPosition);
     const distance=offset.length();
-    const minDistance=Math.max(1.25,.85+Math.max(...(firstFrameBounds?.size||[1,1,1]))*anatomy.scale.x*.38);
+    const minDistance=Math.max(.52,.42+Math.max(...(firstFrameBounds?.size||[1,1,1]))*anatomy.scale.x*.28);
     if(distance<minDistance||distance>3.5){
       if(distance<.001)offset.copy(headForward);
       offset.normalize().multiplyScalar(THREE.MathUtils.clamp(distance,minDistance,3.5));
@@ -299,33 +299,43 @@ export function createSpatialRig({
     }
   }
   function captureHandAnchor(index){
-    const grip=grips[index];grip.updateMatrixWorld(true);
+    const grip=activeGrip(index);grip.updateMatrixWorld(true);
     anatomy.updateMatrixWorld(true);
     handAnchors[index]=new THREE.Matrix4().copy(grip.matrixWorld).invert().multiply(anatomy.matrixWorld);
   }
-  function beginGesture(index){
-    if(mode!=='anatomy'||!renderer.xr.isPresenting)return;
-    grabbing[index]=true;grips[index].updateMatrixWorld(true);
+  function beginGesture(index,source='controller'){
+    if(mode!=='anatomy'||!renderer.xr.isPresenting||grabbing[index])return false;
+    if(grabbingSource[index]&&grabbingSource[index]!==source)return false;
+    const grip=source==='hand'?handProxies[index]:grips[index];
+    if(!grip)return false;
+    grip.updateMatrixWorld(true);
+    const point=grip.getWorldPosition(new THREE.Vector3());
+    if(decideInteraction({surfaceDistanceM:surfaceDistance(point)})!=='near')return false;
+    transition=null;
+    grabbing[index]=true;grabbingSource[index]=source;
     if(grabbing[0]&&grabbing[1]){
       anatomy.updateMatrixWorld(true);
-      const left=grips[0].getWorldPosition(new THREE.Vector3()),right=grips[1].getWorldPosition(new THREE.Vector3());
+      const left=activeGrip(0).getWorldPosition(new THREE.Vector3());
+      const right=activeGrip(1).getWorldPosition(new THREE.Vector3());
       twoHandStart={left:left.toArray(),right:right.toArray(),position:anatomy.position.toArray(),
         quaternion:anatomy.quaternion.toArray(),scale:anatomy.scale.x};
     }else{twoHandStart=null;captureHandAnchor(index)}
     drawPanel(true);
+    return true;
   }
   function endGesture(index){
-    if(!grabbing[index])return;
+    if(!grabbing[index]){grabbingSource[index]=null;return}
     grabbing[index]=false;twoHandStart=null;handAnchors[index]=null;
+    grabbingSource[index]=null;
     const other=index?0:1;
     if(grabbing[other])captureHandAnchor(other);
   }
   function updateGrabs(){
     if(!renderer.xr.isPresenting||mode!=='anatomy')return;
     if(grabbing[0]&&grabbing[1]&&twoHandStart){
-      grips.forEach(g=>g.updateMatrixWorld(true));
-      const left=grips[0].getWorldPosition(new THREE.Vector3()).toArray();
-      const right=grips[1].getWorldPosition(new THREE.Vector3()).toArray();
+      activeGrip(0).updateMatrixWorld(true);activeGrip(1).updateMatrixWorld(true);
+      const left=activeGrip(0).getWorldPosition(new THREE.Vector3()).toArray();
+      const right=activeGrip(1).getWorldPosition(new THREE.Vector3()).toArray();
       const pose=bimanualPose(twoHandStart,left,right,scaleLimits);
       anatomy.position.fromArray(pose.position);
       anatomy.quaternion.fromArray(pose.quaternion);
@@ -334,8 +344,8 @@ export function createSpatialRig({
     }else{
       const i=grabbing[0]?0:grabbing[1]?1:-1;
       if(i<0||!handAnchors[i])return;
-      grips[i].updateMatrixWorld(true);
-      tmpMatrix.multiplyMatrices(grips[i].matrixWorld,handAnchors[i]);
+      activeGrip(i).updateMatrixWorld(true);
+      tmpMatrix.multiplyMatrices(activeGrip(i).matrixWorld,handAnchors[i]);
       tmpMatrix.decompose(anatomy.position,anatomy.quaternion,anatomy.scale);
       keepComfortable();
     }
@@ -391,6 +401,10 @@ export function createSpatialRig({
     if(mode==='anatomy'&&grabbing.some(Boolean))return;
     const ray=pointerRay(controller),action=actionHit(ray);
     const picked=action?(perform(action),true):Boolean(onSelect?.(ray,mode));
+    if(picked&&!action&&mode==='anatomy'){
+      const hand=controller.getWorldPosition(new THREE.Vector3());
+      if(decideInteraction({surfaceDistanceM:surfaceDistance(hand),rayHit:true})==='far')startSummon();
+    }
     if(picked){
       // Haptics are optional on the Quest WebXR Gamepad API; a missing motor
       // must never prevent selection or make controller input fail.
@@ -404,6 +418,12 @@ export function createSpatialRig({
     drawPanel(true);
   }
   for(let i=0;i<2;i++){
+    const proxy=new THREE.Group();scene.add(proxy);handProxies.push(proxy);
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(.008,10,8),
+      new THREE.MeshBasicMaterial({color:0xb7d9df,transparent:true,opacity:.85,depthTest:false}));
+    marker.visible=false;marker.renderOrder=31;scene.add(marker);handMarkers.push(marker);
+  }
+  for(let i=0;i<2;i++){
     const controller=renderer.xr.getController(i),grip=renderer.xr.getControllerGrip(i);
     scene.add(controller);scene.add(grip);controllers.push(controller);grips.push(grip);
     const beam=new THREE.Line(
@@ -415,7 +435,7 @@ export function createSpatialRig({
       controller.userData.handedness=event.data?.handedness||null;
     });
     controller.addEventListener('selectstart',event=>trigger(controller,event.data));
-    controller.addEventListener('squeezestart',()=>beginGesture(i));
+    controller.addEventListener('squeezestart',()=>beginGesture(i,'controller'));
     controller.addEventListener('squeezeend',()=>endGesture(i));
     controller.addEventListener('disconnected',()=>endGesture(i));
   }
@@ -448,11 +468,15 @@ export function createSpatialRig({
       if(sessionStorage.getItem('pulmosimu.xr.tour.completed')==='1')welcome.skip();
       else welcome.restart();
     }catch{welcome.restart()}
-    grabbing.fill(false);handAnchors.fill(null);twoHandStart=null;
+    grabbing.fill(false);grabbingSource.fill(null);pinching.fill(false);
+    handSeen.fill(false);transition=null;metricsSamples=[];handAnchors.fill(null);twoHandStart=null;
+    handMarkers.forEach(m=>m.visible=false);
     panel.visible=false;
   });
   renderer.xr.addEventListener('sessionend',()=>{
-    started=false;validViewerPose=false;grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
+    started=false;validViewerPose=false;grabbing.fill(false);grabbingSource.fill(null);
+    pinching.fill(false);transition=null;twoHandStart=null;handAnchors.fill(null);
+    handMarkers.forEach(m=>m.visible=false);
     panel.visible=false;mode='anatomy';onMode?.('anatomy');
     anatomy.position.set(0,1.27,-1.38);anatomy.quaternion.identity();anatomy.scale.setScalar(1);
   });
@@ -460,7 +484,9 @@ export function createSpatialRig({
     if(!renderer.xr.isPresenting)return;
     if(!readViewerPose(frame))return; // do not guess placement from desktop camera
     if(!started){started=true;recenter()}
-    pollGamepads(dt);updateGrabs();
+    const measurement=frameMetrics(metricsSamples,dt,90);
+    metricsSamples=measurement.samples;metrics={fps:measurement.fps,p95Ms:measurement.p95Ms,slowFrames:measurement.slowFrames};
+    pollGamepads(dt);readHands(frame);updateTransition(dt);updateGrabs();
     // Keep this static readable panel in world space; don't attach it to hands.
     drawPanel();
     const hovered=controllers.map(c=>actionHit(pointerRay(c))).find(Boolean)||null;
@@ -473,6 +499,9 @@ export function createSpatialRig({
     getMode:()=>mode,getPanelVisible:()=>menuVisible,
     debugState:()=>({mode,menuVisible,grabbing:[...grabbing],scale:anatomy.scale.x,started,
       validViewerPose,firstFrame,firstFrameBounds,tour:welcome.get(),
+      metrics,transition:transition?{elapsed:transition.elapsed,duration:transition.duration}:null,
+      intent:grabbing.some(Boolean)?'near-grab':transition?'summoning':'idle',
+      handTracking:handSeen.slice(),grabbingSource:grabbingSource.slice(),
       modelPosition:anatomy.position.toArray(),headPosition:headPosition.toArray(),
       hands:controllers.map(c=>c.userData.handedness||null)})};
 }
