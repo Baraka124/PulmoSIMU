@@ -75,6 +75,7 @@ import {VRButton} from 'three/addons/webxr/VRButton.js';
 import {createSpatialRig} from './xr/controller-rig.js?xr05=20261120-1';
 import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
+import {anatomyObjectRecord,tagAnatomyObject,REFERENCE_SOURCE,SCHEMATIC_SOURCE} from './anatomy/object-contract.js';
 import {REGIONS} from './core/mechanistic-lung.js';
 import {createFocus,readFocus} from './shared/reference-focus.js';
 import {safeReferenceRegion} from './shared/workspace-route.js';
@@ -125,6 +126,7 @@ for(const l of lobeShapes){
  const material=new THREE.MeshStandardMaterial({color:0x9e8587,roughness:.93,metalness:0,transparent:true,opacity:.38,depthWrite:false,side:THREE.DoubleSide});
  const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...l.pos);mesh.scale.set(...l.size);mesh.rotation.z=l.angle;
  mesh.userData.regionId=l.id;mesh.userData.kind='schematic-lobe';
+ tagAnatomyObject(mesh,anatomyObjectRecord({sourceId:SCHEMATIC_SOURCE,role:'lobe',regionId:l.id}));
  layers.add(mesh);meshes.push(mesh);regions.set(l.id,mesh);lobeMaterials.set(l.id,material);
 }
 const airwayGroup=new THREE.Group();layers.add(airwayGroup);
@@ -210,7 +212,9 @@ async function buildReference(){
    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
    g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));g.setIndex(triangles);
    const mesh=new THREE.Mesh(g,airwayMaterial);mesh.userData.regionId=graph.regionOf(node.id);
-   mesh.userData.branchId=node.id;mesh.userData.kind='reference-airway';airwayGroup.add(mesh);meshes.push(mesh);
+   mesh.userData.branchId=node.id;mesh.userData.kind='reference-airway';
+   tagAnatomyObject(mesh,anatomyObjectRecord({sourceId:REFERENCE_SOURCE,role:'airway',regionId:graph.regionOf(node.id),branchId:node.id}));
+   airwayGroup.add(mesh);meshes.push(mesh);
  }
  setSelected(selected);
  $('status').textContent='REFERENCE AIRWAYS · '+graph.nodes.length+' SOURCE BRANCHES';
@@ -350,6 +354,7 @@ $('routeProgress').addEventListener('input',()=>setRouteProgress(Number($('route
 $('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy')});
 window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
+ geometrySources:{airways:REFERENCE_SOURCE,lobes:SCHEMATIC_SOURCE,physicalScaleValidated:false},
  version:'XR-05-SPATIAL-INTERACTIONS'});
 const container=$('enterVR');
 const vrButton=VRButton.createButton(renderer,{
