@@ -249,24 +249,43 @@ canvas.addEventListener('pointerup',e=>{
  pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
  worldSelect.setFromCamera(pointer,camera);pick(worldSelect);
 });
-const hand=new THREE.Matrix4();
-for(let i=0;i<2;i++){
- const controller=renderer.xr.getController(i);
- const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),new THREE.LineBasicMaterial({color:0xc0e1e7}));
- line.scale.z=1.8;controller.add(line);
- controller.addEventListener('selectstart',()=>{
-  hand.identity().extractRotation(controller.matrixWorld);
-  worldSelect.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  worldSelect.ray.direction.set(0,0,-1).applyMatrix4(hand).normalize();
-  worldSelect.far=3;pick(worldSelect);
- });
- scene.add(controller);
+
+// A single XR rig owns controller tracking and spatial interaction. Geometry,
+// airway data and the original bronchoscopy engine are never duplicated here.
+function resetExperience(){
+ if(!renderer.xr.isPresenting){
+   anatomy.position.set(0,1.27,-1.38);anatomy.quaternion.identity();anatomy.scale.setScalar(1);
+   camera.position.set(0,1.5,1.4);controls.target.copy(focus);controls.update();
+ }
+ isolated=false;$('isolateLobe').setAttribute('aria-pressed','false');
+ $('isolateLobe').textContent='Isolate lobe';
+ setSelected('RUL');setRouteProgress(0);setMode('anatomy');
 }
-function reset(){
- camera.position.set(0,1.5,1.4);controls.target.copy(focus);controls.update();
- setSelected('RUL');
-}
-$('resetView').addEventListener('click',reset);
+const rig=createSpatialRig({
+ renderer,scene,camera,anatomy,
+ onSelect:ray=>pick(ray),
+ onMode:setMode,
+ onReset:resetExperience,
+ onIsolate:toggleIsolate,
+ onProcedure:()=>window.location.assign('../procedural-workspace.html'),
+ onRouteStep:delta=>setRouteProgress(routeProgress+delta),
+ getInfo:()=>({region:selected,
+   name:REGIONS.find(r=>r.id===selected)?.label||selected,
+   isolated,progress:Math.round(routeProgress*100)})
+});
+$('modeAnatomy').addEventListener('click',()=>rig.setMode('anatomy'));
+$('modeAirway').addEventListener('click',()=>rig.setMode('path'));
+$('isolateLobe').addEventListener('click',toggleIsolate);
+$('panelToggle').addEventListener('click',()=>{
+ const visible=!rig.getPanelVisible();
+ rig.setPanelVisible(visible);
+ $('panelToggle').setAttribute('aria-pressed',String(visible));
+ $('panelToggle').textContent=visible?'Spatial inspector':'Show inspector';
+});
+$('routeProgress').addEventListener('input',()=>setRouteProgress(Number($('routeProgress').value)/100));
+$('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy')});
+window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
+ routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0});
 const container=$('enterVR');
 const vrButton=VRButton.createButton(renderer);
 container.append(vrButton);
@@ -285,7 +304,16 @@ const resize=new ResizeObserver(()=>{
  const w=canvas.clientWidth,h=canvas.clientHeight;
  if(w>0&&h>0){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
 });resize.observe(canvas);
-renderer.setAnimationLoop(()=>{if(!renderer.xr.isPresenting)controls.update();renderer.render(scene,camera)});
+let lastFrame=0;
+renderer.setAnimationLoop(time=>{
+ const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
+ if(renderer.xr.isPresenting)rig.update(dt);
+ else controls.update();
+ // Web page annotations are redundant in VR. In-headset spatial inspector
+ // remains world-anchored and never follows the user's controller grips.
+ panel.visible=!renderer.xr.isPresenting;
+ renderer.render(scene,camera);
+});
 buildReference().catch(err=>{$('status').textContent='AIRWAY REFERENCE ERROR: '+err.message});
 updateWorldLabel();
 </script></body></html>
