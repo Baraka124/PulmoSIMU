@@ -47,6 +47,8 @@ In XR mode only, the real original `advance()` function and original `enterBranc
 
 **Scientific boundary:** this is a *source-radius fit gate*, not mesh-surface collision, mucosal contact simulation, bending stiffness, pressure/contact force, haptic realism, bleeding prediction or a validated bronchoscope device model. Radii and their sources still require independent validation. Desktop original behavior stays unchanged.
 
+**XRFrame procedural ownership:** while a headset session is active, the original desktop `requestAnimationFrame` no longer advances the scope or updates its camera. The immersive `setAnimationLoop` explicitly calls the original `advance()`, `retract()` and `updateScope()` using headset frame delta, and applies frame-rate-adjusted velocity decay. This prevents throttled or double-integrated scope movement. On VR exit, the original desktop procedure loop regains ownership.
+
 ## C. Actual endoscopic imaging in the headset
 
 The monitor now receives the actual original `camScope` image as a `THREE.WebGLRenderTarget` texture in the **same GPU/WebGL renderer** used for stereoscopic VR (`rBro`). This replaces the prior workaround of rendering in a different WebGL canvas then uploading that canvas back into VR.
