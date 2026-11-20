@@ -11,7 +11,7 @@ import {fitSeatedAnatomy,COMFORT_DEFAULTS} from './comfort-framing.js';
 import {SPATIAL_LIMITS,decideInteraction,pinchActive,workZoneTarget,workZoneScale,easedTransform,frameMetrics} from './spatial-intent.js';
 
 export function createSpatialRig({
-  renderer,scene,camera,anatomy,onSelect,onHover,onTouch,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
+  renderer,scene,camera,anatomy,onSelect,onHover,onTouch,onMode,onReset,onIsolate,onProcedure,onRouteStep,onSectionStep,onNextBranch,getInfo
 }){
   const controllers=[],grips=[],grabbing=[false,false],handAnchors=[null,null];
   const grabbingSource=[null,null],pinching=[false,false],handSeen=[false,false],handProxies=[],handMarkers=[];
@@ -46,12 +46,14 @@ export function createSpatialRig({
   panel.renderOrder=45;panel.visible=false;scene.add(panel);
 
   const actions=[
-    {id:'anatomy',label:'EXPLORE',x:65,y:442,w:434,h:108},
-    {id:'path',label:'AIRWAY GUIDE',x:526,y:442,w:434,h:108},
-    {id:'reset',label:'RECENTER',x:65,y:576,w:434,h:108},
-    {id:'isolate',label:'ISOLATE LOBE',x:526,y:576,w:434,h:108},
-    {id:'procedure',label:'PROCEDURES',x:65,y:710,w:434,h:108},
-    {id:'help',label:'FIRST STEPS',x:526,y:710,w:434,h:108}
+    {id:'anatomy',label:'EXPLORE',x:65,y:418,w:434,h:89},
+    {id:'path',label:'AIRWAY GUIDE',x:526,y:418,w:434,h:89},
+    {id:'section',label:'SECTION VIEW',x:65,y:521,w:434,h:89},
+    {id:'next',label:'NEXT BRANCH',x:526,y:521,w:434,h:89},
+    {id:'reset',label:'RECENTER',x:65,y:624,w:434,h:89},
+    {id:'isolate',label:'ISOLATE LOBE',x:526,y:624,w:434,h:89},
+    {id:'procedure',label:'PROCEDURES',x:65,y:727,w:434,h:89},
+    {id:'help',label:'FIRST STEPS',x:526,y:727,w:434,h:89}
   ];
   const tutorialActions=[
     {id:'tour-next',label:'NEXT STEP',x:65,y:710,w:434,h:108},
@@ -77,14 +79,14 @@ export function createSpatialRig({
   function drawPanel(force=false){
     const info=getInfo?.()||{};
     const tour=welcome.get();
-    const key=JSON.stringify([mode,menuVisible,info.region,info.name,info.isolated,info.progress,hoverAction,tour.active,tour.index]);
+    const key=JSON.stringify([mode,menuVisible,info.region,info.name,info.isolated,info.progress,info.branch,info.generation,info.section,hoverAction,tour.active,tour.index]);
     if(!force&&key===menuVersion)return;
     menuVersion=key;ctx.clearRect(0,0,1024,970);
     rect(0,0,1024,970,'rgba(18,31,39,.96)','#526974',16);
     rect(0,0,1024,9,'#9cbec8',null,0);
     if(tour.active){
       ctx.textAlign='left';ctx.fillStyle='#b8d3db';ctx.font='600 29px system-ui';
-      ctx.fillText('PULMOSIMU XR-04  /  FIRST SESSION',65,91);
+      ctx.fillText('PULMOSIMU XR-06  /  FIRST SESSION',65,91);
       ctx.fillStyle='#ebf1f4';ctx.font='600 53px system-ui';
       textWrap(tour.title,65,190,860,64,2);
       ctx.fillStyle='#adc7d0';ctx.font='500 29px system-ui';
@@ -106,25 +108,27 @@ export function createSpatialRig({
       tex.needsUpdate=true;return;
     }
     ctx.textAlign='left';ctx.fillStyle='#a8c2cb';ctx.font='500 31px system-ui';
-    ctx.fillText('PULMOSIMU XR-04  /  SPATIAL LAB',65,88);
+    ctx.fillText('PULMOSIMU XR-06  /  ANATOMY WORKBENCH',65,88);
     ctx.fillStyle='#ecf2f4';ctx.font='600 62px system-ui';
     ctx.fillText((info.name||'Reference anatomy').slice(0,26),65,190);
     ctx.fillStyle='#c1d3d9';ctx.font='34px system-ui';
-    ctx.fillText('Region   '+(info.region||'—')+'     ·     '+(mode==='path'?'AIRWAY GUIDE':'ANATOMY'),65,262);
-    rect(65,305,894,95,'rgba(42,66,77,.42)',null,10);
-    ctx.fillStyle='#cfdee3';ctx.font='29px system-ui';
-    ctx.fillText(mode==='path'?'LEFT STICK: ADVANCE ROUTE   ·   NO CAMERA MOTION':
-      'TRIGGER: SUMMON    ·    NEAR GRIP: HOLD & ROTATE',89,361);
+    ctx.fillText('Region '+(info.region||'—')+'     ·     '+(mode==='path'?'AIRWAY GUIDE':mode==='section'?'SECTION VIEW':'ANATOMY'),65,262);
+    rect(65,305,894,94,'rgba(42,66,77,.42)',null,10);
+    ctx.fillStyle='#cfdee3';ctx.font='26px system-ui';
+    ctx.fillText(('BRANCH '+(info.branch||'—')+'   ·   '+(info.generation==null?'REFERENCE':'G'+info.generation)).slice(0,56),88,341);
+    ctx.fillText(mode==='section'?'LEFT THUMBSTICK: SWEEP REFERENCE SECTION':
+      mode==='path'?'LEFT THUMBSTICK: FOLLOW REFERENCE AIRWAY':
+      'TRIGGER: SUMMON    ·    NEAR GRIP: HOLD',88,378);
     for(const a of activeActions()){
       const active=a.id===mode || (a.id==='isolate'&&info.isolated);
       const hovered=hoverAction===a.id;
       rect(a.x,a.y,a.w,a.h,active?'#36535f':hovered?'#2c4450':'#21343d',
         active?'#a6ced7':hovered?'#7eabb9':'#405864',12);
       ctx.fillStyle=active?'#ffffff':'#dae7ec';
-      ctx.font='600 34px system-ui';ctx.fillText(a.label,a.x+26,a.y+68);
+      ctx.font='600 31px system-ui';ctx.fillText(a.label,a.x+25,a.y+56);
     }
     ctx.fillStyle='#b7cad2';ctx.font='29px system-ui';
-    ctx.fillText('TRIGGER: SELECT / SUMMON   ·   SIDE GRIP: NEAR HOLD',65,877);
+    ctx.fillText('TRIGGER: SELECT   ·   B: SWITCH MODE   ·   X: RECENTER',65,877);
     ctx.fillStyle='#94aeb8';ctx.font='25px system-ui';
     ctx.fillText('PROCEDURAL REFERENCE  ·  NOT VALIDATED HUMAN ANATOMY',65,933);
     tex.needsUpdate=true;
@@ -353,7 +357,7 @@ export function createSpatialRig({
     }
   }
   function setMode(next){
-    if(!['anatomy','path'].includes(next)||next===mode)return;
+    if(!['anatomy','path','section'].includes(next)||next===mode)return;
     mode=next;
     grabbing.fill(false);grabbingSource.fill(null);
     transition=null;twoHandStart=null;handAnchors.fill(null);
@@ -373,7 +377,8 @@ export function createSpatialRig({
     }
     if(id==='tour-skip'){welcome.skip();markTourDone();drawPanel(true);return}
     if(id==='help'){welcome.restart();drawPanel(true);return}
-    if(id==='anatomy'||id==='path')setMode(id);
+    if(['anatomy','path','section'].includes(id))setMode(id);
+    else if(id==='next')onNextBranch?.();
     else if(id==='reset')recenter();
     else if(id==='isolate')onIsolate?.();
     else if(id==='hide')setPanelVisible(false);
@@ -463,11 +468,14 @@ export function createSpatialRig({
       const i=controllers.findIndex(c=>c.userData.handedness===src.handedness);
       if(i<0)continue;
       if(src.handedness==='right'&&buttonEdge(i,4,src))setPanelVisible(!menuVisible);
-      if(src.handedness==='right'&&buttonEdge(i,5,src))setMode(mode==='anatomy'?'path':'anatomy');
+      if(src.handedness==='right'&&buttonEdge(i,5,src))setMode(mode==='anatomy'?'path':mode==='path'?'section':'anatomy');
       if(src.handedness==='left'&&buttonEdge(i,4,src))recenter();
-      if(mode==='path'&&src.handedness==='left'){
+      if((mode==='path'||mode==='section')&&src.handedness==='left'){
         const [,vertical]=dominantThumbstick(src.gamepad.axes);
-        if(vertical!==0)onRouteStep?.(-vertical*Math.min(dt,.05)*.24);
+        if(vertical!==0){
+          if(mode==='path')onRouteStep?.(-vertical*Math.min(dt,.05)*.24);
+          else onSectionStep?.(-vertical*Math.min(dt,.05)*.8);
+        }
       }
     }
   }
