@@ -17,7 +17,7 @@ test('WebXR prototype has a valid standalone ES module and import map',()=>{
 test('Quest mode includes VR lifecycle, controller picks, desktop fallback and source provenance',()=>{
  for(const token of ['VRButton.createButton(renderer)','renderer.xr.enabled=true','getController(i)','selectstart',
   'setAnimationLoop','isSessionSupported','resize.observe(canvas)','fetchReferenceAirwayGraph',
-  'REFERENCE MODEL','NOT CLINICALLY VALIDATED','Back to Studio']){
+  'REFERENCE MODEL','Not clinically validated','Back to Studio']){
    assert.ok(html.includes(token),token);
  }
 });
