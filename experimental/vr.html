@@ -352,7 +352,9 @@ window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
  version:'XR-05-SPATIAL-INTERACTIONS'});
 const container=$('enterVR');
-const vrButton=VRButton.createButton(renderer);
+const vrButton=VRButton.createButton(renderer,{
+ optionalFeatures:['local-floor','bounded-floor','hand-tracking']
+});
 container.append(vrButton);
 async function checkVR(){
  try{
