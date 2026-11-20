@@ -275,6 +275,20 @@ function install(ctx){
       if(i===1&&edge(5))activate('tool');
     }
   }
+  // World-space context for a seated user. This is environmental staging,
+  // deliberately independent of anatomy/scopes and ignored by raycasting.
+  const room=new THREE.Group();room.visible=false;scene.add(room);
+  const floor=new THREE.Mesh(new THREE.CircleGeometry(3.8,64),
+    new THREE.MeshStandardMaterial({color:0x14242e,roughness:1,metalness:0}));
+  floor.rotation.x=-Math.PI/2;room.add(floor);
+  const grid=new THREE.GridHelper(7.2,20,0x4e6671,0x263843);
+  grid.material.transparent=true;grid.material.opacity=.24;
+  grid.position.y=.003;room.add(grid);
+  const plinth=new THREE.Mesh(new THREE.CylinderGeometry(.72,.78,.055,64),
+    new THREE.MeshStandardMaterial({color:0x253742,metalness:.16,roughness:.86,
+      transparent:true,opacity:.45}));
+  plinth.position.set(0,.03,0);room.add(plinth);
+  // Plinth only indicates working region, never anatomical scale or a patient metric.
   const panelCanvas=document.createElement('canvas');panelCanvas.width=1024;panelCanvas.height=600;
   const panelCtx=panelCanvas.getContext('2d');
   const panelTex=new THREE.CanvasTexture(panelCanvas);
@@ -385,12 +399,18 @@ function install(ctx){
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
-    worldMenu.visible=true;scopeScreen.visible=false;
+    worldMenu.visible=true;scopeScreen.visible=false;room.visible=true;
+    room.position.copy(head).setY(-.02);
     button.textContent='EXIT PROCEDURAL XR';setMode('anatomy');paint();
     rBro.setAnimationLoop((time,frame)=>{
       if(!active||!rBro.xr.isPresenting)return;
       if(!headPose(frame))return;
-      if(!placed)frameGroup();
+      if(!placed){
+        room.position.copy(head).setY(head.y-1.18);
+        const center=head.clone().addScaledVector(forward,1.5);
+        plinth.position.x=center.x-head.x;plinth.position.z=center.z-head.z;
+        frameGroup();
+      }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);updateGrab();updateSteering();
       if(mode==='procedure')captureFeed(time);
@@ -400,7 +420,7 @@ function install(ctx){
   });
   rBro.xr.addEventListener('sessionend',()=>{
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
-    worldMenu.visible=false;scopeScreen.visible=false;
+    worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
     if(saved){
       mGrp.position.copy(saved.position);mGrp.quaternion.copy(saved.quaternion);
       mGrp.scale.copy(saved.scale);setExtIdle(saved.extIdle);
