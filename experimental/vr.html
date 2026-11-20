@@ -84,6 +84,9 @@ const canvas=$('stageCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
 renderer.setClearColor(0x101820,1);renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.xr.enabled=true;
+// Quest 2 headset thermal budget: request moderate XR resolution and fixed foveation.
+// These are performance hints only; unsupported browser APIs are optional.
+renderer.xr.setFramebufferScaleFactor?.(.85);
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(58,1,.04,40);
 scene.background=new THREE.Color(0x19262d);
 scene.fog=new THREE.Fog(0x19262d,4.8,8.5);
@@ -108,7 +111,7 @@ scene.add(anatomy);
 // Source reference has no calibrated millimetres. This is a display-only size.
 const displayScale=.22;
 const layers=new THREE.Group();layers.scale.setScalar(displayScale);anatomy.add(layers);
-const meshes=[],regions=new Map();
+const meshes=[],regions=new Map();let hoveredRegion=null;
 const lobeShapes=[
  {id:'RUL',pos:[1.0,.52,0],size:[.78,.79,.65],angle:-.17},
  {id:'RML',pos:[1.00,-.12,.27],size:[.72,.47,.56],angle:-.17},
@@ -167,7 +170,7 @@ function setSelected(regionId){
  $('selectedId').textContent=regionId;$('selectedRegion').textContent=r?.label+' lobe'||regionId;
  $('branchCount').textContent=graph?String(graph.nodes.filter(n=>graph.regionOf(n.id)===regionId).length):'—';
  $('selectionNote').textContent='Schematic lobe and proximal airway hierarchy; anatomical accuracy not established.';
- for(const [id,mat] of lobeMaterials){mat.color.set(id===selected?0xc8a9a8:0x9e8587);mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27)}
+ applyAppearance();
  updateWorldLabel();
  updateWorkspaceLinks();
  if(graph)buildRoute();
@@ -243,10 +246,19 @@ function setRouteProgress(value){
 }
 function applyAppearance(){
  for(const [id,mat] of lobeMaterials){
-   mat.color.set(id===selected?0xc8a9a8:0x9e8587);
+   mat.color.set(id===selected?0xc8a9a8:id===hoveredRegion?0xb7adb0:0x9e8587);
    mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27);
+   mat.emissive.set(id===selected?0x39252b:id===hoveredRegion?0x172f36:0x090c0e);
+   mat.emissiveIntensity=id===hoveredRegion?.62:.24;
  }
  routeGroup.visible=mode==='path'&&Boolean(routeCurve);
+}
+function hoverRegion(raycaster){
+ const hit=raycaster?.intersectObjects([...airwayGroup.children,...regions.values()],false)
+  ?.find(h=>h.object.visible&&h.object.userData.regionId);
+ const next=hit?.object?.userData?.regionId||null;
+ if(next!==hoveredRegion){hoveredRegion=next;applyAppearance()}
+ return next;
 }
 function setMode(next){
  if(!['anatomy','path'].includes(next))return;
@@ -272,7 +284,9 @@ function pick(raycaster){
   const wasSelected=selected;
   setSelected(hit.object.userData.regionId);
   if(wasSelected!==selected)emitFocus();
+  return hit.object.userData.regionId;
  }
+ return null;
 }
 let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
@@ -298,6 +312,7 @@ function resetExperience(){
 const rig=createSpatialRig({
  renderer,scene,camera,anatomy,
  onSelect:ray=>pick(ray),
+ onHover:ray=>hoverRegion(ray),
  onMode:setMode,
  onReset:resetExperience,
  onIsolate:toggleIsolate,
@@ -332,7 +347,11 @@ async function checkVR(){
  }catch{$('vrGuidance').textContent='VR capability could not be detected; desktop mode remains available.'}
 }
 checkVR();
-renderer.xr.addEventListener('sessionstart',()=>{$('status').textContent='IMMERSIVE REFERENCE ANATOMY · CONTROLLERS ACTIVE';controls.enabled=false});
+renderer.xr.addEventListener('sessionstart',()=>{
+ $('status').textContent='IMMERSIVE REFERENCE ANATOMY · CONTROLLERS ACTIVE';
+ controls.enabled=false;
+ renderer.xr.setFoveation?.(.45);
+});
 renderer.xr.addEventListener('sessionend',()=>{controls.enabled=true;$('status').textContent='REFERENCE ANATOMY · DESKTOP INSPECTION'});
 const resize=new ResizeObserver(()=>{
  const w=canvas.clientWidth,h=canvas.clientHeight;
