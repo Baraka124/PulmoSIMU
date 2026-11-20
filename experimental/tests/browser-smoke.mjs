@@ -149,6 +149,15 @@ try {
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Mechanistic laboratory');
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.getAttribute('src')==='./experimental/lab.html');
    await studio.frameLocator('#workspaceFrame').locator('#networkStatus').waitFor({state:'visible',timeout:45000});
+   await studio.frameLocator('#workspaceFrame').locator('#focusRegion').selectOption('LLL');
+   await studio.waitForFunction(()=>document.getElementById('workspaceContext')?.textContent?.includes('REFERENCE LLL'),null,{timeout:15000});
+   await studio.locator('#modeProcedure').click();
+   await studio.frameLocator('#workspaceFrame').locator('#status').waitFor({state:'visible',timeout:30000});
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('status')?.textContent?.includes('Reference focus: LLL'),null,{timeout:15000});
+   await studio.locator('#modeMechanisms').click();
+   await studio.frameLocator('#workspaceFrame').locator('#focusRegion').waitFor({state:'visible',timeout:45000});
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('focusRegion')?.value==='LLL',null,{timeout:15000});
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'LLL');
    await studio.locator('#modeProcedure').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
