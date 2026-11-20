@@ -19,6 +19,7 @@ test('uncalibrated reference cannot quietly report lengths, vessel diameter, CFD
   assert.equal(canReportMetric(b,metric),false);
  const forged={...b,measurementsAllowed:true,physicalScaleValidated:true};
  assert.equal(canReportMetric(forged,'resistance'),false);
+ assert.equal(canReportMetric(forged,'length'),false,'Forged flags cannot override source provenance');
  assert.throws(()=>anatomyObjectRecord({sourceId:'patient-unknown',role:'airway',branchId:0}));
  assert.throws(()=>anatomyObjectRecord({sourceId:REFERENCE_SOURCE,role:'airway',branchId:-1}));
  assert.throws(()=>anatomyObjectRecord({sourceId:SCHEMATIC_SOURCE,role:'lobe',regionId:'UNKNOWN'}));
