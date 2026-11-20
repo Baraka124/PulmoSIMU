@@ -183,8 +183,8 @@ try {
    await uniqueQuest.locator('#launchCurrent').click();
    await uniqueQuest.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('release')==='XR04-NEW-20261120-1');
    await uniqueQuest.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
-   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-04/);
-   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-04-COMFORT-FIT');
+   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-05/);
+   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-05-SPATIAL-INTERACTIONS');
    console.log('PASS explicit XR-04 Quest entrance, unique URL and correct spatial laboratory identity');
  }finally{await uniqueQuest.close()}
  // The headset's short entry must land on the same integrated reference
