@@ -70,7 +70,7 @@ export function createSpatialRig({
     rect(0,0,1024,9,'#9cbec8',null,0);
     if(tour.active){
       ctx.textAlign='left';ctx.fillStyle='#b8d3db';ctx.font='600 29px system-ui';
-      ctx.fillText('PULMOSIMU  /  YOUR FIRST XR SESSION',65,91);
+      ctx.fillText('PULMOSIMU XR-04  /  FIRST SESSION',65,91);
       ctx.fillStyle='#ebf1f4';ctx.font='600 53px system-ui';
       textWrap(tour.title,65,190,860,64,2);
       ctx.fillStyle='#adc7d0';ctx.font='500 29px system-ui';
@@ -92,7 +92,7 @@ export function createSpatialRig({
       tex.needsUpdate=true;return;
     }
     ctx.textAlign='left';ctx.fillStyle='#a8c2cb';ctx.font='500 31px system-ui';
-    ctx.fillText('PULMOSIMU  /  SPATIAL LAB',65,88);
+    ctx.fillText('PULMOSIMU XR-04  /  SPATIAL LAB',65,88);
     ctx.fillStyle='#ecf2f4';ctx.font='600 62px system-ui';
     ctx.fillText((info.name||'Reference anatomy').slice(0,26),65,190);
     ctx.fillStyle='#c1d3d9';ctx.font='34px system-ui';
