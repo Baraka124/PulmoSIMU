@@ -31,6 +31,18 @@ test('Spatial controller rig has real dual grips, lifecycle and world-anchored V
  assert.ok(rig.includes("new THREE.PlaneGeometry(.69,.655)"));
  assert.ok(!rig.includes('scope.velocity'),'Quest controller grip must not silently advance the bronchoscope');
 });
+test('XR-04 placement uses the current headset frame, resets desktop camera offset and fits the complete visible anatomy',()=>{
+ for(const token of ['XR-04','setAnimationLoop((time,frame)=>','rig.update(dt,frame)',
+   'camera.position.set(0,0,0)','desktopCameraRestore']){
+   assert.ok(html.includes(token),'XR04 viewer invariant: '+token);
+ }
+ for(const token of ['getViewerPose','getReferenceSpace','readViewerPose(frame)',
+   'fitSeatedAnatomy','sourceBounds','mesh.geometry.boundingBox','if(!readViewerPose(frame))return',
+   'new THREE.Vector3(...fit.localCenter)']){
+   assert.ok(rig.includes(token),'XR04 headset invariant: '+token);
+ }
+ assert.ok(!rig.includes('getWorldPosition(headPosition);\n    xrCamera'),'No stale XR camera pose at first frame');
+});
 test('VR viewer never uses patient datasets or calibrated physiology as implicit source',()=>{
  assert.ok(!html.includes('patientData'));
  assert.ok(!html.includes('withTherapy'));
