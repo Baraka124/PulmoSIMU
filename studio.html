@@ -27,12 +27,12 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional physiology, disease, therapy and anatomical inspection</small></button>
 <div class="foot">Experimental research platform.<p>These are currently separate computational environments. Their anatomy and state have not yet been synchronized.</p>Not clinically validated.</div>
 </aside>
-<main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">Original PNEUMO·VR — preserved</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
-<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./index.html" allow="camera" referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">The original procedure is unchanged. Choose the mechanistic laboratory for research modules.</div></div>
+<main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
+<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./procedural-workspace.html" allow="camera" referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">Original procedural engine preserved; work area controls are progressively disclosed.</div></div>
 </main></div>
 <script>
 const modes={
- procedure:{src:'./index.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
+ procedure:{src:'./procedural-workspace.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
  mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Regional anatomy · airflow · disease · therapeutic experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Prototype research calculations. No patient-specific treatment prediction or verified full-organ reconstruction.'}
 };
 let current='procedure';
