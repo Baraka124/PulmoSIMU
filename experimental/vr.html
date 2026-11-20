@@ -76,6 +76,8 @@ import {createSpatialRig} from './xr/controller-rig.js';
 import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {REGIONS} from './core/mechanistic-lung.js';
+import {createFocus,readFocus} from './shared/reference-focus.js';
+import {safeReferenceRegion} from './shared/workspace-route.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('stageCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
@@ -131,7 +133,33 @@ routeGroup.add(routeMarker);routeMarker.renderOrder=15;
 let routeCurve=null,routeLine=null,routeProgress=0;
 let mode='anatomy',isolated=false;routeGroup.visible=false;
 const worldSelect=new THREE.Raycaster();worldSelect.params.Line.threshold=.02;
-const pointer=new THREE.Vector2();let graph=null,selected='RUL';
+const pointer=new THREE.Vector2();
+let graph=null,selected=safeReferenceRegion(new URLSearchParams(location.search).get('focus'))||'RUL';
+let lastSharedRevision=-1;
+function studioHref(mode='mechanisms'){
+ const u=new URL('../studio.html',location.href);
+ u.searchParams.set('mode',mode);
+ if(safeReferenceRegion(selected))u.searchParams.set('focus',selected);
+ return u.toString();
+}
+function updateWorkspaceLinks(){
+ $('procedureLink').href=studioHref('procedure');
+ document.querySelector('a.back').href=studioHref('mechanisms');
+}
+function emitFocus(){
+ // Live synchronization occurs only when embedded in the same-origin Studio.
+ // Standalone Quest pages hand off canonical focus only through a typed URL.
+ if(window.parent===window)return;
+ try{window.parent.postMessage(createFocus({regionId:selected,origin:'xr',revision:1}),location.origin)}catch{}
+}
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ const incoming=readFocus(event.data);
+ if(!incoming||incoming.origin!=='studio'||incoming.revision<=lastSharedRevision)return;
+ lastSharedRevision=incoming.revision;
+ if(incoming.regionId!==selected)setSelected(incoming.regionId);
+});
+updateWorkspaceLinks();
 function setSelected(regionId){
  if(!regions.has(regionId))return;
  selected=regionId;
@@ -141,6 +169,7 @@ function setSelected(regionId){
  $('selectionNote').textContent='Schematic lobe and proximal airway hierarchy; anatomical accuracy not established.';
  for(const [id,mat] of lobeMaterials){mat.color.set(id===selected?0xc8a9a8:0x9e8587);mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27)}
  updateWorldLabel();
+ updateWorkspaceLinks();
  if(graph)buildRoute();
 }
 const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=164;
@@ -239,7 +268,11 @@ function pick(raycaster){
  // Raycast airway before transparent lobe surfaces for usable selection.
  const hits=raycaster.intersectObjects([...airwayGroup.children,...regions.values()],false);
  const hit=hits.find(h=>h.object.visible&&h.object.userData.regionId);
- if(hit)setSelected(hit.object.userData.regionId);
+ if(hit){
+  const wasSelected=selected;
+  setSelected(hit.object.userData.regionId);
+  if(wasSelected!==selected)emitFocus();
+ }
 }
 let down=null;
 canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
@@ -267,7 +300,7 @@ const rig=createSpatialRig({
  onMode:setMode,
  onReset:resetExperience,
  onIsolate:toggleIsolate,
- onProcedure:()=>window.location.assign('../procedural-workspace.html'),
+ onProcedure:()=>window.location.assign(studioHref('procedure')),
  onRouteStep:delta=>setRouteProgress(routeProgress+delta),
  getInfo:()=>({region:selected,
    name:REGIONS.find(r=>r.id===selected)?.label||selected,
