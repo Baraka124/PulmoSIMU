@@ -152,10 +152,26 @@ try {
   const count=Number(await xr.locator('#branchCount').innerText());
   assert.ok(count>0,'Canonical reference airway tree loaded');
   assert.ok(await xr.locator('#enterVR button').count()>0,'WebXR button or supported fallback present');
+  await xr.locator('#modeAirway').click();
+  assert.equal(await xr.locator('#modeAirway').getAttribute('aria-pressed'),'true');
+  assert.ok(await xr.locator('#routeControls').isVisible(),'Airway guide reveals route controls');
+  await xr.locator('#routeProgress').fill('65');
+  assert.equal(await xr.locator('#routePercent').innerText(),'65%');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.mode),'path');
+  await xr.locator('#isolateLobe').click();
+  assert.equal(await xr.locator('#isolateLobe').getAttribute('aria-pressed'),'true');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.isolated),true);
+  await xr.locator('#modeAnatomy').click();
+  assert.ok(await xr.locator('#routeControls').isHidden(),'Exploration does not display route controls');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.mode),'anatomy');
+  await xr.locator('#panelToggle').click();
+  assert.equal(await xr.locator('#panelToggle').getAttribute('aria-pressed'),'false');
   await xr.locator('#resetView').click();
   assert.equal(await xr.locator('#selectedId').innerText(),'RUL');
+  assert.equal(await xr.locator('#isolateLobe').getAttribute('aria-pressed'),'false');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.mode),'anatomy');
   assert.deepEqual(xrErrors,[],'No WebXR viewer script errors');
-  console.log('PASS Quest viewer desktop fallback: source branches, selection state, reset and XR capability UI');
+  console.log('PASS Quest viewer: reference anatomy, airway guide, progress, isolation, spatial controls and desktop fallback');
  }finally{await xr.close()}
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
  studio.on('pageerror',error=>console.error('STUDIO PAGE ERROR',error.message));
