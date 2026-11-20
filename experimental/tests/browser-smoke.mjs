@@ -142,6 +142,7 @@ try {
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
+ studio.on('pageerror',error=>console.error('STUDIO PAGE ERROR',error.message));
  try{
    await studio.goto(host+'/studio.html',{waitUntil:'domcontentloaded'});
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
@@ -150,6 +151,12 @@ try {
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.getAttribute('src')==='./experimental/lab.html');
    await studio.frameLocator('#workspaceFrame').locator('#networkStatus').waitFor({state:'visible',timeout:45000});
    await studio.frameLocator('#workspaceFrame').locator('#focusRegion').selectOption('LLL');
+   await studio.waitForTimeout(500);
+   console.log('FOCUS DIAGNOSTIC',JSON.stringify(await studio.evaluate(()=>({
+      context:document.getElementById('workspaceContext').textContent,
+      path:document.getElementById('workspaceFrame').getAttribute('src'),
+      selected:document.getElementById('workspaceFrame').contentDocument?.getElementById('focusRegion')?.value
+   }))));
    await studio.waitForFunction(()=>document.getElementById('workspaceContext')?.textContent?.includes('REFERENCE LLL'),null,{timeout:15000});
    await studio.locator('#modeProcedure').click();
    await studio.frameLocator('#workspaceFrame').locator('#status').waitFor({state:'visible',timeout:30000});
