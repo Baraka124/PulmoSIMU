@@ -67,3 +67,12 @@ test('XR-08 live endoscopy is rendered in the original VR GPU context, not copie
  assert.ok(source.includes("monitorStatus='unavailable'"),
    'A failed offscreen render must be reported, not faked');
 });
+
+test('immersive XR owns original scope advance/retract without a second desktop animation step',()=>{
+ assert.match(original,/if\(!rBro\.xr\.isPresenting&&Math\.abs\(scope\.velocity\)/);
+ assert.ok(original.includes('enterBranch,advance,retract,hideBranchSel'));
+ assert.ok(source.includes("if(mode==='procedure'&&Math.abs(scope.velocity)>"));
+ assert.ok(source.includes('if(distance>0)advance(distance);else retract(-distance);'));
+ assert.ok(source.includes('Math.pow(scope.velocityDecay,step)'));
+ assert.ok(source.includes('updateScope();'));
+});
