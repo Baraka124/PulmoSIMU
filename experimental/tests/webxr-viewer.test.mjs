@@ -16,8 +16,8 @@ test('WebXR prototype has a valid standalone ES module and import map',()=>{
  assert.ok(imports.three.startsWith('https://'));
 });
 test('Quest mode includes VR lifecycle, desktop fallback and anatomy provenance',()=>{
- for(const token of ['VRButton.createButton(renderer)','renderer.xr.enabled=true','setAnimationLoop','isSessionSupported','resize.observe(canvas)','fetchReferenceAirwayGraph','createSpatialRig',
- 'modeAnatomy','modeAirway','routeControls','isolateLobe','REFERENCE MODEL','Not clinically validated','Back to Studio']){
+ for(const token of ['VRButton.createButton(renderer,{','renderer.xr.enabled=true','setAnimationLoop','isSessionSupported','resize.observe(canvas)','fetchReferenceAirwayGraph','createSpatialRig',
+ 'hand-tracking','modeAnatomy','modeAirway','routeControls','isolateLobe','REFERENCE MODEL','Not clinically validated','Back to Studio']){
   assert.ok(html.includes(token),token);
  }
 });
