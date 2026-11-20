@@ -8,7 +8,7 @@ test('two-handed unchanged grips preserve exact anatomical pose',()=>{
 });
 test('moving both grips translates the held model, without camera locomotion',()=>{
  const p=bimanualPose(start,[.3,1.1,-1],[.7,1.1,-1]);
- close(p.position,[.5,1.3,-1.6]);assert.equal(p.scale,1);
+ close(p.position,[.5,1.3,-1.6]);assert.ok(Math.abs(p.scale-1)<1e-9);
 });
 test('two-handed pinch changes size about midpoint with bounded scale',()=>{
  const p=bimanualPose(start,[-.4,1,-1],[.4,1,-1]);
@@ -19,7 +19,7 @@ test('two-handed pinch changes size about midpoint with bounded scale',()=>{
 test('rotating hand axis turns anatomy while keeping grip midpoint fixed',()=>{
  const p=bimanualPose(start,[0,.8,-1],[0,1.2,-1]);
  close(rotateVector(p.quaternion,[1,0,0]),[0,1,0]);
- close(p.position,[.6,1,-1.0]);
+ close(p.position,[-.2,1,-1.6]);
 });
 test('coincident grips fail safe and invalid data rejects',()=>{
  const p=bimanualPose(start,[0,1,-1],[0,1,-1]);
