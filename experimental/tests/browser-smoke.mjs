@@ -198,11 +198,29 @@ try {
    await studio.frameLocator('#workspaceFrame').locator('#focusRegion').waitFor({state:'visible',timeout:45000});
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('focusRegion')?.value==='LLL',null,{timeout:15000});
    assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'LLL');
+   await studio.locator('#modeXR').click();
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Spatial anatomy laboratory');
+   await studio.frameLocator('#workspaceFrame').locator('#selectedId').waitFor({state:'visible',timeout:45000});
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('selectedId')?.textContent==='LLL',null,{timeout:15000});
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#selectedId').innerText(),'LLL','Mechanism -> XR focus is preserved');
+   const questLink=await studio.locator('#launchXR').getAttribute('href');
+   assert.ok(questLink.includes('focus=LLL'),'Direct headset entry carries only canonical selected lobe');
+   await studio.frameLocator('#workspaceFrame').locator('#modeAirway').click();
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#modeAirway').getAttribute('aria-pressed'),'true');
+   await studio.frameLocator('#workspaceFrame').locator('#selectedId').evaluate((el)=>{
+     window.parent.postMessage({channel:'pulmosimu.reference-focus.v1',source:'original-procedural-SEGS-snapshot-r2',
+       type:'anatomical-focus',regionId:'RML',branchId:null,origin:'xr',revision:1},location.origin);
+   });
+   await studio.waitForFunction(()=>document.getElementById('workspaceContext')?.textContent?.includes('REFERENCE RML'),null,{timeout:15000});
+   await studio.locator('#modeMechanisms').click();
+   await studio.frameLocator('#workspaceFrame').locator('#focusRegion').waitFor({state:'visible',timeout:45000});
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('focusRegion')?.value==='RML',null,{timeout:15000});
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'RML','XR -> Mechanism focus travels through Studio');
    await studio.locator('#modeProcedure').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
    assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./procedural-workspace.html');
-   console.log('PASS studio: procedural and mechanistic workspaces remain independent and reachable');
+   console.log('PASS integrated Studio: procedural, mechanics and XR use one canonical reference-focus bridge');
  } finally {await studio.close();}
  const procedural=await browser.newPage({viewport:{width:1440,height:900}});
  try{
