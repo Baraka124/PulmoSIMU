@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101820">
-<title>PulmoSIMU | Quest 2 anatomy prototype</title>
+<title>PulmoSIMU XR | Spatial anatomy laboratory</title>
 <style>
 :root{color-scheme:dark;--bg:#101820;--ink:#e9eef0;--muted:#9eadb5;--line:#354752;--accent:#b0d9de}
 *{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -26,19 +26,54 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 #enterVR>button{position:static!important;left:auto!important;bottom:auto!important;width:auto!important;max-width:none!important;height:auto!important;opacity:1!important;transform:none!important;padding:10px 15px!important;border-radius:4px!important;font:600 12px system-ui!important}
 #status{font-variant-numeric:tabular-nums}
 @media(max-width:760px){header{padding:0 12px}.meta{display:none}.overview{left:12px;top:12px;max-width:185px}.overview h1{font-size:16px}.inspector{top:12px;right:12px;width:165px;padding:10px}.inspector h2{font-size:14px}.info{font-size:10px;padding:5px 0}.notes{display:none}footer{left:12px;right:12px;bottom:10px;flex-wrap:wrap}.cta{flex-wrap:wrap}}
+
+/* XR-02 editorial control strip: no floating dashboard cards. */
+.workspace-actions{position:absolute;left:20px;top:185px;display:flex;flex-direction:column;align-items:flex-start;gap:7px;max-width:260px}
+.workspace-actions .mode-choices{display:flex;gap:4px;padding:3px;border:1px solid #394d58;background:#17232b;border-radius:5px}
+.workspace-actions button{font-size:11px;letter-spacing:0;padding:7px 10px;border:0;background:none}
+.workspace-actions button[aria-pressed="true"]{background:#354c57;color:#f5f8f8}
+.workspace-actions .tools{display:flex;flex-wrap:wrap;gap:5px}
+.workspace-actions .tools button{border:1px solid #394d58;background:#152129}
+.workspace-actions p{color:#a7b8c0;font-size:10px;margin:3px 0;max-width:235px;line-height:1.5}
+#routeControls{display:none;align-items:center;gap:8px;min-width:210px;padding:7px 9px;border:1px solid #354b56;background:#18252d;border-radius:4px}
+#routeControls label{font-size:10px;color:#c3d1d8}
+#routeProgress{width:145px;accent-color:#b2d9df}
+#routePercent{font-size:11px;font-variant-numeric:tabular-nums;color:#c6dce2}
+#routeControls.active{display:flex}
+#status{max-width:350px}
+#stageCanvas:focus-visible{outline:2px solid #c2e4e9;outline-offset:-3px}
+@media(max-width:760px){
+ .workspace-actions{top:123px;left:12px;max-width:185px}
+ .workspace-actions button{font-size:10px;padding:5px 7px}
+ .workspace-actions p{display:none}
+ .workspace-actions .mode-choices{flex-wrap:wrap}
+ .inspector{top:10px}
+ #routeControls{min-width:160px}
+ #routeProgress{width:75px}
+}
 </style></head><body>
-<main><header><div class="brand">PulmoSIMU <small>IMMERSIVE ANATOMY · QUEST PROTOTYPE</small></div><span class="meta">R1 · Procedural reference anatomy · Not clinically validated</span></header>
+<main><header><div class="brand">PulmoSIMU <small>SPATIAL ANATOMY LAB · QUEST 2</small></div><span class="meta">XR-02 · Reference geometry · Research prototype</span></header>
 <div class="stage"><canvas id="stageCanvas" aria-label="Interactive anatomical model"></canvas>
-<section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Rotate and select a region in desktop mode. In a compatible headset, select with either controller trigger.</p><p class="notes">Reference airway tree and schematic lobes. Display scale is intentionally enlarged for inspection; this is not a measured patient lung.</p></section>
+<section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Use controllers to handle and examine the anatomy. Switch deliberately between exterior exploration and airway-route inspection.</p><p class="notes">Source: original PulmoSIMU airway reference and schematic lobe envelopes. Not measured or patient-specific anatomy.</p></section>
+<div class="workspace-actions" aria-label="Spatial mode and object controls">
+<div class="mode-choices" role="group" aria-label="VR working mode">
+<button id="modeAnatomy" aria-pressed="true" type="button">Explore anatomy</button>
+<button id="modeAirway" aria-pressed="false" type="button">Airway guide</button>
+</div>
+<div class="tools"><button id="isolateLobe" aria-pressed="false" type="button">Isolate lobe</button><button id="panelToggle" aria-pressed="true" type="button">Spatial inspector</button></div>
+<div id="routeControls"><label for="routeProgress">Route</label><input id="routeProgress" type="range" min="0" max="100" step="1" value="0"><output id="routePercent" for="routeProgress">0%</output></div>
+<p id="modeExplanation">In Quest: squeeze the side grip to hold the anatomy. Use both grips to resize and rotate. Trigger selects a structure.</p></div>
 <aside class="inspector"><div class="label">Selected structure</div><h2 id="selectedRegion">Right upper lobe</h2><div class="info"><span>Identifier</span><strong id="selectedId">RUL</strong></div><div class="info"><span>Source</span><strong>Procedural reference</strong></div><div class="info"><span>Airway branches</span><strong id="branchCount">—</strong></div><div class="notes" id="selectionNote">Select a lobe or airway branch.</div></aside>
-<footer><div><div class="label" id="status">Initializing model…</div><small id="vrGuidance">Desktop: drag to rotate · Scroll to zoom · Click to select</small></div>
-<div class="cta"><a class="back" href="../studio.html">Back to Studio</a><button id="resetView" type="button">Reset view</button><div id="enterVR"></div></div></footer>
+<footer><div><div class="label" id="status">Initializing model…</div><small id="vrGuidance">Desktop: drag to orbit · Scroll to zoom · Click a structure</small></div>
+<div class="cta"><a class="back" href="../studio.html">Back to Studio</a><button id="resetView" type="button">Recenter anatomy</button><a class="back" id="procedureLink" href="../procedural-workspace.html" title="Open the separate PNEUMO VR bronchoscopy engine">Procedures</a><div id="enterVR"></div></div></footer>
 </div></main>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
+import {XRControllerModelFactory} from 'three/addons/webxr/XRControllerModelFactory.js';
+import {bimanualPose,clampDisplayScale,dominantThumbstick,normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {REGIONS} from './core/mechanistic-lung.js';
 
