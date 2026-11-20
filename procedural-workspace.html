@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PulmoSIMU — Procedural workspace</title>
+<style>
+:root{color-scheme:dark;--bg:#101820;--line:#31414b;--ink:#e4eaef;--sub:#a3b3bb}
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.shell{display:grid;grid-template-rows:49px minmax(0,1fr);height:100dvh;min-width:0}
+header{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 17px;background:#111c23;border-bottom:1px solid var(--line)}
+.group{display:flex;gap:3px;align-items:center;min-width:0}
+.group-label{margin-right:12px;color:var(--sub);font-size:11px;white-space:nowrap}
+button{background:transparent;border:1px solid transparent;border-radius:4px;padding:7px 11px;color:#b4c4cc;font:inherit;cursor:pointer}
+button:hover{color:var(--ink);background:#1c2a33}
+button:focus-visible{outline:2px solid #b3d4dc;outline-offset:2px}
+button[aria-pressed=true]{background:#263945;color:#e6f1f4;border-color:#45626e}
+#frame{width:100%;height:100%;border:0;display:block;background:#0a0f15}
+.info{font-size:10px;color:var(--sub);white-space:nowrap}
+@media(max-width:900px){header{padding:0 6px;gap:3px}.group{gap:0}.group-label,.info{display:none}button{padding:7px 8px;font-size:11px}}
+@media(max-width:520px){.shell{grid-template-rows:auto minmax(0,1fr)}header{flex-wrap:wrap;padding:5px 8px;row-gap:3px}button{padding:5px 6px}}
+</style></head><body>
+<div class="shell"><header aria-label="Procedural workspace toolbar">
+<div class="group" role="group" aria-label="View mode">
+<span class="group-label">View</span>
+<button id="viewExternal" aria-pressed="true">External</button>
+<button id="viewDual" aria-pressed="false">Dual</button>
+<button id="viewScope" aria-pressed="false">Bronchoscopy</button></div>
+<div class="group" role="group" aria-label="Work area">
+<span class="group-label">Panels</span>
+<button id="modeFocus" aria-pressed="true">Canvas</button>
+<button id="modeInspector" aria-pressed="false">Clinical inspector</button>
+<button id="modeGestures" aria-pressed="false">Gestures</button></div>
+<div class="group"><button id="fitAnatomy" title="Reframe anatomical model without modifying its geometry">Fit anatomy</button><span class="info" id="status" role="status">Original procedural engine · unchanged</span></div>
+</header><iframe id="frame" src="./index.html" title="Original PNEUMO·VR procedural simulation" allow="camera" referrerpolicy="no-referrer"></iframe></div>
+<script>
+const frame=document.getElementById('frame');
+const $=id=>document.getElementById(id);
+let state={view:'overview',panel:'focus',booted:false,ready:false};
+const viewIds={overview:'viewExternal',dual:'viewDual',scope:'viewScope'};
+const modeIds={focus:'modeFocus',inspector:'modeInspector',gestures:'modeGestures'};
+function child(){return frame.contentWindow}
+function applyButtons(){
+ for(const [mode,id] of Object.entries(viewIds))$(id).setAttribute('aria-pressed',String(state.view===mode));
+ for(const [mode,id] of Object.entries(modeIds))$(id).setAttribute('aria-pressed',String(state.panel===mode));
+}
+function updatePanelClass(){
+ const doc=frame.contentDocument;if(!doc)return;
+ doc.body.classList.remove('pl-focus','pl-inspector','pl-gestures','pl-overview','pl-dual','pl-scope');
+ doc.body.classList.add('pl-'+state.panel,'pl-'+state.view);
+ const app=doc.getElementById('app');
+ if(app?.style.display==='flex'&&typeof child().onResize==='function')child().onResize();
+}
+function view(mode){
+ if(!Object.hasOwn(viewIds,mode))return;
+ state.view=mode;applyButtons();updatePanelClass();
+ if(!state.ready)return;
+ if(typeof child().setView==='function')child().setView(mode);
+ updatePanelClass();
+}
+function panel(mode){
+ if(!Object.hasOwn(modeIds,mode))return;
+ state.panel=mode;applyButtons();updatePanelClass();
+}
+function fit(){
+ if(!state.ready)return;
+ try {
+  if(typeof child().plFitAnatomy==='function'){child().plFitAnatomy();$('status').textContent='Anatomy framed';}
+ }catch(error){$('status').textContent='Fit unavailable for current geometry'}
+}
+$('viewExternal').onclick=()=>view('overview');
+$('viewDual').onclick=()=>view('dual');
+$('viewScope').onclick=()=>view('scope');
+$('modeFocus').onclick=()=>panel('focus');
+$('modeInspector').onclick=()=>panel('inspector');
+$('modeGestures').onclick=()=>panel('gestures');
+$('fitAnatomy').onclick=fit;
+function initialise(){
+ const doc=frame.contentDocument;if(!doc||doc.getElementById('pl-ui-style'))return;
+ const style=doc.createElement('style');style.id='pl-ui-style';
+ style.textContent=`
+ :root{--bar-h:0px;--bro-w:clamp(310px,34vw,460px);--panel-w:245px;--rp-w:275px}
+ body{cursor:auto!important}
+ #cur{display:none!important}
+ body::after{display:none!important}
+ #tb{display:none!important}
+ #views{min-height:0}
+ #ext-label{font-family:system-ui,-apple-system,"Segoe UI",sans-serif!important;letter-spacing:.045em!important;font-size:10px!important;color:rgba(207,224,232,.7)!important;left:20px!important;top:17px!important}
+ #lp,#rp{display:none!important;top:14px!important;max-height:calc(100vh - 105px)!important;
+   border:1px solid rgba(189,216,224,.14)!important;border-top:0!important;
+   background:rgba(14,23,30,.95)!important;box-shadow:0 12px 35px rgba(0,0,0,.28)!important;
+   backdrop-filter:blur(14px)!important;border-radius:5px!important}
+ body.pl-gestures #lp{display:block!important;left:14px!important}
+ body.pl-inspector #rp{display:block!important;right:14px!important}
+ body.pl-dual.pl-inspector #rp{right:calc(var(--bro-w) + 12px)!important}
+ #rp .ph-t,#lp .ph-t{font-size:11px!important;letter-spacing:.045em!important}
+ #rp .panel-hdr,#lp .panel-hdr{padding:12px 14px!important}
+ #rp .tsl,#lp .tsl{font-size:10px!important}
+ #seg-card{top:24px!important;right:18px!important;max-width:245px!important;pointer-events:none!important;
+   background:rgba(13,21,29,.94)!important;border:1px solid rgba(153,189,207,.18)!important;
+   border-left:0!important;box-shadow:0 7px 24px rgba(0,0,0,.19)!important}
+ #seg-card.show{pointer-events:auto!important}
+ body.pl-inspector #seg-card{opacity:0!important;pointer-events:none!important}
+ #bro-hud .bh{font-size:10px!important;letter-spacing:0!important;line-height:1.65!important}
+ .status-pill,.brand-inst{letter-spacing:0!important}
+ @media(max-width:720px){:root{--bro-w:42vw;--rp-w:min(260px,75vw)}
+ #lp,#rp{max-height:calc(100vh - 135px)!important}
+ body.pl-dual.pl-inspector #rp{right:6px!important}
+ #ext-label{font-size:9px!important;top:8px!important;left:8px!important}}
+ `;
+ doc.head.append(style);
+ // Execute within the ORIGINAL document's own lexical context: view/camera
+ // functions remain in the original system and are not reimplemented.
+ const script=doc.createElement('script');
+ script.textContent=`
+ window.plFitAnatomy=function(){
+   if(typeof THREE==='undefined'||typeof mGrp==='undefined'||typeof camExt==='undefined')return false;
+   mGrp.updateMatrixWorld(true);
+   const bounds=new THREE.Box3().setFromObject(mGrp);
+   if(bounds.isEmpty())return false;
+   const center=bounds.getCenter(new THREE.Vector3());
+   const sphere=bounds.getBoundingSphere(new THREE.Sphere());
+   const r=Math.max(.25,sphere.radius);
+   const aspect=Math.max(.45,camExt.aspect||1);
+   const vf=THREE.MathUtils.degToRad(camExt.fov);
+   const hf=2*Math.atan(Math.tan(vf/2)*aspect);
+   const minHalf=Math.min(vf,hf)/2;
+   const distance=Math.max(1.5,r/Math.sin(minHalf)*1.16);
+   const direction=camExt.position.clone().sub(center);
+   if(direction.length()<.1)direction.set(0,.12,1);
+   direction.normalize();
+   camExt.position.copy(center).addScaledVector(direction,distance);
+   camExt.lookAt(center);camExt.updateProjectionMatrix();
+   return true;
+ };
+ `;
+ doc.body.append(script);
+ state.ready=true;
+ const app=doc.getElementById('app');
+ let activated=false;
+ function onStart(){
+  if(activated||!app||app.style.display!=='flex')return;
+  activated=true;state.booted=true;
+  // The original start listener invokes setView('dual') after 130 ms.
+  // Set the focus-first default only after that internal initialization.
+  setTimeout(()=>{if(typeof child().setView==='function')child().setView(state.view);
+   updatePanelClass();fit();$('status').textContent='Procedural engine active';},350);
+ }
+ const observer=new MutationObserver(onStart);if(app)observer.observe(app,{attributes:true,attributeFilter:['style']});
+ onStart();applyButtons();updatePanelClass();
+}
+frame.addEventListener('load',()=>{state.ready=false;state.booted=false;initialise()});
+applyButtons();
+</script></body></html>
