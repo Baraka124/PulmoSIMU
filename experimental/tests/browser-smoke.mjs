@@ -161,9 +161,23 @@ try {
   await xr.locator('#isolateLobe').click();
   assert.equal(await xr.locator('#isolateLobe').getAttribute('aria-pressed'),'true');
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.isolated),true);
+  const originalBranch=await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.branchId);
+  await xr.locator('#nextBranch').click();
+  const branchAfter=await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.branchId);
+  assert.ok(Number.isInteger(originalBranch)&&Number.isInteger(branchAfter)&&originalBranch!==branchAfter,
+   'Next airway branch must navigate the canonical reference source');
+  assert.notEqual(await xr.locator('#branchName').innerText(),'—');
+  await xr.locator('#modeSection').click();
+  assert.equal(await xr.locator('#modeSection').getAttribute('aria-pressed'),'true');
+  assert.ok(await xr.locator('#sectionControls').isVisible(),'Section mode provides a separate reference position');
+  await xr.locator('#sectionPosition').fill('40');
+  assert.equal(await xr.locator('#sectionPercent').innerText(),'+40%');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionFraction),.4);
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionActive),true);
   await xr.locator('#modeAnatomy').click();
   assert.ok(await xr.locator('#routeControls').isHidden(),'Exploration does not display route controls');
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.mode),'anatomy');
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionActive),false);
   await xr.locator('#panelToggle').click();
   assert.equal(await xr.locator('#panelToggle').getAttribute('aria-pressed'),'false');
   await xr.locator('#resetView').click();
@@ -183,8 +197,8 @@ try {
    await uniqueQuest.locator('#launchCurrent').click();
    await uniqueQuest.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('release')==='XR04-NEW-20261120-1');
    await uniqueQuest.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
-   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-05/);
-   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-05-SPATIAL-INTERACTIONS');
+   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-06/);
+   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-06-ANATOMY-WORKBENCH');
    console.log('PASS explicit XR-04 Quest entrance, unique URL and correct spatial laboratory identity');
  }finally{await uniqueQuest.close()}
  // The headset's short entry must land on the same integrated reference
