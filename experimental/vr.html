@@ -72,8 +72,8 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
-import {XRControllerModelFactory} from 'three/addons/webxr/XRControllerModelFactory.js';
-import {bimanualPose,clampDisplayScale,dominantThumbstick,normalizeProgress} from './xr/spatial-interaction.js';
+import {createSpatialRig} from './xr/controller-rig.js';
+import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {REGIONS} from './core/mechanistic-lung.js';
 
@@ -83,6 +83,14 @@ renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
 renderer.setClearColor(0x101820,1);renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.xr.enabled=true;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(58,1,.04,40);
+scene.background=new THREE.Color(0x19262d);
+scene.fog=new THREE.Fog(0x19262d,4.8,8.5);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(4.5,64),
+  new THREE.MeshBasicMaterial({color:0x1c2a31,side:THREE.DoubleSide,depthWrite:false}));
+floor.rotation.x=-Math.PI/2;floor.position.y=-.035;scene.add(floor);
+const floorGrid=new THREE.GridHelper(7,18,0x40545c,0x2b3e47);
+floorGrid.position.y=-.031;floorGrid.material.transparent=true;
+floorGrid.material.opacity=.19;scene.add(floorGrid);
 camera.position.set(0,1.5,1.4);
 const focus=new THREE.Vector3(0,1.30,-1.35);camera.lookAt(focus);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.target.copy(focus);controls.minDistance=.55;controls.maxDistance=4;
@@ -95,6 +103,7 @@ scene.add(anatomy);
 // 1 source scene unit is approximately 0.1 m in the original *procedural*
 // sample, but has no calibrated physical provenance. Enlarged X2.2 purely
 // for comfortable inspection inside the Quest. NEVER claim life-size.
+// Source reference has no calibrated millimetres. This is a display-only size.
 const displayScale=.22;
 const layers=new THREE.Group();layers.scale.setScalar(displayScale);anatomy.add(layers);
 const meshes=[],regions=new Map();
@@ -108,12 +117,19 @@ const lobeShapes=[
 const lobeMaterials=new Map();
 for(const l of lobeShapes){
  const geometry=new THREE.SphereGeometry(1,24,16);
- const material=new THREE.MeshStandardMaterial({color:0x9e8587,roughness:.74,metalness:0,transparent:true,opacity:.53,depthWrite:false,side:THREE.DoubleSide});
+ const material=new THREE.MeshStandardMaterial({color:0x9e8587,roughness:.93,metalness:0,transparent:true,opacity:.38,depthWrite:false,side:THREE.DoubleSide});
  const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...l.pos);mesh.scale.set(...l.size);mesh.rotation.z=l.angle;
  mesh.userData.regionId=l.id;mesh.userData.kind='schematic-lobe';
  layers.add(mesh);meshes.push(mesh);regions.set(l.id,mesh);lobeMaterials.set(l.id,material);
 }
 const airwayGroup=new THREE.Group();layers.add(airwayGroup);
+const routeGroup=new THREE.Group();layers.add(routeGroup);
+const routeMaterial=new THREE.LineBasicMaterial({color:0xc1e9e6,transparent:true,opacity:.95,depthTest:false});
+const routeMarker=new THREE.Mesh(new THREE.SphereGeometry(.075,12,10),
+ new THREE.MeshBasicMaterial({color:0xece9d0,depthTest:false}));
+routeGroup.add(routeMarker);routeMarker.renderOrder=15;
+let routeCurve=null,routeLine=null,routeProgress=0;
+let mode='anatomy',isolated=false;routeGroup.visible=false;
 const worldSelect=new THREE.Raycaster();worldSelect.params.Line.threshold=.02;
 const pointer=new THREE.Vector2();let graph=null,selected='RUL';
 function setSelected(regionId){
@@ -123,8 +139,9 @@ function setSelected(regionId){
  $('selectedId').textContent=regionId;$('selectedRegion').textContent=r?.label+' lobe'||regionId;
  $('branchCount').textContent=graph?String(graph.nodes.filter(n=>graph.regionOf(n.id)===regionId).length):'—';
  $('selectionNote').textContent='Schematic lobe and proximal airway hierarchy; anatomical accuracy not established.';
- for(const [id,mat] of lobeMaterials){mat.color.set(id===selected?0xcba9a5:0x9e8587);mat.opacity=id===selected?.78:.42}
+ for(const [id,mat] of lobeMaterials){mat.color.set(id===selected?0xc8a9a8:0x9e8587);mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27)}
  updateWorldLabel();
+ if(graph)buildRoute();
 }
 const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=164;
 const labelContext=labelCanvas.getContext('2d');
@@ -142,7 +159,7 @@ function updateWorldLabel(){
 async function buildReference(){
  const loaded=await fetchReferenceAirwayGraph();
  graph=loaded;
- const airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.62,transparent:true,opacity:.88});
+ const airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.87,transparent:true,opacity:.87,side:THREE.DoubleSide});
  for(const node of graph.nodes){
    const pts=node.points.map(p=>new THREE.Vector3(...p));
    const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
@@ -165,6 +182,58 @@ async function buildReference(){
  }
  setSelected(selected);
  $('status').textContent='REFERENCE AIRWAYS · '+graph.nodes.length+' SOURCE BRANCHES';
+ buildRoute();
+}
+
+function buildRoute(){
+ if(!graph)return;
+ const leaf=graph.nodes.filter(n=>n.children.length===0&&graph.regionOf(n.id)===selected)
+   .sort((a,b)=>b.generation-a.generation||a.id-b.id)[0];
+ if(!leaf){routeCurve=null;routeGroup.visible=false;return}
+ const coords=[];
+ for(const node of graph.chain(leaf.id)){
+   for(const p of node.points){
+     const point=new THREE.Vector3(...p);
+     if(coords.length&&point.distanceTo(coords[coords.length-1])<.0001)continue;
+     coords.push(point);
+   }
+ }
+ if(coords.length<2)return;
+ routeCurve=new THREE.CatmullRomCurve3(coords,false,'centripetal');
+ if(routeLine){routeGroup.remove(routeLine);routeLine.geometry.dispose()}
+ routeLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(routeCurve.getPoints(90)),routeMaterial);
+ routeLine.renderOrder=13;routeGroup.add(routeLine);
+ setRouteProgress(0);
+ routeGroup.visible=mode==='path';
+}
+function setRouteProgress(value){
+ routeProgress=normalizeProgress(value);
+ $('routeProgress').value=String(Math.round(routeProgress*100));
+ $('routePercent').textContent=Math.round(routeProgress*100)+'%';
+ if(routeCurve)routeMarker.position.copy(routeCurve.getPoint(routeProgress));
+}
+function applyAppearance(){
+ for(const [id,mat] of lobeMaterials){
+   mat.color.set(id===selected?0xc8a9a8:0x9e8587);
+   mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27);
+ }
+ routeGroup.visible=mode==='path'&&Boolean(routeCurve);
+}
+function setMode(next){
+ if(!['anatomy','path'].includes(next))return;
+ mode=next;
+ $('modeAnatomy').setAttribute('aria-pressed',String(next==='anatomy'));
+ $('modeAirway').setAttribute('aria-pressed',String(next==='path'));
+ $('routeControls').classList.toggle('active',next==='path');
+ $('modeExplanation').textContent=next==='path'?
+  'Airway guide: the joystick advances a route marker, never your head. Open Procedures for the original bronchoscopy simulator.':
+  'In Quest: side grips hold the lungs. Both grips rotate and resize. Triggers select structures.';
+ applyAppearance();
+}
+function toggleIsolate(){
+ isolated=!isolated;$('isolateLobe').setAttribute('aria-pressed',String(isolated));
+ $('isolateLobe').textContent=isolated?'Show all lobes':'Isolate lobe';
+ applyAppearance();
 }
 function pick(raycaster){
  // Raycast airway before transparent lobe surfaces for usable selection.
