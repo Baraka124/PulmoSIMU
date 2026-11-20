@@ -429,6 +429,20 @@ function install(ctx){
         monitorError=String(error?.message||error).slice(0,140);
       }
       rBro.xr.enabled=previousXR;
+      // THREE r128 WebXRManager binds the XR base-layer framebuffer only at
+      // the start of its frame callback. setRenderTarget(null) can replace
+      // that binding while this callback is still active. Explicitly restore
+      // the real headset framebuffer before the stereo render below.
+      if(previousXR&&rBro.xr.isPresenting&&previousTarget===null){
+        const layer=rBro.xr.getSession()?.renderState?.baseLayer;
+        if(layer?.framebuffer&&rBro.state?.bindXRFramebuffer)
+          rBro.state.bindXRFramebuffer(layer.framebuffer);
+        else{
+          monitorStatus='unavailable';
+          monitorError='Unable to restore XR framebuffer after scope pass';
+          monitorImage.visible=false;
+        }
+      }
       camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
       worldMenu.visible=menuWasVisible;
       room.visible=roomWasVisible;
