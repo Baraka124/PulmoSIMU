@@ -178,7 +178,7 @@ try {
  const questEntry=await browser.newPage({viewport:{width:1050,height:760}});
  try{
    await questEntry.goto(host+'/quest.html?focus=LLL',{waitUntil:'domcontentloaded'});
-   await questEntry.waitForURL(/experimental\\/vr\\.html\\?focus=LLL/,{timeout:15000});
+   await questEntry.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('focus')==='LLL',{timeout:15000});
    await questEntry.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
    assert.equal(await questEntry.locator('#selectedId').innerText(),'LLL');
    await questEntry.locator('#resetView').click();
