@@ -9,7 +9,7 @@ import {bimanualPose,clampDisplayScale,dominantThumbstick} from './spatial-inter
 import {createWelcomeSequence} from './experience-sequence.js';
 
 export function createSpatialRig({
-  renderer,scene,camera,anatomy,onSelect,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
+  renderer,scene,camera,anatomy,onSelect,onHover,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
 }){
   const controllers=[],grips=[],grabbing=[false,false],handAnchors=[null,null];
   let twoHandStart=null,started=false,menuVisible=true,mode='anatomy',previousButtons=[[],[]];
@@ -249,11 +249,20 @@ export function createSpatialRig({
     const x=hit.uv.x*1024,y=(1-hit.uv.y)*970;
     return activeActions().find(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h)?.id||null;
   }
-  function trigger(controller){
+  function trigger(controller,source){
     if(mode==='anatomy'&&grabbing.some(Boolean))return;
     const ray=pointerRay(controller),action=actionHit(ray);
-    if(action)perform(action);
-    else onSelect?.(ray,mode);
+    const picked=action?(perform(action),true):Boolean(onSelect?.(ray,mode));
+    if(picked){
+      // Haptics are optional on the Quest WebXR Gamepad API; a missing motor
+      // must never prevent selection or make controller input fail.
+      try{
+        const pad=source?.gamepad;
+        if(pad?.hapticActuators?.[0]?.pulse)pad.hapticActuators[0].pulse(.24,38).catch?.(()=>{});
+        else pad?.vibrationActuator?.playEffect?.('dual-rumble',{
+          duration:38,startDelay:0,strongMagnitude:.2,weakMagnitude:.12}).catch?.(()=>{});
+      }catch{}
+    }
     drawPanel(true);
   }
   for(let i=0;i<2;i++){
@@ -267,7 +276,7 @@ export function createSpatialRig({
     controller.addEventListener('connected',event=>{
       controller.userData.handedness=event.data?.handedness||null;
     });
-    controller.addEventListener('selectstart',()=>trigger(controller));
+    controller.addEventListener('selectstart',event=>trigger(controller,event.data));
     controller.addEventListener('squeezestart',()=>beginGesture(i));
     controller.addEventListener('squeezeend',()=>endGesture(i));
     controller.addEventListener('disconnected',()=>endGesture(i));
@@ -316,6 +325,9 @@ export function createSpatialRig({
     drawPanel();
     const hovered=controllers.map(c=>actionHit(pointerRay(c))).find(Boolean)||null;
     if(hovered!==hoverAction){hoverAction=hovered;drawPanel(true)}
+    const right=controllers.find(c=>c.userData.handedness==='right');
+    if(right&&!hovered&&!grabbing.some(Boolean))onHover?.(pointerRay(right),mode);
+    else onHover?.(null,mode);
   }
   return {update,setMode,recenter,setPanelVisible,
     getMode:()=>mode,getPanelVisible:()=>menuVisible,
