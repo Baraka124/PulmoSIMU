@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>PulmoSIMU | Respiratory Systems Laboratory</title>
+<style>
+:root{--bg:#0c1419;--side:#111b21;--ink:#e3e9eb;--sub:#9aabb5;--line:#30414b;--accent:#b5d8df}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font:13px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink)}
+button{font:inherit;cursor:pointer;color:inherit}button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.layout{height:100dvh;display:grid;grid-template-columns:235px minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+aside{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;padding:23px 15px}
+.brand{padding:3px 12px 20px}.brand strong{font-size:18px;font-weight:650;letter-spacing:-.045em}.brand p{font-size:11px;color:var(--sub);margin:5px 0 0}
+.eyebrow{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.13em;margin:18px 12px 12px}
+.mode{display:flex;text-align:left;flex-direction:column;width:100%;padding:13px 12px;border:1px solid transparent;background:transparent;border-radius:5px;gap:3px;margin:2px 0}
+.mode strong{font-size:13px;font-weight:520}.mode small{font-size:11px;color:var(--sub);line-height:1.5}.mode[aria-pressed=true]{background:#1d2c34;border-color:#455c67}.mode[aria-pressed=true] strong{color:#d4edf0}
+.foot{margin-top:auto;padding:16px 12px 0;border-top:1px solid #293741;font-size:10px;color:var(--sub);line-height:1.7}
+.stage{display:grid;grid-template-rows:52px minmax(0,1fr);min-width:0;min-height:0}
+.head{display:flex;align-items:center;gap:16px;justify-content:space-between;border-bottom:1px solid var(--line);padding:0 19px;background:#101920}
+.head h1{font-size:13px;font-weight:590;letter-spacing:0;margin:0}.head p{font-size:10px;color:var(--sub);margin:2px 0 0}.context{font-size:10px;color:var(--sub)}
+iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1117}.frame{min-height:0;position:relative}
+.notice{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(13,23,29,.89);border:1px solid #31434d;color:#b9c9d0;padding:7px 12px;border-radius:3px;max-width:calc(100% - 24px);font-size:10px;text-align:center;pointer-events:none}
+@media(max-width:760px){.layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}aside{padding:10px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--line)}.brand{padding:3px}.brand strong{font-size:15px}.brand p,.eyebrow,.foot{display:none}.mode{margin:0;padding:8px;min-width:0}.mode strong{font-size:11px}.mode small{font-size:9px}.head{padding:0 12px}.context{display:none}.stage{min-height:0}}
+</style></head><body>
+<div class="layout">
+<aside aria-label="Research workspaces">
+<div class="brand"><strong>PulmoSIMU</strong><p>Respiratory Systems Laboratory</p></div>
+<div class="eyebrow">Work environment</div>
+<button type="button" class="mode" id="modeProcedure" aria-pressed="true"><strong>Procedural simulation</strong><small>Virtual bronchoscopy, navigation and surgical planning</small></button>
+<button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional physiology, disease, therapy and anatomical inspection</small></button>
+<div class="foot">Experimental research platform.<p>These are currently separate computational environments. Their anatomy and state have not yet been synchronized.</p>Not clinically validated.</div>
+</aside>
+<main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">Original PNEUMO·VR — preserved</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
+<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./index.html" allow="camera" referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">The original procedure is unchanged. Choose the mechanistic laboratory for research modules.</div></div>
+</main></div>
+<script>
+const modes={
+ procedure:{src:'./index.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
+ mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Regional anatomy · airflow · disease · therapeutic experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Prototype research calculations. No patient-specific treatment prediction or verified full-organ reconstruction.'}
+};
+let current='procedure';
+function activate(which){
+ if(!Object.hasOwn(modes,which)||which===current)return;
+ current=which;const m=modes[which];
+ document.getElementById('modeProcedure').setAttribute('aria-pressed',String(which==='procedure'));
+ document.getElementById('modeMechanisms').setAttribute('aria-pressed',String(which==='mechanisms'));
+ document.getElementById('workspaceTitle').textContent=m.title;
+ document.getElementById('workspaceSubtitle').textContent=m.subtitle;
+ document.getElementById('workspaceContext').textContent=m.context;
+ document.getElementById('workspaceNote').textContent=m.note;
+ const frame=document.getElementById('workspaceFrame');frame.title='PulmoSIMU '+m.title;frame.src=m.src;
+}
+document.getElementById('modeProcedure').addEventListener('click',()=>activate('procedure'));
+document.getElementById('modeMechanisms').addEventListener('click',()=>activate('mechanisms'));
+</script></body></html>
