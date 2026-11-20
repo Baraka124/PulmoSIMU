@@ -28,3 +28,22 @@ User-submitted 44-second, 1918x916 PNEUMO·VR walkthrough. Review sampled multip
 
 ## Necessary engineering boundary
 The same anatomy/physiology engine should eventually serve procedures and mechanistic research. That requires an explicit versioned shared airway model, physical units and coordinate registration. A shared navigation shell alone does **not** solve it. Do not expose the research surrogate as a validated patient-specific computation, and do not merge into production before manual anatomical and UI quality review.
+
+## Implemented UI quality pass — 2026-11-20
+
+New `procedural-workspace.html` is a **non-destructive presentation layer** around the canonical root `index.html`. `studio.html` routes its Procedural Simulation mode through that layer.
+
+- A compact, readable command bar replaces redundant internal topbar presentation in this workspace; **External / Dual / Bronchoscopy** call the existing `setView()`.
+- **Canvas** is the default mode; the original gesture and clinical panels are simply visually hidden, *not removed or reimplemented*. They can be opened as mutually exclusive contextual panels via **Clinical inspector** or **Gestures** controls.
+- **Fit anatomy** invokes a camera framing helper in the original procedural rendering context; no modification of geometry, patient data, scope position or simulation physics. Original camera fitting and orbit interaction remain.
+- Original microtypography, scanline and especially dense HUD chrome are quieted by view-local CSS. The user can still access every underlying surgical/gesture capability through the original DOM.
+- This is not yet a physically shared engine between PNEUMO·VR and `experimental/lab.html`; switching studios does not synchronize state. The root legacy application and all its source scripts remain unchanged.
+- A browser smoke test checks existence of both original canvases, the source-level camera helper, focused/clinical/gesture panel transitions, original view switching and Studio workspace navigation.
+- The focused wrapper is an **opt-in development branch feature**, not deployed by default to the existing `index.html` URL.
+
+### Quality gates still pending
+1. Manual visual inspection of rendered frames from the new procedural wrapper on desktop and mobile.
+2. Real gesture-camera navigation and scope/biopsy/measurement procedure regression (automated DOM presence alone is not a full workflow test).
+3. User-facing comparison against the recording, checking actual anatomy framing, legible units and whether clinical panels obstruct anatomical interactions.
+
+Avoid merging this branch until these review gates pass. The requested next engineering objective remains one authoritative anatomical and physical state contract shared across procedure and mechanistic research, not merely an iframe shell.
