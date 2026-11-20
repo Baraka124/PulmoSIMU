@@ -6,16 +6,18 @@
 import * as THREE from 'three';
 import {XRControllerModelFactory} from 'three/addons/webxr/XRControllerModelFactory.js';
 import {bimanualPose,clampDisplayScale,dominantThumbstick} from './spatial-interaction.js';
+import {createWelcomeSequence} from './experience-sequence.js';
 
 export function createSpatialRig({
   renderer,scene,camera,anatomy,onSelect,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
 }){
   const controllers=[],grips=[],grabbing=[false,false],handAnchors=[null,null];
   let twoHandStart=null,started=false,menuVisible=true,mode='anatomy',previousButtons=[[],[]];
+  const welcome=createWelcomeSequence();
   let menuVersion='',hoverAction=null;
-  const raycaster=new THREE.Raycaster(),basis=new THREE.Matrix4(),clock=new THREE.Clock();
+  const raycaster=new THREE.Raycaster(),basis=new THREE.Matrix4();
   const headPosition=new THREE.Vector3(),headForward=new THREE.Vector3(),headRight=new THREE.Vector3(),q=new THREE.Quaternion();
-  const tmpVec=new THREE.Vector3(),tmpVecB=new THREE.Vector3(),tmpMatrix=new THREE.Matrix4();
+  const tmpVec=new THREE.Vector3(),tmpMatrix=new THREE.Matrix4();
   const scaleLimits={minScale:.55,maxScale:1.9};
   const controllerFactory=new XRControllerModelFactory();
 
@@ -35,6 +37,22 @@ export function createSpatialRig({
     {id:'procedure',label:'PROCEDURES',x:65,y:710,w:434,h:108},
     {id:'hide',label:'HIDE PANEL',x:526,y:710,w:434,h:108}
   ];
+  const tutorialActions=[
+    {id:'tour-next',label:'NEXT STEP',x:65,y:710,w:434,h:108},
+    {id:'tour-skip',label:'EXPLORE NOW',x:526,y:710,w:434,h:108}
+  ];
+  const activeActions=()=>welcome.get().active?tutorialActions:actions;
+  function textWrap(text,x,y,maxWidth,lineHeight,maxLines=5){
+    const words=String(text).split(/\\s+/);let line='',row=0;
+    for(const word of words){
+      const candidate=line?line+' '+word:word;
+      if(ctx.measureText(candidate).width>maxWidth&&line){
+        ctx.fillText(line,x,y+row*lineHeight);row++;line=word;
+        if(row>=maxLines)return;
+      }else line=candidate;
+    }
+    if(line&&row<maxLines)ctx.fillText(line,x,y+row*lineHeight);
+  }
 
   function rect(x,y,w,h,fill,stroke,r=12){
     ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();
@@ -42,11 +60,35 @@ export function createSpatialRig({
   }
   function drawPanel(force=false){
     const info=getInfo?.()||{};
-    const key=JSON.stringify([mode,menuVisible,info.region,info.name,info.isolated,info.progress,hoverAction]);
+    const tour=welcome.get();
+    const key=JSON.stringify([mode,menuVisible,info.region,info.name,info.isolated,info.progress,hoverAction,tour.active,tour.index]);
     if(!force&&key===menuVersion)return;
     menuVersion=key;ctx.clearRect(0,0,1024,970);
     rect(0,0,1024,970,'rgba(18,31,39,.96)','#526974',16);
     rect(0,0,1024,9,'#9cbec8',null,0);
+    if(tour.active){
+      ctx.textAlign='left';ctx.fillStyle='#b8d3db';ctx.font='600 29px system-ui';
+      ctx.fillText('PULMOSIMU  /  YOUR FIRST XR SESSION',65,91);
+      ctx.fillStyle='#ebf1f4';ctx.font='600 53px system-ui';
+      textWrap(tour.title,65,190,860,64,2);
+      ctx.fillStyle='#adc7d0';ctx.font='500 29px system-ui';
+      ctx.fillText('STEP '+(tour.index+1)+' OF '+tour.total,65,284);
+      rect(65,335,894,280,'rgba(45,67,78,.52)',null,14);
+      ctx.fillStyle='#f0f4f5';ctx.font='35px system-ui';
+      textWrap(tour.text,93,405,825,51,4);
+      ctx.fillStyle='#afcbd4';ctx.font='600 26px system-ui';
+      textWrap(tour.hint,65,667,885,38,2);
+      for(const a of tutorialActions){
+        const hovered=hoverAction===a.id;
+        rect(a.x,a.y,a.w,a.h,hovered?'#43626f':'#2b434e',hovered?'#bbdce3':'#647f8a',12);
+        ctx.fillStyle='#f0f6f8';ctx.font='600 34px system-ui';ctx.fillText(a.label,a.x+28,a.y+66);
+      }
+      ctx.fillStyle='#9bb7c2';ctx.font='28px system-ui';
+      ctx.fillText('POINT + TRIGGER TO CONTINUE   ·   A: HIDE / SHOW PANEL',65,895);
+      ctx.fillStyle='#8ca8b3';ctx.font='24px system-ui';
+      ctx.fillText('SCHEMATIC REFERENCE · NOT CLINICAL / CALIBRATED',65,939);
+      tex.needsUpdate=true;return;
+    }
     ctx.textAlign='left';ctx.fillStyle='#a8c2cb';ctx.font='500 31px system-ui';
     ctx.fillText('PULMOSIMU  /  SPATIAL LAB',65,88);
     ctx.fillStyle='#ecf2f4';ctx.font='600 62px system-ui';
@@ -57,7 +99,7 @@ export function createSpatialRig({
     ctx.fillStyle='#cfdee3';ctx.font='29px system-ui';
     ctx.fillText(mode==='path'?'LEFT STICK: ADVANCE ROUTE   ·   NO CAMERA MOTION':
       'SIDE GRIP: HOLD   ·   BOTH GRIPS: RESIZE & ROTATE',89,361);
-    for(const a of actions){
+    for(const a of activeActions()){
       const active=a.id===mode || (a.id==='isolate'&&info.isolated);
       const hovered=hoverAction===a.id;
       rect(a.x,a.y,a.w,a.h,active?'#36535f':hovered?'#2c4450':'#21343d',
@@ -171,6 +213,8 @@ export function createSpatialRig({
     drawPanel(true);
   }
   function perform(id){
+    if(id==='tour-next'){welcome.next();drawPanel(true);return}
+    if(id==='tour-skip'){welcome.skip();drawPanel(true);return}
     if(id==='anatomy'||id==='path')setMode(id);
     else if(id==='reset')recenter();
     else if(id==='isolate')onIsolate?.();
@@ -196,7 +240,7 @@ export function createSpatialRig({
     const hit=ray.intersectObject(panel,false)[0];
     if(!hit?.uv)return null;
     const x=hit.uv.x*1024,y=(1-hit.uv.y)*970;
-    return actions.find(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h)?.id||null;
+    return activeActions().find(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h)?.id||null;
   }
   function trigger(controller){
     if(mode==='anatomy'&&grabbing.some(Boolean))return;
@@ -213,6 +257,9 @@ export function createSpatialRig({
       new THREE.LineBasicMaterial({color:i?0xc6d8e0:0x9fb9c4,transparent:true,opacity:.65}));
     beam.scale.z=1.8;controller.add(beam);
     try{grip.add(controllerFactory.createControllerModel(grip))}catch{}
+    controller.addEventListener('connected',event=>{
+      controller.userData.handedness=event.data?.handedness||null;
+    });
     controller.addEventListener('selectstart',()=>trigger(controller));
     controller.addEventListener('squeezestart',()=>beginGesture(i));
     controller.addEventListener('squeezeend',()=>endGesture(i));
@@ -229,12 +276,12 @@ export function createSpatialRig({
     if(!session)return;
     for(const src of session.inputSources){
       if(!src.gamepad)continue;
-      const i=src.handedness==='left'?0:src.handedness==='right'?1:-1;
+      const i=controllers.findIndex(c=>c.userData.handedness===src.handedness);
       if(i<0)continue;
-      if(i===1&&buttonEdge(i,4,src))setPanelVisible(!menuVisible);
-      if(i===1&&buttonEdge(i,5,src))setMode(mode==='anatomy'?'path':'anatomy');
-      if(i===0&&buttonEdge(i,4,src))recenter();
-      if(mode==='path'&&i===0){
+      if(src.handedness==='right'&&buttonEdge(i,4,src))setPanelVisible(!menuVisible);
+      if(src.handedness==='right'&&buttonEdge(i,5,src))setMode(mode==='anatomy'?'path':'anatomy');
+      if(src.handedness==='left'&&buttonEdge(i,4,src))recenter();
+      if(mode==='path'&&src.handedness==='left'){
         const [,vertical]=dominantThumbstick(src.gamepad.axes);
         if(vertical!==0)onRouteStep?.(-vertical*Math.min(dt,.05)*.24);
       }
@@ -242,6 +289,7 @@ export function createSpatialRig({
   }
   renderer.xr.addEventListener('sessionstart',()=>{
     started=false;menuVisible=true;previousButtons=[[],[]];
+    welcome.restart();
     grabbing.fill(false);handAnchors.fill(null);twoHandStart=null;
     panel.visible=false;
   });
@@ -261,5 +309,5 @@ export function createSpatialRig({
   }
   return {update,setMode,recenter,setPanelVisible,
     getMode:()=>mode,getPanelVisible:()=>menuVisible,
-    debugState:()=>({mode,menuVisible,grabbing:[...grabbing],scale:anatomy.scale.x,started})};
+    debugState:()=>({mode,menuVisible,grabbing:[...grabbing],scale:anatomy.scale.x,started,tour:welcome.get(),hands:controllers.map(c=>c.userData.handedness||null)})};
 }
