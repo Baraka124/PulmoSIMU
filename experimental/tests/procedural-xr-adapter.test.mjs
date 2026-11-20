@@ -64,6 +64,8 @@ test('XR-08 live endoscopy is rendered in the original VR GPU context, not copie
    'Do not upload another WebGL context canvas into Quest texture');
  assert.ok(!source.includes('rExt.render(scene,camScope)'),
    'VR monitor never depends on original desktop renderer capture');
+ assert.ok(source.includes('rBro.state.bindXRFramebuffer(layer.framebuffer)'),
+   'XR r128 must restore headset base-layer framebuffer after endoscope target');
  assert.ok(source.includes("monitorStatus='unavailable'"),
    'A failed offscreen render must be reported, not faked');
 });
