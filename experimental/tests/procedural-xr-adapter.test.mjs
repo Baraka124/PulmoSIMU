@@ -9,7 +9,7 @@ test('XR-07 runtime is browser-valid classic JavaScript compatible with original
  assert.equal(r.status,0,r.stderr);
  assert.match(source,/global\.PulmoImmersiveXR=\{install\}/);
  assert.match(original,/three@0\.128\.0/);
- assert.match(original,/procedural-immersive\.js\?v=XR07/);
+ assert.match(original,/procedural-immersive\.js\?v=XR08/);
 });
 test('only original clinical scene, geometry and procedural state drive headset experience',()=>{
  for(const k of ['scene, rBro, rExt, camScope, mGrp','scope, CFG, SEGS, SEG_MAP, pathCurves','patientData','proceduralMeshes','referenceMeshes','pathoMeshes','fireAction,enterBranch','setClinMode,getClinMode','getAnatomyMeshes'])
@@ -39,4 +39,17 @@ test('diagnostics disclose reference status and preserve real simulator componen
  assert.match(source,/originalAnatomyMeshes/);
  assert.match(source,/comfort display/i);
  assert.match(source,/not calibrated/i);
+});
+
+test('XR-08 uses audited CT source registration and estimated instrument-lumen clearance',()=>{
+ assert.ok(original.includes('registered-geometry.js?v=XR08'));
+ for(const token of ['assessRegistration','_xr08MeshBoundsLocal','patientData.xrAudit',
+ 'CT registration rejected',"setViewMode('reference')",
+ 'getPatientAudit:()=>patientData.xrAudit','assessLumenClearance']){
+  assert.ok(original.includes(token),'original source contract: '+token);
+ }
+ for(const token of ['getPatientAudit','setSourceScale','sourceScaleEligible',
+ 'getMmPerSceneUnit','getScopeDiameterMm','sourceAudit:','clearanceState']){
+  assert.ok(source.includes(token),'headset source gate: '+token);
+ }
 });
