@@ -141,6 +141,22 @@ try {
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
+ const xr=await browser.newPage({viewport:{width:1260,height:850}});
+ const xrErrors=[];
+ xr.on('pageerror',err=>xrErrors.push(err.message));
+ try{
+  await xr.goto(host+'/experimental/vr.html',{waitUntil:'domcontentloaded'});
+  await xr.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
+  assert.ok(await xr.locator('#stageCanvas').isVisible());
+  assert.equal(await xr.locator('#selectedId').innerText(),'RUL');
+  const count=Number(await xr.locator('#branchCount').innerText());
+  assert.ok(count>0,'Canonical reference airway tree loaded');
+  assert.ok(await xr.locator('#enterVR button').count()>0,'WebXR button or supported fallback present');
+  await xr.locator('#resetView').click();
+  assert.equal(await xr.locator('#selectedId').innerText(),'RUL');
+  assert.deepEqual(xrErrors,[],'No WebXR viewer script errors');
+  console.log('PASS Quest viewer desktop fallback: source branches, selection state, reset and XR capability UI');
+ }finally{await xr.close()}
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
  studio.on('pageerror',error=>console.error('STUDIO PAGE ERROR',error.message));
  try{
