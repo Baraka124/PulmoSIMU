@@ -19,19 +19,25 @@ function install(ctx){
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
   const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
-  let saved=null,poseInfo=null,panelsReady=false,hoverAction=null;
+  let saved=null,scopeSteering=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
   const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
-  const release=i=>{grab[i]=null;if(grab[0]&&!grab[1])capture(0);if(grab[1]&&!grab[0])capture(1);gesture=null;};
+  const release=i=>{
+    grab[i]=null;
+    if(scopeSteering?.i===i)scopeSteering=null;
+    if(grab[0]&&!grab[1])capture(0);
+    if(grab[1]&&!grab[0])capture(1);
+    gesture=null;
+  };
   const currentGrip=i=>grips[i];
   function setMode(next){
     if(!['anatomy','procedure'].includes(next))return;
     summonGeneration++;
-    mode=next;grab[0]=grab[1]=null;gesture=null;
+    mode=next;grab[0]=grab[1]=null;gesture=null;scopeSteering=null;
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(next==='anatomy')scope.velocity=0;
     paint();
@@ -117,6 +123,13 @@ function install(ctx){
     grab[i].relative.copy(grips[i].matrixWorld).invert().multiply(mGrp.matrixWorld);
   }
   function startGrab(i){
+    if(mode==='procedure'&&active&&controllerSide[i]==='right'){
+      const g=grips[i];if(!g)return false;
+      g.updateMatrixWorld(true);
+      scopeSteering={i,origin:g.getWorldQuaternion(new THREE.Quaternion()),
+        deflH:scope.deflH,deflV:scope.deflV};
+      return true;
+    }
     if(!active||!placed||mode!=='anatomy'||grab[i]||proximity(i)>.18)return false;
     const grip=grips[i];if(!grip)return false;
     summonGeneration++;
@@ -157,6 +170,19 @@ function install(ctx){
       if(offset.length()<.001)offset.copy(forward);
       mGrp.position.copy(head).add(offset.normalize().multiplyScalar(.38));
     }
+  }
+  function updateSteering(){
+    if(mode!=='procedure'||!scopeSteering)return;
+    const {i,origin,deflH,deflV}=scopeSteering;
+    grips[i].updateMatrixWorld(true);
+    const orientation=grips[i].getWorldQuaternion(new THREE.Quaternion());
+    // Change in controller orientation relative to the moment of grasp.
+    // This is a VR input mapping to the ORIGINAL scope deflection state,
+    // not an assertion of mechanical shaft/knob or force-feedback realism.
+    const delta=origin.clone().invert().multiply(orientation);
+    const euler=new THREE.Euler().setFromQuaternion(delta,'YXZ');
+    scope.deflH=safe(-1,1,deflH+euler.y/0.65);
+    scope.deflV=safe(-1,1,deflV-euler.x/0.65);
   }
   function rayFrom(i){
     const source=hands[i];if(!source)return null;
@@ -241,8 +267,10 @@ function install(ctx){
         if(y)scope.velocity=-y*CFG.scopeSpd/900;
         if(x)scope.roll+=x*.03;
       }else{
-        scope.deflH=safe(-1,1,scope.deflH*.82+x*.18);
-        scope.deflV=safe(-1,1,scope.deflV*.82-y*.18);
+        if(!scopeSteering){
+          scope.deflH=safe(-1,1,scope.deflH*.82+x*.18);
+          scope.deflV=safe(-1,1,scope.deflV*.82-y*.18);
+        }
       }
       if(i===1&&edge(5))activate('tool');
     }
@@ -272,7 +300,7 @@ function install(ctx){
     c.fillStyle='#d3e0e5';c.font='30px system-ui';
     c.fillText(mode==='procedure'?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—')):'Original surgical anatomy · Spatial handling',48,230);
     c.fillStyle='#a8c4cc';c.font='25px system-ui';
-    c.fillText(mode==='procedure'?'LEFT STICK: ADVANCE  ·  RIGHT: DEFLECT  ·  TRIGGER: ACT':
+    c.fillText(mode==='procedure'?'LEFT: ADVANCE  ·  RIGHT GRIP: STEER  ·  TRIGGER: ACT':
       'TRIGGER: SUMMON  ·  NEAR GRIP: HOLD  ·  BOTH: RESIZE',48,280);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
@@ -364,7 +392,7 @@ function install(ctx){
       if(!headPose(frame))return;
       if(!placed)frameGroup();
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
-      poll(dt);updateGrab();
+      poll(dt);updateGrab();updateSteering();
       if(mode==='procedure')captureFeed(time);
       // The same clinical scene and source model are drawn stereoscopically.
       rBro.render(scene,vrCam);
@@ -378,13 +406,14 @@ function install(ctx){
       mGrp.scale.copy(saved.scale);setExtIdle(saved.extIdle);
     }
     for(let i=0;i<2;i++)grab[i]=null;
-    summonGeneration++;gesture=null;placed=false;viewerValid=false;
+    summonGeneration++;gesture=null;scopeSteering=null;placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
   paint();
   const diagnostics=()=>({source:'original-pneumovr-scene',modelRole:getMeshMode(),
     mode,active,placed,viewerValid,monitor:scopeScreen.visible,
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
+    scopeSteeringActive:Boolean(scopeSteering),
     originalPathologyCount:Object.keys(ctx.pathoMeshes||{}).length,
     originalAnatomyMeshes:getAnatomyMeshes().length});
   global.pulmoProceduralXRDebug=diagnostics;
