@@ -9,7 +9,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR07-20261120"></script>
+<script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR08-20261120"></script>
 <style>
 /* ============================================================
    PNEUMO·VR SURGICAL — Design System v20
@@ -2464,6 +2465,18 @@ function checkProx(pos){
 
 function advance(dt){
   const seg=SEG_MAP[scope.segId];
+  if(rBro.xr.isPresenting&&seg&&window.PulmoXR08&&dt>0){
+    try{
+      const clearance=window.PulmoXR08.assessLumenClearance({
+        segment:seg,t:Math.min(.999,scope.t+dt),
+        scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+      });
+      if(!clearance.canAdvance){
+        scope.velocity=0;
+        return; // source-estimated lumen too narrow; no wall physics implied
+      }
+    }catch(error){scope.velocity=0;console.warn('XR clearance gate',error.message);return}
+  }
   if(scope.t>=.96&&seg?.children?.length>0){showBranchSel();return;}
   // Resistance modulates advance speed (v17)
   const res=getScopeResistance();
@@ -2488,6 +2501,18 @@ function hideBranchSel(){scope.atBranch=false;scope._branchHold=null;document.ge
 function enterBranch(childIdx){
   const seg=SEG_MAP[scope.segId],ch=seg?.children||[];
   if(childIdx<0||childIdx>=ch.length)return;
+  if(rBro.xr.isPresenting&&window.PulmoXR08){
+    try{
+      const target=SEG_MAP[ch[childIdx]];
+      const clearance=window.PulmoXR08.assessLumenClearance({
+        segment:target,t:.01,scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+      });
+      if(!clearance.canAdvance){
+        scope.velocity=0;
+        showToast('XR · airway too narrow for selected instrument','warn');return;
+      }
+    }catch(error){scope.velocity=0;console.warn('XR branch gate',error.message);return}
+  }
   scope.history.push({segId:scope.segId,t:scope.t});scope.segId=ch[childIdx];scope.t=.01;
   hideBranchSel();showToast('▶ '+SEG_MAP[scope.segId]?.name);updateScope();
 }
@@ -3542,6 +3567,9 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   vrCam:new THREE.PerspectiveCamera(76,1,.01,30),
   scope, CFG, SEGS, SEG_MAP, pathCurves, patientData,
   getMeshMode:()=>meshMode,
+  getPatientAudit:()=>patientData.xrAudit||null,
+  getMmPerSceneUnit:()=>mmPerUnit,
+  getScopeDiameterMm:()=>scopeDiamMm,
   getAnatomyMeshes:()=>{
     if(meshMode==='patient'&&patientData.gltf)return [patientData.gltf];
     if(meshMode!=='reference')return [];
@@ -3730,6 +3758,7 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
 
     mGrp.add(gltf.scene);
     patientData.gltf = gltf.scene;
+    patientData.meta = null;patientData.xrAudit = null;
     patientData.loaded = true;
     patientData.patientId = filename.replace(/[.][^.]+$/, '');
 
@@ -3749,13 +3778,44 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
   });
 }
 
+// ── Local geometry contract — mesh geometry relative to mGrp, never
+// viewport/world transformed by the currently selected desktop/XR view.
+function _xr08MeshBoundsLocal(root) {
+  if(!root||!root.isObject3D)throw Error('No CT mesh loaded');
+  mGrp.updateMatrixWorld(true);
+  const inv=new THREE.Matrix4().copy(mGrp.matrixWorld).invert();
+  const box=new THREE.Box3().makeEmpty(),relative=new THREE.Matrix4();
+  root.traverse(child=>{
+    if(!child.isMesh||!child.geometry)return;
+    if(!child.geometry.boundingBox)child.geometry.computeBoundingBox();
+    if(!child.geometry.boundingBox)return;
+    child.updateMatrixWorld(true);
+    relative.multiplyMatrices(inv,child.matrixWorld);
+    box.union(child.geometry.boundingBox.clone().applyMatrix4(relative));
+  });
+  if(box.isEmpty())throw Error('GLB contains no measurable mesh surface');
+  return {min:box.min.toArray(),max:box.max.toArray()};
+}
 // ── Apply JSON sidecar — rebuild segment graph ────────────────────
 function _applyPatientMeta(meta) {
-  if (!meta.segments || !meta.version) {
+  if (!meta?.segments || !meta.version) {
     showToast('Invalid meta JSON · missing segments', 'error');
-    return;
+    setViewMode('reference');return;
   }
 
+  // Critical: reject mismatched CT mesh/graph BEFORE replacing original
+  // bronchoscopy segments and pathology. This is a co-frame plausibility
+  // gate, not independently validated DICOM orientation/segmentation.
+  try {
+    patientData.xrAudit=window.PulmoXR08.assessRegistration(
+      meta,_xr08MeshBoundsLocal(patientData.gltf));
+  } catch(error) {
+    patientData.xrAudit=null;patientData.meta=null;
+    setViewMode('reference');
+    showToast('CT registration rejected · '+error.message,'error');
+    console.warn('PulmoSIMU XR-08 registration gate',error.message);
+    return;
+  }
   patientData.meta = meta;
 
   // ── Rebuild SEGS from meta ──────────────────────────────────────
