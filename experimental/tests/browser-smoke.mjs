@@ -24,9 +24,9 @@ try {
  assert.match(await page.locator('#atlasVessels').innerText(),/pulmonary artery/);
  await page.locator('#focusRegion').selectOption('LLL');
  await page.locator('#scenario').selectOption('asthma');
- // Focus-region selection affects disease location but the anatomical inspector
- // follows the lobe actually selected in the 3D stage.
- assert.equal(await page.locator('#atlasSegmentCount').innerText(),'3');
+ // Focus-region selection now tracks the canonical reference lobe and its
+ // anatomical inspector; left lower lobe has four commonly defined units.
+ assert.equal(await page.locator('#atlasSegmentCount').innerText(),'4');
 
  await page.locator('#scenario').selectOption('asthma');
  await page.locator('#therapy').selectOption('anti_il5');
