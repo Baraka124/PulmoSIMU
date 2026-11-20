@@ -42,6 +42,14 @@ test('rejects mismatched, malformed, disconnected or cyclic CT source geometry b
   {...metadata.segments[0],parent:5},metadata.segments[1],metadata.segments[2]
  ]},bounds),/root|cyclic/);
 });
+test('a declared but incorrect child mapping and impossible physical scene extent fail closed',()=>{
+ const bad=metadata.segments.map(s=>({...s,children:s.id===0?[5]:[]}));
+ assert.throws(()=>assessRegistration({...metadata,segments:bad},bounds),/parent\/child topology/);
+ const hugeScale={...metadata,transform:{...metadata.transform,scale:.1}};
+ assert.throws(()=>assessRegistration(hugeScale,bounds),/extent/);
+ const tinyScale={...metadata,transform:{...metadata.transform,scale:500}};
+ assert.throws(()=>assessRegistration(tinyScale,bounds),/extent/);
+});
 test('scope tip cannot advance into a too-small reference airway; resistance estimate has explicit provenance',()=>{
  const segment={r0:.04,r1:.015};
  const start=assessLumenClearance({segment,t:0,scopeDiameterMm:3.8,mmPerSceneUnit:100});
