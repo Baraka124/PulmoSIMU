@@ -23,6 +23,7 @@ function assessRegistration(meta,bounds){
   if(!Array.isArray(seg.pts)||seg.pts.length<2||seg.pts.length>50000||seg.pts.some(x=>!triplet(x)))fail('invalid airway coordinates');
   if(!finite(seg.r0)||!finite(seg.r1)||seg.r0<=0||seg.r1<=0)fail('invalid airway radius');
   for(const p of seg.pts)centerline.push(p);
+  if(centerline.length>2000000)fail('unreasonable centerline size');
  }
  const roots=meta.segments.filter(s=>!idSet.has(s.parent));
  if(roots.length!==1)fail('airway graph must have exactly one root');
@@ -30,6 +31,14 @@ function assessRegistration(meta,bounds){
  for(const seg of meta.segments)if(seg.id!==roots[0].id){
   if(!idSet.has(seg.parent))fail('missing airway parent');
   children.get(seg.parent).push(seg.id);
+ }
+ for(const seg of meta.segments){
+  if(!('children' in seg))continue;
+  if(!Array.isArray(seg.children)||seg.children.some(x=>!Number.isInteger(x)))fail('invalid child IDs');
+  const derived=children.get(seg.id).slice().sort((a,b)=>a-b);
+  const declared=seg.children.slice().sort((a,b)=>a-b);
+  if(declared.length!==derived.length||declared.some((x,i)=>x!==derived[i]))
+   fail('inconsistent airway parent/child topology');
  }
  function walk(id){
   if(visiting.has(id))fail('cyclic airway graph');
@@ -50,6 +59,9 @@ function assessRegistration(meta,bounds){
  const sceneUnitMetres=1/tr.scale;
  if(!finite(sceneUnitMetres)||sceneUnitMetres<=0)fail('invalid metres-per-source-unit');
  const synthetic=Boolean(tr.is_synthetic);
+ const physicalSpan=diagonal*sceneUnitMetres;
+ if(!synthetic&&(physicalSpan<.02||physicalSpan>3))
+   fail('source-transform extent outside broad thoracic plausibility bounds');
  const result=Object.freeze({
   status:'coframed',source:synthetic?'synthetic':'ct-derived',
   meshAlignment:'plausible-only',clinicalValidated:false,anatomicalValidated:false,
