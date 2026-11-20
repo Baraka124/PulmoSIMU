@@ -381,27 +381,59 @@ function install(ctx){
     }
     panelTex.needsUpdate=true;
   }
-  // Real endoscopic feed from the ORIGINAL camScope, rendered into the
-  // existing exterior WebGL canvas; never a pre-recorded placeholder.
-  const feedCanvas=rExt.domElement;
-  scopeTexture=new THREE.CanvasTexture(feedCanvas);
-  scopeTexture.encoding=THREE.sRGBEncoding;
+  // Live bronchoscopy is rendered from the ORIGINAL camScope directly
+  // into a render target owned by the SAME VR WebGL context. No canvas
+  // readback, second-context upload, video recording or synthetic camera.
+  const scopeTarget=new THREE.WebGLRenderTarget(640,360,{
+    minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+    format:THREE.RGBAFormat,depthBuffer:true,stencilBuffer:false
+  });
+  scopeTexture=scopeTarget.texture;scopeTexture.encoding=THREE.sRGBEncoding;
+  let monitorStatus='not-started',monitorError=null,monitorFrames=0;
   const monitorRoot=new THREE.Group();
   const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(.78,.49),
     new THREE.MeshBasicMaterial({color:0x0b161e,side:THREE.DoubleSide}));
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
   const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.73,.411),
     new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
-  monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
+  monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   scopeScreen=monitorRoot;scopeScreen.visible=false;scene.add(scopeScreen);
   function captureFeed(now){
-    if(mode!=='procedure'||now-lastFeed<70)return;
+    if(mode!=='procedure'||now-lastFeed<90||monitorStatus==='unavailable')return;
     lastFeed=now;
-    scopeScreen.visible=false;worldMenu.visible=false;
-    // The original canvas must be constructed with preserveDrawingBuffer to
-    // be used as a frame texture in a separate renderer/WebGL context.
-    rExt.render(scene,camScope);scopeTexture.needsUpdate=true;
-    scopeScreen.visible=true;worldMenu.visible=true;
+    const previousTarget=rBro.getRenderTarget();
+    const previousXR=rBro.xr.enabled;
+    const previousAspect=camScope.aspect;
+    const menuWasVisible=worldMenu.visible,roomWasVisible=room.visible;
+    const monitorWasVisible=scopeScreen.visible;
+    try{
+      scopeScreen.visible=false;worldMenu.visible=false;room.visible=false;
+      // Three.js replaces auxiliary cameras while XR rendering is enabled.
+      // Disable only for the offscreen pass, then restore in finally.
+      rBro.xr.enabled=false;
+      camScope.aspect=scopeTarget.width/scopeTarget.height;
+      camScope.updateProjectionMatrix();
+      rBro.setRenderTarget(scopeTarget);
+      rBro.clear(true,true,true);
+      rBro.render(scene,camScope);
+      monitorStatus='live';monitorError=null;monitorFrames++;
+      monitorImage.visible=true;
+    }catch(error){
+      monitorStatus='unavailable';
+      monitorError=String(error?.message||error).slice(0,140);
+      monitorImage.visible=false;
+      console.warn('PulmoSIMU endoscopic render target unavailable',monitorError);
+    }finally{
+      try{rBro.setRenderTarget(previousTarget)}catch(error){
+        monitorStatus='unavailable';
+        monitorError=String(error?.message||error).slice(0,140);
+      }
+      rBro.xr.enabled=previousXR;
+      camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
+      worldMenu.visible=menuWasVisible;
+      room.visible=roomWasVisible;
+      scopeScreen.visible=monitorWasVisible;
+    }
   }
   for(let i=0;i<2;i++){
     const controller=rBro.xr.getController(i),grip=rBro.xr.getControllerGrip(i);
@@ -448,6 +480,8 @@ function install(ctx){
   rBro.xr.addEventListener('sessionstart',()=>{
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';
+    monitorStatus='not-started';monitorError=null;monitorFrames=0;
+    monitorImage.visible=false;
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
@@ -487,6 +521,7 @@ function install(ctx){
     mode,active,placed,viewerValid,monitor:scopeScreen.visible,
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
+    monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     sourceAudit:getPatientAudit?.()||null,
     scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
     clearance:clearanceState(),
