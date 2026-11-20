@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101820">
+<title>PulmoSIMU | Quest 2 anatomy prototype</title>
+<style>
+:root{color-scheme:dark;--bg:#101820;--ink:#e9eef0;--muted:#9eadb5;--line:#354752;--accent:#b0d9de}
+*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{height:100dvh;display:grid;grid-template-rows:60px minmax(0,1fr)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 20px;border-bottom:1px solid var(--line);background:#131d24}
+.brand{font-size:17px;font-weight:620;letter-spacing:-.03em}.brand small{font-size:10px;color:var(--muted);font-weight:400;margin-left:12px;letter-spacing:.02em}
+.meta{font-size:11px;color:var(--muted)}.stage{position:relative;min-height:0;background:radial-gradient(ellipse at 50% 50%,#22323c,#111920 65%);overflow:hidden}
+#stageCanvas{width:100%;height:100%;display:block;touch-action:none}
+.overview{position:absolute;left:20px;top:20px;max-width:270px;pointer-events:none}
+.label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#b5cad2}
+.overview h1{font-size:21px;line-height:1.2;letter-spacing:-.045em;margin:10px 0;font-weight:570}
+.overview p,.notes{font-size:11px;color:#acbfc7;line-height:1.7;margin:8px 0}
+.inspector{position:absolute;right:20px;top:20px;width:min(265px,30vw);border:1px solid #43535a;background:rgba(15,24,30,.88);padding:15px;border-radius:5px;pointer-events:none}
+.inspector h2{font-size:17px;letter-spacing:-.025em;font-weight:540;margin:9px 0}
+.info{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px;padding:9px 0;border-bottom:1px solid #293841}.info strong{font-weight:560;color:var(--ink)}
+footer{position:absolute;bottom:14px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:end;gap:16px}
+small{font-size:10px;color:var(--muted)}.cta{display:flex;gap:10px;align-items:center}
+button,a.back{font:inherit;font-size:11px;border:1px solid #56707c;border-radius:4px;background:#202f38;color:#e6edef;text-decoration:none;padding:9px 12px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#enterVR button{background:#c1dfe3!important;color:#101b22!important;border:0!important}
+#enterVR{position:relative;display:inline-flex}
+#enterVR>button{position:static!important;left:auto!important;bottom:auto!important;width:auto!important;max-width:none!important;height:auto!important;opacity:1!important;transform:none!important;padding:10px 15px!important;border-radius:4px!important;font:600 12px system-ui!important}
+#status{font-variant-numeric:tabular-nums}
+@media(max-width:760px){header{padding:0 12px}.meta{display:none}.overview{left:12px;top:12px;max-width:185px}.overview h1{font-size:16px}.inspector{top:12px;right:12px;width:165px;padding:10px}.inspector h2{font-size:14px}.info{font-size:10px;padding:5px 0}.notes{display:none}footer{left:12px;right:12px;bottom:10px;flex-wrap:wrap}.cta{flex-wrap:wrap}}
+</style></head><body>
+<main><header><div class="brand">PulmoSIMU <small>IMMERSIVE ANATOMY · QUEST PROTOTYPE</small></div><span class="meta">R1 · Procedural reference anatomy · Not clinically validated</span></header>
+<div class="stage"><canvas id="stageCanvas" aria-label="Interactive anatomical model"></canvas>
+<section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Rotate and select a region in desktop mode. In a compatible headset, select with either controller trigger.</p><p class="notes">Reference airway tree and schematic lobes. Display scale is intentionally enlarged for inspection; this is not a measured patient lung.</p></section>
+<aside class="inspector"><div class="label">Selected structure</div><h2 id="selectedRegion">Right upper lobe</h2><div class="info"><span>Identifier</span><strong id="selectedId">RUL</strong></div><div class="info"><span>Source</span><strong>Procedural reference</strong></div><div class="info"><span>Airway branches</span><strong id="branchCount">—</strong></div><div class="notes" id="selectionNote">Select a lobe or airway branch.</div></aside>
+<footer><div><div class="label" id="status">Initializing model…</div><small id="vrGuidance">Desktop: drag to rotate · Scroll to zoom · Click to select</small></div>
+<div class="cta"><a class="back" href="../studio.html">Back to Studio</a><button id="resetView" type="button">Reset view</button><div id="enterVR"></div></div></footer>
+</div></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
+import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
+import {REGIONS} from './core/mechanistic-lung.js';
+
+const $=id=>document.getElementById(id);
+const canvas=$('stageCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+renderer.setClearColor(0x101820,1);renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.xr.enabled=true;
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(58,1,.04,40);
+camera.position.set(0,1.5,1.4);
+const focus=new THREE.Vector3(0,1.30,-1.35);camera.lookAt(focus);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.target.copy(focus);controls.minDistance=.55;controls.maxDistance=4;
+const hemi=new THREE.HemisphereLight(0xdce9ef,0x3b4850,2.0);scene.add(hemi);
+const key=new THREE.DirectionalLight(0xffffff,2.7);key.position.set(-2,4,3);scene.add(key);
+const rim=new THREE.DirectionalLight(0x89afc0,.9);rim.position.set(2,2,-3);scene.add(rim);
+const anatomy=new THREE.Group();
+anatomy.position.set(0,1.27,-1.38);
+scene.add(anatomy);
+// 1 source scene unit is approximately 0.1 m in the original *procedural*
+// sample, but has no calibrated physical provenance. Enlarged X2.2 purely
+// for comfortable inspection inside the Quest. NEVER claim life-size.
+const displayScale=.22;
+const layers=new THREE.Group();layers.scale.setScalar(displayScale);anatomy.add(layers);
+const meshes=[],regions=new Map();
+const lobeShapes=[
+ {id:'RUL',pos:[1.0,.52,0],size:[.78,.79,.65],angle:-.17},
+ {id:'RML',pos:[1.00,-.12,.27],size:[.72,.47,.56],angle:-.17},
+ {id:'RLL',pos:[1.08,-.77,-.03],size:[.84,.72,.74],angle:.10},
+ {id:'LUL',pos:[-1.03,.28,0],size:[.81,1.02,.67],angle:.18},
+ {id:'LLL',pos:[-1.1,-.72,-.04],size:[.86,.84,.74],angle:-.1}
+];
+const lobeMaterials=new Map();
+for(const l of lobeShapes){
+ const geometry=new THREE.SphereGeometry(1,24,16);
+ const material=new THREE.MeshStandardMaterial({color:0x9e8587,roughness:.74,metalness:0,transparent:true,opacity:.53,depthWrite:false,side:THREE.DoubleSide});
+ const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...l.pos);mesh.scale.set(...l.size);mesh.rotation.z=l.angle;
+ mesh.userData.regionId=l.id;mesh.userData.kind='schematic-lobe';
+ layers.add(mesh);meshes.push(mesh);regions.set(l.id,mesh);lobeMaterials.set(l.id,material);
+}
+const airwayGroup=new THREE.Group();layers.add(airwayGroup);
+const worldSelect=new THREE.Raycaster();worldSelect.params.Line.threshold=.02;
+const pointer=new THREE.Vector2();let graph=null,selected='RUL';
+function setSelected(regionId){
+ if(!regions.has(regionId))return;
+ selected=regionId;
+ const r=REGIONS.find(x=>x.id===regionId);
+ $('selectedId').textContent=regionId;$('selectedRegion').textContent=r?.label+' lobe'||regionId;
+ $('branchCount').textContent=graph?String(graph.nodes.filter(n=>graph.regionOf(n.id)===regionId).length):'—';
+ $('selectionNote').textContent='Schematic lobe and proximal airway hierarchy; anatomical accuracy not established.';
+ for(const [id,mat] of lobeMaterials){mat.color.set(id===selected?0xcba9a5:0x9e8587);mat.opacity=id===selected?.78:.42}
+ updateWorldLabel();
+}
+const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=164;
+const labelContext=labelCanvas.getContext('2d');
+const labelTexture=new THREE.CanvasTexture(labelCanvas);
+labelTexture.colorSpace=THREE.SRGBColorSpace;
+const panel=new THREE.Mesh(new THREE.PlaneGeometry(.52,.17),new THREE.MeshBasicMaterial({map:labelTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
+panel.position.set(.28,1.76,-1.42);scene.add(panel);
+function updateWorldLabel(){
+ const ctx=labelContext;ctx.clearRect(0,0,512,164);ctx.fillStyle='rgba(16,29,38,.88)';ctx.fillRect(0,0,512,164);
+ ctx.fillStyle='#a5bdc7';ctx.font='22px system-ui';ctx.fillText('SELECTED LOBE',24,43);
+ ctx.fillStyle='#e6edf0';ctx.font='bold 35px system-ui';ctx.fillText((REGIONS.find(x=>x.id===selected)?.label||selected)+' · '+selected,24,99);
+ ctx.fillStyle='#b1c4cc';ctx.font='18px system-ui';ctx.fillText('REFERENCE MODEL · UNVALIDATED',24,140);
+ labelTexture.needsUpdate=true;
+}
+async function buildReference(){
+ const loaded=await fetchReferenceAirwayGraph();
+ graph=loaded;
+ const airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.62,transparent:true,opacity:.88});
+ for(const node of graph.nodes){
+   const pts=node.points.map(p=>new THREE.Vector3(...p));
+   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
+   const n=16,sides=8,frames=curve.computeFrenetFrames(n,false);
+   const positions=[],normals=[],triangles=[];
+   for(let i=0;i<=n;i++){
+    const t=i/n,p=curve.getPoint(t),r=node.radiusStart*(1-t)+node.radiusEnd*t;
+    for(let j=0;j<=sides;j++){
+     const a=j/sides*2*Math.PI;
+     const normal=frames.normals[i].clone().multiplyScalar(Math.cos(a)).addScaledVector(frames.binormals[i],Math.sin(a));
+     const point=p.clone().addScaledVector(normal,r);
+     positions.push(...point.toArray());normals.push(...normal.toArray());
+     if(i<n&&j<sides){const v=i*(sides+1)+j,w=v+sides+1;triangles.push(v,w,v+1,w,w+1,v+1)}
+    }
+   }
+   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+   g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));g.setIndex(triangles);
+   const mesh=new THREE.Mesh(g,airwayMaterial);mesh.userData.regionId=graph.regionOf(node.id);
+   mesh.userData.branchId=node.id;mesh.userData.kind='reference-airway';airwayGroup.add(mesh);meshes.push(mesh);
+ }
+ setSelected(selected);
+ $('status').textContent='REFERENCE AIRWAYS · '+graph.nodes.length+' SOURCE BRANCHES';
+}
+function pick(raycaster){
+ // Raycast airway before transparent lobe surfaces for usable selection.
+ const hits=raycaster.intersectObjects([...airwayGroup.children,...regions.values()],false);
+ const hit=hits.find(h=>h.object.visible&&h.object.userData.regionId);
+ if(hit)setSelected(hit.object.userData.regionId);
+}
+let down=null;
+canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{
+ if(renderer.xr.isPresenting||!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+ const rect=canvas.getBoundingClientRect();
+ pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+ worldSelect.setFromCamera(pointer,camera);pick(worldSelect);
+});
+const hand=new THREE.Matrix4();
+for(let i=0;i<2;i++){
+ const controller=renderer.xr.getController(i);
+ const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]),new THREE.LineBasicMaterial({color:0xc0e1e7}));
+ line.scale.z=1.8;controller.add(line);
+ controller.addEventListener('selectstart',()=>{
+  hand.identity().extractRotation(controller.matrixWorld);
+  worldSelect.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  worldSelect.ray.direction.set(0,0,-1).applyMatrix4(hand).normalize();
+  worldSelect.far=3;pick(worldSelect);
+ });
+ scene.add(controller);
+}
+function reset(){
+ camera.position.set(0,1.5,1.4);controls.target.copy(focus);controls.update();
+ setSelected('RUL');
+}
+$('resetView').addEventListener('click',reset);
+const container=$('enterVR');
+const vrButton=VRButton.createButton(renderer);
+container.append(vrButton);
+async function checkVR(){
+ try{
+  if(!navigator.xr){$('vrGuidance').textContent='WebXR unavailable here. Use Meta Quest Browser over HTTPS for immersive mode.';return}
+  const supported=await navigator.xr.isSessionSupported('immersive-vr');
+  $('vrGuidance').textContent=supported?'Quest: use either controller trigger to select · Browser Exit VR to return':
+   'Immersive VR unavailable in this browser. Desktop inspection is supported.';
+ }catch{$('vrGuidance').textContent='VR capability could not be detected; desktop mode remains available.'}
+}
+checkVR();
+renderer.xr.addEventListener('sessionstart',()=>{$('status').textContent='IMMERSIVE REFERENCE ANATOMY · CONTROLLERS ACTIVE';controls.enabled=false});
+renderer.xr.addEventListener('sessionend',()=>{controls.enabled=true;$('status').textContent='REFERENCE ANATOMY · DESKTOP INSPECTION'});
+const resize=new ResizeObserver(()=>{
+ const w=canvas.clientWidth,h=canvas.clientHeight;
+ if(w>0&&h>0){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+});resize.observe(canvas);
+renderer.setAnimationLoop(()=>{if(!renderer.xr.isPresenting)controls.update();renderer.render(scene,camera)});
+buildReference().catch(err=>{$('status').textContent='AIRWAY REFERENCE ERROR: '+err.message});
+updateWorldLabel();
+</script></body></html>
