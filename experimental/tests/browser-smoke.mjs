@@ -191,6 +191,25 @@ try {
   assert.deepEqual(xrErrors,[],'No WebXR viewer script errors');
   console.log('PASS Quest viewer: reference anatomy, airway guide, progress, isolation, spatial controls and desktop fallback');
  }finally{await xr.close()}
+ // XR-07 verifies the ORIGINAL procedural application mounts the WebXR adapter
+ // without changing its original bronchoscopic, pathology or desktop state.
+ const procedural=await browser.newPage({viewport:{width:1360,height:850}});
+ const proceduralErrors=[];
+ procedural.on('pageerror',err=>proceduralErrors.push(err.message));
+ try{
+  await procedural.goto(host+'/index.html?xr=procedural',{waitUntil:'domcontentloaded'});
+  await procedural.waitForFunction(()=>typeof window.pulmoProceduralXRDebug==='function',null,{timeout:45000});
+  const status=await procedural.evaluate(()=>window.pulmoProceduralXRDebug());
+  assert.equal(status.source,'original-pneumovr-scene');
+  assert.equal(status.mode,'anatomy');
+  assert.ok(status.originalAnatomyMeshes>=15,'Original lobed lungs and bronchial anatomy, not the five schematic fallback lobes');
+  assert.ok(status.originalSegments>=15,'Original procedural bronchial tree is connected');
+  assert.ok(status.originalPathologyCount>=3,'Original pathology objects are retained');
+  assert.equal(await procedural.locator('#pulmo-procedural-xr').count(),1,'Dedicated immersive original-engine entry is mounted');
+  assert.equal(await procedural.locator('#sbtn').count(),1,'Original desktop splash and clinical workflow are preserved');
+  assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
+  console.log('PASS original procedural PNEUMO XR: authentic source anatomy, pathology, scope bridge and desktop compatibility');
+ }finally{await procedural.close()}
  // New uncached XR-04 entry must identify itself before entering an immersive session.
  const uniqueQuest=await browser.newPage({viewport:{width:1100,height:760}});
  try{
