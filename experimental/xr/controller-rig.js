@@ -8,18 +8,32 @@ import {XRControllerModelFactory} from 'three/addons/webxr/XRControllerModelFact
 import {bimanualPose,clampDisplayScale,dominantThumbstick} from './spatial-interaction.js';
 import {createWelcomeSequence} from './experience-sequence.js';
 import {fitSeatedAnatomy,COMFORT_DEFAULTS} from './comfort-framing.js';
+import {SPATIAL_LIMITS,decideInteraction,pinchActive,workZoneTarget,workZoneScale,easedTransform,frameMetrics} from './spatial-intent.js';
 
 export function createSpatialRig({
-  renderer,scene,camera,anatomy,onSelect,onHover,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
+  renderer,scene,camera,anatomy,onSelect,onHover,onTouch,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
 }){
   const controllers=[],grips=[],grabbing=[false,false],handAnchors=[null,null];
+  const grabbingSource=[null,null],pinching=[false,false],handSeen=[false,false],handProxies=[],handMarkers=[];
+  let transition=null,metricsSamples=[],metrics={fps:null,p95Ms:null,slowFrames:0};
   let twoHandStart=null,started=false,menuVisible=true,mode='anatomy',previousButtons=[[],[]];
   const welcome=createWelcomeSequence();
   let menuVersion='',hoverAction=null;
   const raycaster=new THREE.Raycaster(),basis=new THREE.Matrix4();
   const headPosition=new THREE.Vector3(),headForward=new THREE.Vector3(),headRight=new THREE.Vector3(),q=new THREE.Quaternion();
-  const tmpVec=new THREE.Vector3(),tmpMatrix=new THREE.Matrix4();
+  const tmpVec=new THREE.Vector3(),tmpMatrix=new THREE.Matrix4(),tmpBox=new THREE.Box3();
   const scaleLimits={minScale:COMFORT_DEFAULTS.minUserScale,maxScale:COMFORT_DEFAULTS.maxUserScale};
+  const activeGrip=i=>grabbingSource[i]==='hand'?handProxies[i]:grips[i];
+  function surfaceDistance(position){
+    anatomy.updateMatrixWorld(true);
+    let min=Infinity;
+    anatomy.traverse(obj=>{
+      if(!obj.isMesh||!obj.userData.regionId||!obj.visible||!obj.geometry)return;
+      tmpBox.setFromObject(obj);
+      min=Math.min(min,tmpBox.distanceToPoint(position));
+    });
+    return min;
+  }
   let validViewerPose=false,firstFrameBounds=null,firstFrame=null;
   const controllerFactory=new XRControllerModelFactory();
 
@@ -217,6 +231,72 @@ export function createSpatialRig({
     }
     const s=clampDisplayScale(anatomy.scale.x,scaleLimits.minScale,scaleLimits.maxScale);
     anatomy.scale.setScalar(s);
+  }
+
+  function startSummon(){
+    if(!renderer.xr.isPresenting||!validViewerPose||mode!=='anatomy'||grabbing.some(Boolean))return false;
+    const bounds=sourceBounds();
+    const fitScale=workZoneScale(bounds.size,anatomy.scale.x);
+    const scale=Math.max(scaleLimits.minScale,fitScale);
+    const targetCenter=new THREE.Vector3(...workZoneTarget({
+      head:headPosition.toArray(),forward:headForward.toArray()
+    }));
+    const rootPos=targetCenter.sub(
+      new THREE.Vector3(...bounds.center)
+        .multiplyScalar(scale).applyQuaternion(anatomy.quaternion)
+    );
+    transition={elapsed:0,duration:SPATIAL_LIMITS.summonDurationS,
+      from:{position:anatomy.position.toArray(),scale:anatomy.scale.x},
+      to:{position:rootPos.toArray(),scale}};
+    return true;
+  }
+  function updateTransition(dt){
+    if(!transition)return;
+    const t=transition;t.elapsed+=Math.min(Math.max(dt,0),.07);
+    const state=easedTransform(t.from,t.to,t.elapsed/t.duration);
+    anatomy.position.fromArray(state.position);anatomy.scale.setScalar(state.scale);
+    if(state.finished)transition=null;
+  }
+  function readHands(frame){
+    const session=renderer.xr.getSession(),space=renderer.xr.getReferenceSpace();
+    if(!session||!frame?.getJointPose||!space)return;
+    const seen=[false,false];
+    for(const source of session.inputSources){
+      if(!source.hand)continue;
+      const i=source.handedness==='left'?0:source.handedness==='right'?1:-1;
+      if(i<0)continue;
+      seen[i]=true;
+      const tip=source.hand.get('index-finger-tip'),thumb=source.hand.get('thumb-tip');
+      if(!tip||!thumb)continue;
+      const indexPose=frame.getJointPose(tip,space),thumbPose=frame.getJointPose(thumb,space);
+      if(!indexPose?.transform||!thumbPose?.transform)continue;
+      const a=indexPose.transform.position,b=thumbPose.transform.position;
+      const index=new THREE.Vector3(a.x,a.y,a.z),thumbPoint=new THREE.Vector3(b.x,b.y,b.z);
+      const middle=index.clone().add(thumbPoint).multiplyScalar(.5);
+      handProxies[i].position.copy(middle);
+      const wrist=source.hand.get('wrist');
+      const wristPose=wrist?frame.getJointPose(wrist,space):null;
+      if(wristPose?.transform?.orientation){
+        const o=wristPose.transform.orientation;
+        handProxies[i].quaternion.set(o.x,o.y,o.z,o.w);
+      }else handProxies[i].quaternion.identity();
+      handProxies[i].updateMatrixWorld(true);
+      handMarkers[i].position.copy(middle);
+      handMarkers[i].visible=true;
+      handSeen[i]=true;
+      const active=pinchActive(pinching[i],index.distanceTo(thumbPoint));
+      if(active&&!pinching[i]){
+        if(surfaceDistance(middle)<=SPATIAL_LIMITS.nearSurfaceM){
+          onTouch?.(middle,SPATIAL_LIMITS.nearSurfaceM);
+          beginGesture(i,'hand');
+        }
+      }else if(!active&&pinching[i]&&grabbingSource[i]==='hand')endGesture(i);
+      pinching[i]=active;
+    }
+    for(let i=0;i<2;i++)if(!seen[i]||!handSeen[i]){
+      handMarkers[i].visible=false;handSeen[i]=false;pinching[i]=false;
+      if(grabbingSource[i]==='hand')endGesture(i);
+    }
   }
   function captureHandAnchor(index){
     const grip=grips[index];grip.updateMatrixWorld(true);
