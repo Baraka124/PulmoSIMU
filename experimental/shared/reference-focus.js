@@ -9,7 +9,7 @@ export const SOURCE='original-procedural-SEGS-snapshot-r2';
 export const REGIONS=Object.freeze(['RUL','RML','RLL','LUL','LLL']);
 const regionSet=new Set(REGIONS);
 export const BRANCH_REGION_ROOTS=Object.freeze({2:'LUL',3:'LLL',5:'RUL',6:'RML',7:'RLL'});
-const allowedSources=new Set(['procedural','mechanistic','studio']);
+const allowedSources=new Set(['procedural','mechanistic','xr','studio']);
 export function regionForBranch(graph,branchId){
  if(!graph||!Number.isInteger(branchId))return null;
  // Work only on the versioned reference graph, not any imported patient CT.
