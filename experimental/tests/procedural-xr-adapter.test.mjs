@@ -14,7 +14,7 @@ test('XR-07 runtime is browser-valid classic JavaScript compatible with original
 test('only original clinical scene, geometry and procedural state drive headset experience',()=>{
  for(const k of ['scene, rBro, rExt, camScope, mGrp','scope, CFG, SEGS, SEG_MAP, pathCurves','patientData','proceduralMeshes','referenceMeshes','pathoMeshes','fireAction,enterBranch','setClinMode,getClinMode','getAnatomyMeshes'])
    assert.ok(original.includes(k),'original engine source: '+k);
- for(const k of ['getAnatomyMeshes()','rBro.render(scene,vrCam)','rExt.render(scene,camScope)',
+ for(const k of ['getAnatomyMeshes()','rBro.render(scene,vrCam)','rBro.render(scene,camScope)',
     'advance', 'scope.velocity','scope.deflH','scope.deflV','getViewerPose','grips[i]','capture(i)',
     'pointerRay','sourceBounds']){
    // 'pointerRay' is equivalent to rayFrom in this adapter
@@ -52,4 +52,18 @@ test('XR-08 uses audited CT source registration and estimated instrument-lumen c
  'getMmPerSceneUnit','getScopeDiameterMm','sourceAudit:','clearanceState']){
   assert.ok(source.includes(token),'headset source gate: '+token);
  }
+});
+
+test('XR-08 live endoscopy is rendered in the original VR GPU context, not copied from a second canvas',()=>{
+ for(const token of ['new THREE.WebGLRenderTarget(640,360','rBro.xr.enabled=false',
+   'rBro.setRenderTarget(scopeTarget)','rBro.render(scene,camScope)',
+   'rBro.setRenderTarget(previousTarget)','monitorSource:']){
+  assert.ok(source.includes(token),'same-context bronchoscopy feed: '+token);
+ }
+ assert.ok(!source.includes('new THREE.CanvasTexture(feedCanvas)'),
+   'Do not upload another WebGL context canvas into Quest texture');
+ assert.ok(!source.includes('rExt.render(scene,camScope)'),
+   'VR monitor never depends on original desktop renderer capture');
+ assert.ok(source.includes("monitorStatus='unavailable'"),
+   'A failed offscreen render must be reported, not faked');
 });
