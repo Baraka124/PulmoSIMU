@@ -35,7 +35,7 @@ export function createSpatialRig({
     {id:'reset',label:'RECENTER',x:65,y:576,w:434,h:108},
     {id:'isolate',label:'ISOLATE LOBE',x:526,y:576,w:434,h:108},
     {id:'procedure',label:'PROCEDURES',x:65,y:710,w:434,h:108},
-    {id:'hide',label:'HIDE PANEL',x:526,y:710,w:434,h:108}
+    {id:'help',label:'FIRST STEPS',x:526,y:710,w:434,h:108}
   ];
   const tutorialActions=[
     {id:'tour-next',label:'NEXT STEP',x:65,y:710,w:434,h:108},
@@ -43,7 +43,7 @@ export function createSpatialRig({
   ];
   const activeActions=()=>welcome.get().active?tutorialActions:actions;
   function textWrap(text,x,y,maxWidth,lineHeight,maxLines=5){
-    const words=String(text).split(/\\s+/);let line='',row=0;
+    const words=String(text).split(/\s+/);let line='',row=0;
     for(const word of words){
       const candidate=line?line+' '+word:word;
       if(ctx.measureText(candidate).width>maxWidth&&line){
@@ -212,9 +212,16 @@ export function createSpatialRig({
     menuVisible=Boolean(visible);panel.visible=renderer.xr.isPresenting&&menuVisible;
     drawPanel(true);
   }
+  function markTourDone(){
+    try{sessionStorage.setItem('pulmosimu.xr.tour.completed','1')}catch{}
+  }
   function perform(id){
-    if(id==='tour-next'){welcome.next();drawPanel(true);return}
-    if(id==='tour-skip'){welcome.skip();drawPanel(true);return}
+    if(id==='tour-next'){
+      welcome.next();if(!welcome.get().active)markTourDone();
+      drawPanel(true);return;
+    }
+    if(id==='tour-skip'){welcome.skip();markTourDone();drawPanel(true);return}
+    if(id==='help'){welcome.restart();drawPanel(true);return}
     if(id==='anatomy'||id==='path')setMode(id);
     else if(id==='reset')recenter();
     else if(id==='isolate')onIsolate?.();
@@ -289,7 +296,10 @@ export function createSpatialRig({
   }
   renderer.xr.addEventListener('sessionstart',()=>{
     started=false;menuVisible=true;previousButtons=[[],[]];
-    welcome.restart();
+    try{
+      if(sessionStorage.getItem('pulmosimu.xr.tour.completed')==='1')welcome.skip();
+      else welcome.restart();
+    }catch{welcome.restart()}
     grabbing.fill(false);handAnchors.fill(null);twoHandStart=null;
     panel.visible=false;
   });
