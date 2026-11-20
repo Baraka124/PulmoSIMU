@@ -17,7 +17,7 @@ test('WebXR prototype has a valid standalone ES module and import map',()=>{
 });
 test('Quest mode includes VR lifecycle, desktop fallback and anatomy provenance',()=>{
  for(const token of ['VRButton.createButton(renderer,{','renderer.xr.enabled=true','setAnimationLoop','isSessionSupported','resize.observe(canvas)','fetchReferenceAirwayGraph','createSpatialRig',
- 'hand-tracking','modeAnatomy','modeAirway','routeControls','isolateLobe','REFERENCE MODEL','Not clinically validated','Back to Studio']){
+ 'hand-tracking','modeAnatomy','modeAirway','modeSection','sectionControls','routeControls','isolateLobe','REFERENCE MODEL','Not clinically validated','Back to Studio']){
   assert.ok(html.includes(token),token);
  }
 });
@@ -32,7 +32,7 @@ test('Spatial controller rig has real dual grips, lifecycle and world-anchored V
  assert.ok(!rig.includes('scope.velocity'),'Quest controller grip must not silently advance the bronchoscope');
 });
 test('XR-04 placement uses the current headset frame, resets desktop camera offset and fits the complete visible anatomy',()=>{
- for(const token of ['XR-05','setAnimationLoop((time,frame)=>','rig.update(dt,frame)',
+ for(const token of ['XR-06','setAnimationLoop((time,frame)=>','rig.update(dt,frame)',
    'camera.position.set(0,0,0)','desktopCameraRestore']){
    assert.ok(html.includes(token),'XR04 viewer invariant: '+token);
  }
@@ -42,6 +42,16 @@ test('XR-04 placement uses the current headset frame, resets desktop camera offs
    assert.ok(rig.includes(token),'XR04 headset invariant: '+token);
  }
  assert.ok(!rig.includes('getWorldPosition(headPosition);\n    xrCamera'),'No stale XR camera pose at first frame');
+});
+test('XR-06 source-based section and branch UI keeps material clipping reversible',()=>{
+ for(const token of ['createAnatomicalWorkbench','sectionalLocalPoint','localClippingEnabled=true',
+ 'updateSectionPlane','sectionPlane','sectionGuide','nextAirwayBranch','branchGeneration',
+ 'workbench:workbench?.snapshot()']){
+  assert.ok(html.includes(token),'XR06 integrated inspection: '+token);
+ }
+ for(const token of ["{id:'section'","{id:'next'","onSectionStep?.","onNextBranch?."]){
+  assert.ok(rig.includes(token),'XR06 controller mode: '+token);
+ }
 });
 test('VR viewer never uses patient datasets or calibrated physiology as implicit source',()=>{
  assert.ok(!html.includes('patientData'));
