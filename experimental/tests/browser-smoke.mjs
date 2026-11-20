@@ -174,10 +174,14 @@ try {
   assert.equal(await xr.locator('#sectionPercent').innerText(),'+40%');
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionFraction),.4);
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionActive),true);
+  assert.deepEqual(await xr.evaluate(()=>window.pulmoXRDebug()?.sectionRenderer),{
+    clippingEnabled:true,clippingActive:true,lobeClipping:true,airwayClipping:true
+  },'Real clipping planes must be attached to rendered reference meshes');
   await xr.locator('#modeAnatomy').click();
   assert.ok(await xr.locator('#routeControls').isHidden(),'Exploration does not display route controls');
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.mode),'anatomy');
   assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.workbench?.sectionActive),false);
+  assert.equal(await xr.evaluate(()=>window.pulmoXRDebug()?.sectionRenderer?.clippingActive),false);
   await xr.locator('#panelToggle').click();
   assert.equal(await xr.locator('#panelToggle').getAttribute('aria-pressed'),'false');
   await xr.locator('#resetView').click();
