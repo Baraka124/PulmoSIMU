@@ -166,6 +166,7 @@ try {
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Mechanistic laboratory');
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.getAttribute('src')==='./experimental/lab.html');
    await studio.frameLocator('#workspaceFrame').locator('#networkStatus').waitFor({state:'visible',timeout:45000});
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('networkStatus')?.textContent?.includes('SI-unit'),null,{timeout:45000});
    await studio.frameLocator('#workspaceFrame').locator('#focusRegion').selectOption('LLL');
    await studio.waitForTimeout(500);
    console.log('FOCUS DIAGNOSTIC',JSON.stringify(await studio.evaluate(()=>({
