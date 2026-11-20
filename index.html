@@ -3457,7 +3457,9 @@ function animate(){
   // updatePatientTriggers removed — planning tool, no disease simulation
 
   // Velocity with resistance modulation (v17)
-  if(Math.abs(scope.velocity)>.0001){
+  // In immersive mode the headset XRFrame owns the same original scope
+  // engine. Do not double-step from a browser tab rAF (which may throttle).
+  if(!rBro.xr.isPresenting&&Math.abs(scope.velocity)>.0001){
     if(scope.velocity>0)advance(scope.velocity);else retract(-scope.velocity);
     scope.velocity*=scope.velocityDecay;
   }
@@ -3474,7 +3476,7 @@ function animate(){
   updateVitals(time);
   updateSurgicalPanel();
 
-  updateScope();
+  if(!rBro.xr.isPresenting)updateScope();
 
   const ev=document.getElementById('ext-view'),bv=document.getElementById('bro-view');
   if(!rBro.xr.isPresenting){
@@ -3578,7 +3580,7 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   },
   pathoMeshes,
   setClinMode,getClinMode:()=>clinMode,
-  fireAction,enterBranch,hideBranchSel,updateScope,onResize,showToast,
+  fireAction,enterBranch,advance,retract,hideBranchSel,updateScope,onResize,showToast,
   getExtIdle:()=>ext.idle,
   setExtIdle:value=>{ext.idle=Boolean(value)}
 });
