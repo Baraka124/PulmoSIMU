@@ -49,4 +49,28 @@ function activate(which){
 }
 document.getElementById('modeProcedure').addEventListener('click',()=>activate('procedure'));
 document.getElementById('modeMechanisms').addEventListener('click',()=>activate('mechanisms'));
+</script>
+<script type="module">
+import {readFocus,createFocus} from './experimental/shared/reference-focus.js';
+const frame=document.getElementById('workspaceFrame');
+const status=document.getElementById('workspaceContext');
+let focus=null,revision=0;
+function transmit(){
+ if(!focus||!frame.contentWindow)return;
+ frame.contentWindow.postMessage(focus,location.origin);
+}
+frame.addEventListener('load',transmit);
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==frame.contentWindow)return;
+ const incoming=readFocus(event.data);
+ if(!incoming)return;
+ const expected=frame.getAttribute('src')?.includes('mechanistic')?'mechanistic':
+   frame.getAttribute('src')?.includes('procedural')?'procedural':null;
+ if(!expected||incoming.origin!==expected)return;
+ if(focus?.regionId===incoming.regionId&&focus.branchId===incoming.branchId)return;
+ focus=createFocus({regionId:incoming.regionId,branchId:incoming.branchId,
+   origin:'studio',revision:++revision});
+ status.textContent='REFERENCE '+focus.regionId+' · SHARED FOCUS ONLY';
+ transmit();
+});
 </script></body></html>
