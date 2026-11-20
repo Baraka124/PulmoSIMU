@@ -348,12 +348,29 @@ async function checkVR(){
  }catch{$('vrGuidance').textContent='VR capability could not be detected; desktop mode remains available.'}
 }
 checkVR();
+// Immersive WebXR has its own tracked viewer. The old desktop orbit camera
+// was translated by (0,1.5,1.4); do not inherit that offset in headset space.
+let desktopCameraRestore=null;
 renderer.xr.addEventListener('sessionstart',()=>{
  $('status').textContent='IMMERSIVE REFERENCE ANATOMY · CONTROLLERS ACTIVE';
+ desktopCameraRestore={position:camera.position.clone(),quaternion:camera.quaternion.clone()};
  controls.enabled=false;
+ camera.position.set(0,0,0);
+ camera.quaternion.identity();
+ camera.updateMatrixWorld(true);
  renderer.xr.setFoveation?.(.45);
 });
-renderer.xr.addEventListener('sessionend',()=>{controls.enabled=true;$('status').textContent='REFERENCE ANATOMY · DESKTOP INSPECTION'});
+renderer.xr.addEventListener('sessionend',()=>{
+ if(desktopCameraRestore){
+   camera.position.copy(desktopCameraRestore.position);
+   camera.quaternion.copy(desktopCameraRestore.quaternion);
+   desktopCameraRestore=null;
+   camera.updateMatrixWorld(true);
+ }
+ controls.enabled=true;
+ controls.update();
+ $('status').textContent='REFERENCE ANATOMY · DESKTOP INSPECTION';
+});
 const resize=new ResizeObserver(()=>{
  const w=canvas.clientWidth,h=canvas.clientHeight;
  if(w>0&&h>0){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
