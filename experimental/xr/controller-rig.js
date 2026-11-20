@@ -364,7 +364,7 @@ export function createSpatialRig({
     drawPanel(true);
   }
   function markTourDone(){
-    try{sessionStorage.setItem('pulmosimu.xr.tour.completed','1')}catch{}
+    try{sessionStorage.setItem('pulmosimu.xr.tour.xr05.completed','1')}catch{}
   }
   function perform(id){
     if(id==='tour-next'){
@@ -475,7 +475,7 @@ export function createSpatialRig({
     started=false;validViewerPose=false;firstFrame=null;firstFrameBounds=null;
     menuVisible=true;previousButtons=[[],[]];
     try{
-      if(sessionStorage.getItem('pulmosimu.xr.tour.completed')==='1')welcome.skip();
+      if(sessionStorage.getItem('pulmosimu.xr.tour.xr05.completed')==='1')welcome.skip();
       else welcome.restart();
     }catch{welcome.restart()}
     grabbing.fill(false);grabbingSource.fill(null);pinching.fill(false);
