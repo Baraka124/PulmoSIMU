@@ -1,0 +1,75 @@
+name: Experimental Lung Model Checks
+on:
+  pull_request:
+    paths:
+      - 'experimental/**'
+      - 'index.html'
+      - 'quest-short/**'
+      - '.github/workflows/experimental-lung.yml'
+  push:
+    branches:
+      - feature/mechanistic-lung-foundation
+    paths:
+      - 'experimental/**'
+      - 'index.html'
+      - 'quest-short/**'
+      - '.github/workflows/experimental-lung.yml'
+jobs:
+  model-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test anatomy, physiology and therapeutic invariants
+        run: npm test
+        working-directory: experimental
+      - name: Preserve CT processing and test original procedural integration
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          # XR is now deliberately integrated into feature-branch index.html.
+          # Keep the unmodified source of truth on main and gate the actual
+          # surgical features with procedural-xr-adapter + original-browser tests.
+          git diff --exit-code origin/main -- pipeline.py server.py synthetic.py
+          node --test experimental/tests/procedural-xr-adapter.test.mjs
+  browser-smoke:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser test dependencies
+        working-directory: experimental
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+      - name: Start static repository server
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/pulmosimu-http.log 2>&1 &
+          echo $! > /tmp/pulmosimu-http.pid
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:8765/experimental/lab.html -o /dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/pulmosimu-http.log
+          exit 1
+      - name: Verify complete experimental canvas interactions
+        working-directory: experimental
+        run: node tests/browser-smoke.mjs
+      - name: Upload browser diagnostic screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulmosimu-r6-browser-capture
+          path: /tmp/pulmosimu-experimental-smoke.png
+          if-no-files-found: ignore

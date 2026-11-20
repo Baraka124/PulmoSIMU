@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PulmoSIMU — Mechanistic Lung Laboratory (Experimental)</title>
+<style>
+:root{color-scheme:dark;--bg:#10161b;--panel:#171f25;--line:#31414b;--ink:#e4eaec;--muted:#9aaab3;--blue:#a6c4d7;--accent:#b1d6db}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font:13px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+main{height:100dvh;display:grid;grid-template-columns:220px minmax(0,1fr) 285px;grid-template-rows:58px minmax(0,1fr)}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 25px;border-bottom:1px solid var(--line);gap:15px}
+.brand{font-size:15px;font-weight:620;letter-spacing:.01em}.brand small{font-size:10px;color:var(--muted);font-weight:400;margin-left:10px}
+aside{padding:23px 18px;overflow:auto;background:var(--panel)}aside.left{border-right:1px solid var(--line)}aside.right{border-left:1px solid var(--line)}
+section{margin-bottom:26px}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:11px}
+button,select,input{font:inherit}button{cursor:pointer;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:4px;padding:8px 10px}button:hover,button.active{border-color:var(--accent);background:#21323b}
+button.wide{display:block;width:100%;text-align:left;margin:6px 0}
+select{width:100%;background:#10191f;border:1px solid var(--line);color:var(--ink);padding:10px;border-radius:4px}
+input[type=file]{max-width:100%;font-size:11px;color:var(--muted)}input[type=file]::file-selector-button{margin:5px 5px 5px 0;border:1px solid var(--line);background:transparent;color:var(--ink);padding:5px;border-radius:3px}label{display:block;color:var(--muted);margin:10px 0 5px;font-size:11px}
+input[type=range]{width:100%;accent-color:#b5d6d9}.stat{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #29363e;padding:9px 0;gap:10px}
+.stat b{font-size:14px;font-weight:530;font-variant-numeric:tabular-nums}.stat span{font-size:11px;color:var(--muted)}
+.stage{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,#27343c 0%,#111a20 60%,#0d151a 100%)}
+canvas{width:100%;height:100%;display:block;outline:0}.topline,.bottomline{position:absolute;pointer-events:none;left:23px;right:23px;display:flex;justify-content:space-between;gap:12px;color:#bdcbd0;font-size:11px}.topline{top:20px}.bottomline{bottom:20px}
+.dot{width:6px;height:6px;border-radius:50%;background:#bfd7dc;display:inline-block;margin-right:6px}
+.help{color:var(--muted);font-size:11px;line-height:1.6;margin-top:12px}
+.trace{width:100%;height:118px;display:block;background:#0e181e;border:1px solid var(--line);border-radius:3px}.trace-row{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin:5px 0 8px}.caution{font-size:11px;line-height:1.6;color:#b9c4c6;border-top:1px solid var(--line);padding-top:14px;margin-top:20px}
+h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--muted)}
+@media(max-width:930px){main{grid-template-columns:185px minmax(0,1fr) 220px}header{padding:0 14px}aside{padding:14px 11px}}
+@media(max-width:680px){main{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:55px 52vh auto auto}header{grid-column:1}.stage{grid-row:2}aside.left,aside.right{border:0;border-top:1px solid var(--line)}aside.left{grid-row:3}aside.right{grid-row:4}.topline,.bottomline{left:12px;right:12px;font-size:10px}}
+</style></head><body>
+<main>
+<header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · EXPERIMENTAL</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
+<aside class="left">
+<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Procedural reference · schematic</option><option value="ct" disabled>CT-derived airway · local pair required</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to reference</button>
+<div class="eyebrow" style="margin-top:20px">Licensed surface atlas</div>
+<label for="surfaceManifest">Structure manifest · JSON</label><input type="file" id="surfaceManifest" accept=".json,application/json">
+<label for="surfaceMesh">Associated anatomical surfaces · GLB</label><input type="file" id="surfaceMesh" accept=".glb,model/gltf-binary">
+<button class="wide" id="loadSurfaceAtlas">Inspect surface atlas</button>
+<button class="wide" id="surfaceLobes">Toggle lobar surfaces</button>
+<button class="wide" id="surfaceVessels">Toggle vessel surfaces</button>
+<div class="help" id="surfaceStatus" role="status">Requires explicit source, rights and physical units. No automatic patient registration or physiology coupling.</div><div id="ctStatus" class="help" role="status">Local-only inspection. Paired GLB + metadata must come from the same pipeline run. No patient files are uploaded by this application.</div></section>
+<section><div class="eyebrow">Disease state</div><select id="scenario">
+<option value="healthy">Reference baseline</option><option value="asthma">Asthma</option>
+<option value="copd">COPD</option><option value="bronchiectasis">Bronchiectasis</option>
+<option value="lung_cancer">Lung cancer · localized prototype</option></select>
+<label for="severity">Scenario intensity <strong id="severityText">100%</strong></label><input id="severity" type="range" min="0" max="100" value="100">
+<label for="focusRegion">Spatial focus</label><select id="focusRegion"><option value="RUL">Right upper lobe</option><option value="RML">Right middle lobe</option><option value="RLL">Right lower lobe</option><option value="LUL">Left upper lobe</option><option value="LLL">Left lower lobe</option></select>
+<label for="burden">Local inflammation adjustment <strong id="burdenText">0%</strong></label><input id="burden" type="range" min="0" max="100" value="0">
+<div class="help" id="diseaseNarrative">Exploratory spatial mechanisms. No patient-specific model.</div>
+</section>
+<section><div class="eyebrow">Intervention</div><select id="therapy"><option value="none">No intervention</option>
+<option value="bronchodilator">Bronchodilator · illustration</option>
+<option value="ics">Inhaled corticosteroid · illustration</option>
+<option value="anti_ige">Anti-IgE pathway · illustration</option>
+<option value="anti_il5">Anti-IL-5 pathway · illustration</option><option value="anti_il5r">Anti-IL-5R pathway · illustration</option>
+<option value="anti_il4r">Anti-IL-4R pathway · illustration</option><option value="anti_tslp">Anti-TSLP pathway · illustration</option></select>
+<label for="phenotype">Illustrative endotype</label><select id="phenotype">
+<option value="unspecified">Unspecified</option><option value="type2_high">Type 2-high</option>
+<option value="eosinophilic">Eosinophilic</option><option value="allergic">Allergic</option>
+<option value="type2_low">Type 2-low</option></select>
+<label for="responseScale">Pathway response factor <strong id="responseText">100%</strong></label>
+<input id="responseScale" type="range" min="0" max="100" value="100">
+<div class="help" id="pathwayNote">Hypothesis-only pathway attenuation; not predicted patient response.</div>
+<label for="days">Simulated treatment time <strong id="daysText">0 days</strong></label><input id="days" type="range" min="0" max="120" value="0">
+</section>
+<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayMucus">Mucus burden</button><button class="wide" id="overlayTumor">Tumor burden</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
+<div class="caution">This is a separate experimental workspace. The original PNEUMO·VR surgical procedures and navigation remain unchanged.</div>
+</aside>
+<div class="stage"><canvas id="lungCanvas"></canvas>
+<div class="topline"><span><span class="dot"></span> BILATERAL LUNG · PNEUMO·VR AIRWAY REFERENCE</span><span id="overlayLabel">VENTILATION</span></div>
+<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
+<aside class="right"><section id="surfaceInspection" hidden><div class="eyebrow">Surface atlas · source inspection</div>
+<div class="stat"><span>Identified lobes</span><b id="surfaceLobeCount">—</b></div>
+<div class="stat"><span>Vascular structures</span><b id="surfaceVesselCount">—</b></div>
+<div class="stat"><span>Physical units</span><b id="surfaceUnit">—</b></div>
+<div class="stat"><span>Selected object</span><b id="surfaceSelected">None</b></div>
+<div class="help" id="surfaceProvenance">Source provenance, not anatomical certification.</div>
+<div class="caution">Imported surfaces are not registered to the procedural airway and do not drive R3–R5 calculations.</div></section>
+<section id="ctInspection" hidden><div class="eyebrow">CT source inspection · local</div><div class="stat"><span>Centerline branches</span><b id="ctBranchCount">—</b></div><div class="stat"><span>Physical scene scale</span><b id="ctUnitScale">—</b></div><div class="stat"><span>Selected airway</span><b id="ctSelectedBranch">None</b></div><div class="help" id="ctPickNote">Select an airway centreline or reconstructed surface. Segment labels are not clinically verified.</div></section>
+<section><div class="eyebrow">Active region</div><h2 id="selected">Right upper lobe</h2><p id="regionNote">Select a region to inspect its model state.</p></section>
+<section id="anatomicalAtlas"><div class="eyebrow">Anatomical atlas · topological reference</div>
+<div class="stat"><span>Bronchopulmonary segments</span><b id="atlasSegmentCount">—</b></div>
+<div class="help" id="atlasSegments" style="margin:9px 0 12px">Select a lobe to examine segment nomenclature.</div>
+<div class="eyebrow">Fissure relationships</div><div id="atlasFissures" class="help">—</div>
+<div class="eyebrow" style="margin-top:13px">Major pulmonary vessels</div><div id="atlasVessels" class="help">—</div>
+<div class="caution">Named anatomical relationships only. No fissure surface, vascular path, patient segment coordinates, or validated organ geometry is implied.</div></section>
+<section><div class="eyebrow">Computed regional proxies</div>
+<div class="stat"><span>Ventilation share</span><b id="vent">—</b></div>
+<div class="stat"><span>Relative airway caliber</span><b id="radius">—</b></div>
+<div class="stat"><span>Resistance index</span><b id="resist">—</b></div>
+<div class="stat"><span>Compliance index</span><b id="comp">—</b></div></section>
+<section><div class="eyebrow">Treatment experiment · R5</div>
+<div class="stat"><span>Inflammation Δ</span><b id="deltaInfl">—</b></div>
+<div class="stat"><span>Resistance index Δ</span><b id="deltaResistance">—</b></div>
+<div class="stat"><span>Ventilation index Δ</span><b id="deltaVent">—</b></div>
+<div class="stat"><span>Model tidal volume Δ</span><b id="deltaTidal">—</b></div>
+<div class="help">Differences are simulated counterfactuals under assumed parameters, not drug efficacy or clinical predictions.</div></section>
+<section><div class="eyebrow">Mechanistic variables</div><div id="mechanisms"></div></section>
+<section><div class="eyebrow">Breathing network · R3</div>
+<div class="stat"><span>Tidal volume · model</span><b id="tidal">—</b></div>
+<div class="stat"><span>Peak inspiratory flow</span><b id="peakFlow">—</b></div>
+<div class="stat"><span>Peripheral compartments</span><b id="terminals">—</b></div>
+<label for="frequency">Breathing frequency <strong id="frequencyText">12 /min</strong></label>
+<input type="range" min="6" max="25" step="1" value="12" id="frequency">
+<label for="pressureAmplitude">Driving pressure <strong id="pressureText">5.0 cmH₂O</strong></label>
+<input type="range" min="2" max="10" step=".5" value="5" id="pressureAmplitude">
+<div class="eyebrow" style="margin-top:18px">Pressure · flow · volume</div>
+<canvas class="trace" id="breathingTrace" aria-label="Numerical lung volume over time"></canvas>
+<div class="trace-row"><span>Reference breathing cycle</span><span>Volume [L] · time [s]</span></div>
+<p id="networkStatus">Awaiting airway geometry…</p>
+<div class="eyebrow" style="margin-top:18px">Assumption sensitivity</div>
+<button id="runSensitivity" class="wide">Evaluate model assumptions</button>
+<div id="sensitivityStatus" class="help">Perturb assumed parameters by ±20%. Research sensitivity only; not a confidence interval.</div>
+<div class="stat"><span>Largest modeled sensitivity</span><b id="sensitivityParameter">—</b></div>
+<div class="stat"><span>Tidal-volume spread</span><b id="sensitivitySpread">—</b></div></section>
+<section><div class="eyebrow">Whole lung</div>
+<div class="stat"><span>Ventilation index</span><b id="globalVent">—</b></div>
+<div class="stat"><span>Mean resistance</span><b id="globalRes">—</b></div>
+<div class="stat"><span>Heterogeneity</span><b id="hetero">—</b></div></section>
+<div class="caution">Outputs are dimensionless research surrogates, not measured pulmonary function, treatment response estimates or clinical predictions.</div>
+</aside></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {createState,withTherapy,advance,calculate,REGIONS} from './core/mechanistic-lung.js';
+import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
+import {buildNetwork,simulateBreathing} from './core/breathing-network.js';
+import {createDiseaseExperiment,DISEASE_LIBRARY} from './core/disease-engine.js';
+import {createTherapyExperiment,PHENOTYPES,INTERVENTIONS} from './core/therapeutics-engine.js';
+import {parameterSensitivity} from './core/sensitivity-analysis.js';
+import {adaptCtMetadata} from './anatomy/ct-metadata-adapter.js';
+import {validateCtSceneAlignment} from './anatomy/ct-geometry-validation.js';
+import {validateSurfaceManifest,matchAtlasObjects,atlasCoverage} from './anatomy/surface-atlas.js';
+import {createFocus,readFocus} from './shared/reference-focus.js';
+import {describeLobe,validateAtlas,ATLAS_PROVENANCE} from './anatomy/whole-lung-atlas.js';
+const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
+const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(34,1,.1,100);
+camera.position.set(0,.25,9);scene.add(new THREE.HemisphereLight(0xe9f7ff,0x2c3841,2.0));
+const lamp=new THREE.DirectionalLight(0xffffff,2.2);lamp.position.set(-2,4,6);scene.add(lamp);
+const rim=new THREE.DirectionalLight(0x91bed4,1.5);rim.position.set(3,1,-4);scene.add(rim);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.minDistance=4;controls.maxDistance=15;controls.target.set(0,.12,0);
+const group=new THREE.Group();scene.add(group);
+// CT data is rendered in a separate scene group, never combined spatially
+// with the original reference lung / lobe overlays.
+const ctGroup=new THREE.Group();ctGroup.visible=false;scene.add(ctGroup);
+let ctSource=null,ctMode=false;
+// Atlas surfaces are a THIRD, mutually exclusive anatomical scene.
+const surfaceGroup=new THREE.Group();surfaceGroup.visible=false;scene.add(surfaceGroup);
+let surfaceMode=false,surfaceData=null,showSurfaceLobes=true,showSurfaceVessels=true;
+const disposeChildren=parent=>{
+ parent.traverse(o=>{if(o.isMesh){o.geometry?.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms)m?.dispose()}});
+ parent.clear();
+};
+function disposeSurface(){
+ disposeChildren(surfaceGroup);surfaceData=null;surfaceMode=false;surfaceGroup.visible=false;
+}
+function updateSurfaceVisibility(){
+ surfaceGroup.traverse(o=>{if(o.isMesh&&o.userData.surfaceAtlasId)o.visible=
+ o.userData.surfaceAtlasKind==='lobe'?showSurfaceLobes:showSurfaceVessels});
+ $('surfaceLobes').textContent=showSurfaceLobes?'Hide lobar surfaces':'Show lobar surfaces';
+ $('surfaceVessels').textContent=showSurfaceVessels?'Hide vessels':'Show vessels';
+}
+function syncGeometrySource(){
+ group.visible=!ctMode&&!surfaceMode;
+ ctGroup.visible=ctMode&&!surfaceMode;
+ surfaceGroup.visible=surfaceMode&&!ctMode;
+ $('ctInspection').hidden=!ctMode;
+ $('surfaceInspection').hidden=!surfaceMode;
+ $('anatomicalAtlas').hidden=ctMode||surfaceMode;
+ $('anatomyMode').value=ctMode?'ct':'reference';
+ $('anatomyProvenance').textContent=surfaceMode?'EXTERNAL SURFACE ATLAS · UNVALIDATED':
+  ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'PROCEDURAL REFERENCE · NOT CT-DERIVED';
+ if(ctMode||surfaceMode)$('networkStatus').textContent='Reference numerical model — NOT computed from displayed geometry';
+}
+function frameGroup(target){
+ const b=new THREE.Box3().setFromObject(target);
+ if(b.isEmpty())throw Error('Cannot frame empty geometry');
+ const center=b.getCenter(new THREE.Vector3()),radius=Math.max(.1,b.getBoundingSphere(new THREE.Sphere()).radius);
+ controls.target.copy(center);
+ camera.position.copy(center).add(new THREE.Vector3(0,radius*.28,Math.max(3,radius*2.6)));
+ camera.near=Math.max(.001,radius/1000);camera.far=Math.max(100,radius*100);camera.updateProjectionMatrix();controls.update();
+}
+
+const ctBranchGroup=new THREE.Group();ctGroup.add(ctBranchGroup);
+function disposeCt(){
+ ctGroup.traverse(o=>{if(o.isMesh){o.geometry?.dispose();const arr=Array.isArray(o.material)?o.material:[o.material];for(const m of arr)if(m)m.dispose()}});
+ ctGroup.clear();ctBranchGroup.clear();ctGroup.add(ctBranchGroup);ctSource=null;ctMode=false;ctGroup.visible=false;
+}
+function syncAnatomyMode(){syncGeometrySource()}
+
+const lobes=[
+{id:'RUL',pos:[1.0,1.1,0],scale:[.78,1.10,.75],rotation:-.20},
+{id:'RML',pos:[.98,.04,.38],scale:[.72,.65,.60],rotation:-.16},
+{id:'RLL',pos:[1.08,-1.03,-.08],scale:[.85,1.05,.77],rotation:.08},
+{id:'LUL',pos:[-1.02,.82,0],scale:[.82,1.30,.76],rotation:.13},
+{id:'LLL',pos:[-1.10,-.95,-.10],scale:[.88,1.17,.82],rotation:-.10}
+];
+const meshes={};
+for(const l of lobes){const g=new THREE.SphereGeometry(1,48,32),m=new THREE.MeshPhysicalMaterial({color:0xae7578,roughness:.55,metalness:0,transparent:true,opacity:.84,clearcoat:.18,depthWrite:false,side:THREE.DoubleSide});
+const mesh=new THREE.Mesh(g,m);mesh.position.set(...l.pos);mesh.scale.set(...l.scale);mesh.rotation.z=l.rotation;mesh.userData.region=l.id;group.add(mesh);meshes[l.id]=mesh;
+const edge=new THREE.LineSegments(new THREE.EdgesGeometry(g,34),new THREE.LineBasicMaterial({color:0x9fc2ce,transparent:true,opacity:.08}));mesh.add(edge);
+}
+// R2: source airway topology is imported unchanged from PulmoSIMU's original SEGS.
+const airwayGroup=new THREE.Group();group.add(airwayGroup);
+const airwayMat=new THREE.MeshStandardMaterial({color:0xcad4d6,roughness:.46,metalness:.03,transparent:true,opacity:.90});
+let airwayGraph=null,airwaysVisible=true,isolation=false;
+async function loadAirways(){
+ try{
+  airwayGraph=await fetchReferenceAirwayGraph();
+  const materialMap=new Map();
+  for(const node of airwayGraph.nodes){
+   const pts=node.points.map(p=>new THREE.Vector3(p[0]*1.55,p[1]*1.55,p[2]*1.55));
+   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
+   const lengthSamples=Math.max(24,pts.length*8);
+   // Taper from proximal to distal cross-sectional radius along segment.
+   const frames=curve.computeFrenetFrames(lengthSamples,false);
+   const vertices=[],normals=[],triangles=[];
+   const sides=12;
+   for(let i=0;i<=lengthSamples;i++){
+    const t=i/lengthSamples,point=curve.getPoint(t);
+    const rad=(node.radiusStart*(1-t)+node.radiusEnd*t)*1.55;
+    for(let j=0;j<=sides;j++){
+     const angle=j/sides*Math.PI*2;
+     const normal=frames.normals[i].clone().multiplyScalar(Math.cos(angle)).addScaledVector(frames.binormals[i],Math.sin(angle));
+     const pos=point.clone().addScaledVector(normal,rad);
+     vertices.push(pos.x,pos.y,pos.z);normals.push(normal.x,normal.y,normal.z);
+     if(i<lengthSamples&&j<sides){const a=i*(sides+1)+j,b=a+sides+1;triangles.push(a,b,a+1,b,b+1,a+1)}
+    }
+   }
+   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+   geo.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geo.setIndex(triangles);
+   const mesh=new THREE.Mesh(geo,airwayMat.clone());mesh.userData.airwayId=node.id;
+   mesh.userData.region=airwayGraph.regionOf(node.id);airwayGroup.add(mesh);materialMap.set(node.id,mesh);
+  }
+  $('regionNote').textContent='Original PulmoSIMU airway hierarchy loaded · '+airwayGraph.nodes.length+' branches';
+  draw();
+ }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;$('networkStatus').textContent='Network unavailable';}
+}
+validateAtlas();
+loadAirways();
+$('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&ctMode)$('restoreReference').click()});
+$('surfaceLobes').onclick=()=>{showSurfaceLobes=!showSurfaceLobes;updateSurfaceVisibility()};
+$('surfaceVessels').onclick=()=>{showSurfaceVessels=!showSurfaceVessels;updateSurfaceVisibility()};
+$('loadSurfaceAtlas').onclick=async()=>{
+ const manifestFile=$('surfaceManifest').files?.[0],glbFile=$('surfaceMesh').files?.[0];
+ if(!manifestFile||!glbFile){$('surfaceStatus').textContent='Select a surface manifest and its GLB.';return}
+ if(manifestFile.size>2*1024*1024||glbFile.size>100*1024*1024){$('surfaceStatus').textContent='Surface files exceed size limits.';return}
+ $('surfaceStatus').textContent='Reading source and validating anatomical mappings locally…';
+ let parsed;
+ try{
+  const manifest=validateSurfaceManifest(JSON.parse(await manifestFile.text()));
+  const surfaceBytes=await glbFile.arrayBuffer();
+  parsed=await new Promise((resolve,reject)=>new GLTFLoader().parse(surfaceBytes,'',resolve,reject));
+  const root=parsed.scene;
+  root.updateMatrixWorld(true);
+  const named=[];
+  root.traverse(o=>{if(o.isMesh)named.push(o.name)});
+  const mapping=matchAtlasObjects(manifest,named);
+  const coverage=atlasCoverage(manifest);
+  const bounds=new THREE.Box3().setFromObject(root);
+  if(bounds.isEmpty())throw Error('No renderable surfaces');
+  const dims=bounds.getSize(new THREE.Vector3());
+  if(dims.x<=0||dims.y<=0||dims.z<=0)throw Error('Degenerate anatomical surface extents');
+  // Normalize **display only**, preserving original numerical physical units
+  // in the manifest. No registration to the procedural or CT frame.
+  const longest=Math.max(dims.x,dims.y,dims.z),visualScale=4.2/longest;
+  const center=bounds.getCenter(new THREE.Vector3());
+  root.position.sub(center.multiplyScalar(visualScale));
+  root.scale.multiplyScalar(visualScale);
+  root.updateMatrixWorld(true);
+  root.traverse(o=>{
+    if(!o.isMesh)return;
+    const anatomicalId=mapping[o.name];
+    if(!anatomicalId){o.visible=false;return}
+    const entry=manifest.structures.find(x=>x.id===anatomicalId);
+    o.userData.surfaceAtlasId=entry.id;
+    o.userData.surfaceAtlasKind=entry.kind;
+    const material=new THREE.MeshPhysicalMaterial({
+      color:entry.kind==='lobe'?0xae8587:0xa4bac4,metalness:0,roughness:.53,
+      transparent:true,opacity:entry.kind==='lobe'?.74:.94,side:THREE.DoubleSide,depthWrite:false
+    });
+    o.material=material;
+  });
+  disposeSurface();disposeCt();
+  surfaceGroup.add(root);surfaceMode=true;ctMode=false;
+  surfaceData={manifest,coverage};
+  $('surfaceLobeCount').textContent=coverage.lobes+'/5';
+  $('surfaceVesselCount').textContent=String(coverage.vessels);
+  $('surfaceUnit').textContent=manifest.unit;
+  $('surfaceSelected').textContent='None';
+  $('surfaceProvenance').textContent=manifest.source+' · '+manifest.license+' · '+manifest.coordinateFrame;
+  $('surfaceStatus').textContent='Source atlas loaded locally: '+coverage.lobes+' lobes, '+coverage.vessels+
+    ' vessels. '+coverage.missingLobes.length+' lobes absent. Geometric accuracy not established.';
+  showSurfaceLobes=true;showSurfaceVessels=true;syncGeometrySource();updateSurfaceVisibility();frameGroup(surfaceGroup);
+ }catch(error){
+  $('surfaceStatus').textContent='Surface atlas rejected: '+error.message;
+  // Previous atlas is retained if replacement fails.
+  if(parsed?.scene&&!surfaceGroup.children.includes(parsed.scene)){
+   parsed.scene.traverse(o=>{if(o.isMesh)o.geometry?.dispose()});
+  }
+ }
+};
+$('restoreReference').onclick=()=>{
+ disposeCt();disposeSurface();syncAnatomyMode();$('ctStatus').textContent='Reference model active. CT geometry cleared from memory.';
+ camera.near=.1;camera.far=100;camera.updateProjectionMatrix();camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
+};
+$('loadCt').onclick=async()=>{
+ const metaFile=$('ctMetaFile').files?.[0],meshFile=$('ctMeshFile').files?.[0];
+ if(!metaFile||!meshFile){$('ctStatus').textContent='Select both JSON metadata and its matching GLB mesh.';return;}
+ if(metaFile.size>20*1024*1024||meshFile.size>100*1024*1024){
+  $('ctStatus').textContent='File size exceeds local inspection limit (JSON 20 MB; GLB 100 MB).';return;
+ }
+ $('ctStatus').textContent='Validating selected files locally…';
+ let parsed=null;
+ try {
+  const metadata=JSON.parse(await metaFile.text());
+  const adapted=adaptCtMetadata(metadata);
+  // GLTFLoader.parse uses in-memory ArrayBuffer; no server upload occurs.
+  const bytes=await meshFile.arrayBuffer();
+  parsed=await new Promise((resolve,reject)=>new GLTFLoader().parse(bytes,'',resolve,reject));
+  const loaded=parsed.scene;
+  loaded.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(loaded);
+  if(box.isEmpty())throw Error('GLB has no mesh geometry');
+  const min=box.min.toArray(),max=box.max.toArray();
+  validateCtSceneAlignment(adapted.graph,{min,max});
+  let meshCount=0;
+  loaded.traverse(o=>{if(o.isMesh){meshCount++;o.material=new THREE.MeshPhysicalMaterial({
+   color:0xc7a3a4,roughness:.54,metalness:0,transparent:true,opacity:.88,
+   side:THREE.DoubleSide,depthWrite:true
+  });o.userData.ctSource=true;}});
+  if(!meshCount)throw Error('GLB contains no renderable airway meshes');
+  disposeCt();disposeSurface();
+  ctGroup.add(loaded);
+  const traceMaterial=new THREE.MeshStandardMaterial({color:0xd8e9ed,roughness:.47,emissive:0x182f3a,emissiveIntensity:.10,transparent:true,opacity:.75});
+  // Overlay CT centreline geometry in its *native GLB scene coordinates*.
+  // No arbitrary visual scaling or inferred lobe classifications.
+  for(const node of adapted.graph.nodes){
+   const curve=new THREE.CatmullRomCurve3(node.points.map(p=>new THREE.Vector3(...p)));
+   const mesh=new THREE.Mesh(
+     new THREE.TubeGeometry(curve,Math.max(12,node.points.length*5),Math.max(0.002,(node.radiusStart+node.radiusEnd)/2*.15),8,false),
+     traceMaterial.clone()
+   );
+   mesh.userData.ctSourceBranchId=node.sourceId;
+   ctBranchGroup.add(mesh);
+  }
+  $('ctBranchCount').textContent=String(adapted.graph.nodes.length);
+  $('ctUnitScale').textContent=(adapted.provenance.sceneUnitMetres*1000).toPrecision(4)+' mm/unit';
+  $('ctSelectedBranch').textContent='None';
+  $('ctPickNote').textContent='CT airway centreline overlays are exploratory. No patient-specific disease or drug simulation is connected.';
+  // A validated graph is retained locally for inspection, not passed into
+  // the reference physiology solver because CT lobe identity is unresolved.
+  ctSource={graph:adapted.graph,provenance:adapted.provenance,meshCount};
+  ctMode=true;surfaceMode=false;syncAnatomyMode();
+  const center=box.getCenter(new THREE.Vector3()),radius=box.getBoundingSphere(new THREE.Sphere()).radius;
+  controls.target.copy(center);camera.position.copy(center).add(new THREE.Vector3(0,radius*.3,Math.max(3,radius*2.7)));
+  camera.near=Math.max(.001,radius/1000);camera.far=Math.max(100,radius*100);camera.updateProjectionMatrix();controls.update();
+  $('ctStatus').textContent='CT-derived airway mesh + '+adapted.graph.nodes.length+' branches loaded locally. Coordinate alignment plausible; segmentation and lobe labels unvalidated.';
+  $('networkStatus').textContent='Reference R3 numerical model — NOT computed from this CT';
+ }catch(error){
+  // The previous successfully loaded CT is retained if replacement fails.
+  $('ctStatus').textContent='CT pair rejected: '+error.message;
+  if(parsed?.scene&&!ctGroup.children.includes(parsed.scene)){
+   parsed.scene.traverse(o=>{if(o.isMesh)o.geometry?.dispose()});
+  }
+ }
+};
+
+const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
+canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);ray.setFromCamera(pointer,camera);if(surfaceMode){
+ const hit=ray.intersectObjects(surfaceGroup.children,true)[0];
+ if(hit){const obj=hit.object,anatomicalId=obj.userData.surfaceAtlasId;
+ $('surfaceSelected').textContent=anatomicalId||'Unmapped surface';
+ if(anatomicalId)$('surfaceProvenance').textContent=surfaceData.manifest.source+' · '+anatomicalId+
+   ' · unverified geometric mapping';
+ }return;
+}if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild();publishReferenceFocus(region)}}});
+function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
+const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
+function draw(){
+result=experiment.after;for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
+airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
+$('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
+$('burdenText').textContent=$('burden').value+'%';
+const detail=describeLobe(selected);
+$('atlasSegmentCount').textContent=String(detail.segments.length);
+$('atlasSegments').textContent=detail.segments.map(x=>x.id.replace(/^[RL]-/,'')+' · '+x.name).join('  |  ');
+$('atlasFissures').textContent=detail.fissures.map(x=>x.name).join(' · ')||'No fissure recorded';
+$('atlasVessels').textContent=detail.vessels.map(x=>x.name).join(' · ')||'No vascular relation recorded';
+$('anatomicalAtlas').hidden=ctMode||surfaceMode;
+const r=result.regions.find(x=>x.id===selected);$('selected').textContent=r.label+' lobe';$('regionNote').textContent='Region '+r.id+' · dimensionless experimental state';
+$('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').textContent=r.radiusIndex.toFixed(3);
+$('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
+$('mechanisms').replaceChildren(...Object.entries(r.mechanisms).map(([k,v])=>{const d=document.createElement('div');d.className='stat';const a=document.createElement('span'),b=document.createElement('b');a.textContent=k.replace(/([A-Z])/g,' $1');b.textContent=(v*100).toFixed(0)+'%';d.append(a,b);return d}));
+$('globalVent').textContent=result.summary.overallVentilationIndex.toFixed(3);$('globalRes').textContent=result.summary.meanResistanceIndex.toFixed(2)+'×';$('hetero').textContent=result.summary.ventilationHeterogeneity.toFixed(3);
+const c=experiment.comparison;
+$('deltaInfl').textContent=(c.mechanisms.inflammation.delta*100).toFixed(1)+' pp';
+$('deltaResistance').textContent=c.resistanceIndex.delta.toFixed(3);
+$('deltaVent').textContent=c.ventilationIndex.delta.toFixed(3);
+$('responseText').textContent=$('responseScale').value+'%';
+$('pathwayNote').textContent=INTERVENTIONS[experiment.response.intervention].pathway+' · '+PHENOTYPES[experiment.response.phenotype].label+' · assumed pathway sensitivity '+(experiment.response.phenotypeSensitivity*100).toFixed(0)+'%';
+updateNumerics();
+$('daysText').textContent=state.timeDays+' days';$('severityText').textContent=Math.round(state.severity*100)+'%';
+$('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',mucus:'MUCUS',tumor:'TUMOR',base:'ANATOMY'}[overlay];
+}
+function rebuild(){experiment=createTherapyExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},intervention:$('therapy').value,phenotype:$('phenotype').value,responseScale:Number($('responseScale').value)/100,days:Number($('days').value)});state=experiment.treated;draw()}
+for(const id of ['scenario','severity','focusRegion','burden','therapy','phenotype','responseScale','days'])$(id).addEventListener('input',rebuild);
+let lastSharedRevision=-1;
+function publishReferenceFocus(regionId){
+ if(window.parent===window||ctMode||surfaceMode)return;
+ try{window.parent.postMessage(createFocus({regionId,origin:'mechanistic',revision:1}),location.origin)}catch{}
+}
+$('focusRegion').addEventListener('change',()=>{selected=$('focusRegion').value;rebuild();publishReferenceFocus(selected)});
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ const incoming=readFocus(event.data);
+ if(!incoming||incoming.revision<=lastSharedRevision)return;
+ lastSharedRevision=incoming.revision;
+ if(ctMode||surfaceMode)return; // Never map reference IDs onto patient CT or external mesh.
+ selected=incoming.regionId;
+ $('focusRegion').value=selected;
+ rebuild(); // updates the reference numerical model; no clinical state exported.
+});
+
+for(const id of ['frequency','pressureAmplitude'])$(id).addEventListener('input',draw);
+function updateNumerics(){
+ if(!airwayGraph)return;
+ const bpm=Number($('frequency').value),pressure=Number($('pressureAmplitude').value);
+ $('frequencyText').textContent=bpm+' /min';$('pressureText').textContent=pressure.toFixed(1)+' cmH₂O';
+ try{
+  const overrides={breathingFrequencyPerMin:bpm,pressureAmplitudeCmH2O:pressure};
+  const network=buildNetwork(airwayGraph,experiment.treated,{
+   ...overrides
+  });
+  const duration=Math.max(12,4*60/bpm);
+  const numerical=simulateBreathing(network,duration);
+  const baselineNumerical=simulateBreathing(buildNetwork(airwayGraph,experiment.untreated,overrides),duration);
+  $('deltaTidal').textContent=(numerical.summary.approximateTidalVolumeL-baselineNumerical.summary.approximateTidalVolumeL).toFixed(3)+' L';
+  $('tidal').textContent=numerical.summary.approximateTidalVolumeL.toFixed(3)+' L';
+  $('peakFlow').textContent=numerical.summary.peakInspiratoryFlowLPerS.toFixed(3)+' L/s';
+  $('terminals').textContent=numerical.network.terminalCount;
+  $('networkStatus').textContent=ctMode||surfaceMode?'Reference numerical model — NOT computed from displayed geometry':'SI-unit reduced-order RC model · uncalibrated';
+  renderTrace(numerical.samples);
+ }catch(err){$('networkStatus').textContent='Numerical model error: '+err.message}
+}
+$('runSensitivity').onclick=()=>{
+ if(!airwayGraph){$('sensitivityStatus').textContent='Load the reference airway graph first.';return;}
+ try{
+  const result=parameterSensitivity(airwayGraph,experiment.treated,{overrides:{
+   breathingFrequencyPerMin:Number($('frequency').value),
+   pressureAmplitudeCmH2O:Number($('pressureAmplitude').value)
+  }});
+  const most=result.effects[0];
+  $('sensitivityParameter').textContent=most.parameter.replace(/([A-Z])/g,' $1').trim();
+  $('sensitivitySpread').textContent=most.spreadL.toFixed(3)+' L';
+  $('sensitivityStatus').textContent='Largest spread from ±20% perturbation of one assumed parameter at a time. Not statistical uncertainty.';
+ }catch(error){$('sensitivityStatus').textContent='Sensitivity failed: '+error.message;}
+};
+function renderTrace(samples){
+ const c=$('breathingTrace'),ctx=c.getContext('2d'),w=c.clientWidth||260,h=c.clientHeight||118;
+ const dpr=Math.min(window.devicePixelRatio||1,2);c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);
+ ctx.clearRect(0,0,w,h);
+ const last=samples.slice(-Math.min(samples.length,Math.ceil(10/.02))),max=Math.max(0.05,...last.map(x=>x.volumeL)),min=Math.min(0,...last.map(x=>x.volumeL)),range=Math.max(0.001,max-min);
+ ctx.strokeStyle='#31424b';ctx.lineWidth=1;for(let i=1;i<=3;i++){ctx.beginPath();ctx.moveTo(10,10+(h-20)*i/4);ctx.lineTo(w-10,10+(h-20)*i/4);ctx.stroke()}
+ ctx.beginPath();for(let i=0;i<last.length;i++){const x=10+i/Math.max(1,last.length-1)*(w-20),y=h-10-(last[i].volumeL-min)/range*(h-20);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+ ctx.strokeStyle='#aed4de';ctx.lineWidth=1.8;ctx.stroke();
+}
+for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayMucus','mucus'],['overlayTumor','tumor'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
+$('toggleAirways').onclick=()=>{airwaysVisible=!airwaysVisible;$('toggleAirways').textContent=airwaysVisible?'Hide airway hierarchy':'Show airway hierarchy';draw()};
+$('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all lobes':'Isolate selected lobe';draw()};
+$('resetCamera').onclick=()=>{if(surfaceMode&&surfaceGroup.children.length){frameGroup(surfaceGroup)}else if(ctMode&&ctGroup.children.length){const b=new THREE.Box3().setFromObject(ctGroup),c=b.getCenter(new THREE.Vector3()),radius=b.getBoundingSphere(new THREE.Sphere()).radius;camera.position.copy(c).add(new THREE.Vector3(0,radius*.3,Math.max(3,radius*2.7)));controls.target.copy(c)}else{camera.position.set(0,.25,9);controls.target.set(0,.12,0)}controls.update()};
+const resize=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(canvas);
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}draw();animate();
+</script></body></html>

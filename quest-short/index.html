@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#121e26">
+<title>PulmoSIMU — Original-engine XR-08</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#121e26;color:#edf3f5;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100dvh;display:grid;place-items:center}
+main{width:min(680px,100%);padding:clamp(25px,5vw,58px)}
+.kicker{font-size:11px;letter-spacing:.1em;color:#a8c3cd;font-weight:650}
+h1{font-size:clamp(33px,6vw,51px);font-weight:550;letter-spacing:-.055em;line-height:1.1;margin:18px 0 13px}
+.lead{color:#b5c6cc;max-width:560px;font-size:14px;line-height:1.8;margin:0 0 28px}
+section{padding:22px 0;border-top:1px solid #334751}
+section h2{font-size:19px;letter-spacing:-.025em;font-weight:560;margin:0 0 5px}
+section p{font-size:13px;color:#aebfc6;max-width:540px;margin:0 0 15px;line-height:1.7}
+a.launch{display:inline-block;text-decoration:none;border:1px solid #9ab7c0;color:#e8f0f2;border-radius:4px;padding:10px 15px;font-size:13px;font-weight:650}
+a.primary{background:#d6e7eb;border-color:#d6e7eb;color:#15242b}
+a:focus-visible{outline:3px solid #f2f8fa;outline-offset:4px}
+footer{color:#859da6;font-size:11px;margin-top:16px}
+</style>
+</head>
+<body><main>
+<div class="kicker">RESPIRATORY ENGINEERING LABORATORY</div>
+<h1>PulmoSIMU</h1>
+<p class="lead">The original PulmoSIMU procedural engine now runs in an immersive WebXR workspace. Select the current original-engine pilot, desktop workstation or the older anatomical reference experiment.</p>
+<section>
+<h2>XR-08 · Immersive procedural laboratory</h2>
+<p>Original bronchoscopy and pathology inside a tracked spatial environment. XR-08 adds CT mesh/airway co-frame checks, source-derived model scaling (only with eligible data), estimated instrument-lumen clearance, and a same-renderer live endoscopic monitor. Not clinically validated; headset test pending.</p>
+<a class="launch primary" href="https://pulmosimu-xr-preview.vercel.app/index.html?xr=procedural&amp;release=XR08-SOURCE-GEOMETRY">Launch integrated procedural XR</a>
+</section>
+<section>
+<h2>Full PulmoSIMU · desktop</h2>
+<p>The complete original procedural and surgical planning workstation. All original functions remain accessible on this research branch.</p>
+<a class="launch" href="https://pulmosimu-xr-preview.vercel.app/">Open desktop workstation</a>
+</section>
+<section>
+<h2>XR-06 · Earlier spatial reference experiment</h2>
+<p>Source-based bronchial branch navigation, reversible anatomical section planes, near-field gripping and distance summon. Reference lobes remain schematic; this is not yet the complete procedural simulator.</p>
+<a class="launch" href="https://pulmosimu-xr-preview.vercel.app/experimental/vr.html?release=XR06-SECTION-20261120-1">Open XR-06 anatomical workbench</a>
+</section>
+<footer>One original procedural engine · XR-08 research integration · anatomical and physical validation in progress</footer>
+</main></body></html>

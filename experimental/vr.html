@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101820">
+<title>PulmoSIMU XR | Spatial anatomy laboratory</title>
+<style>
+:root{color-scheme:dark;--bg:#101820;--ink:#e9eef0;--muted:#9eadb5;--line:#354752;--accent:#b0d9de}
+*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{height:100dvh;display:grid;grid-template-rows:60px minmax(0,1fr)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 20px;border-bottom:1px solid var(--line);background:#131d24}
+.brand{font-size:17px;font-weight:620;letter-spacing:-.03em}.brand small{font-size:10px;color:var(--muted);font-weight:400;margin-left:12px;letter-spacing:.02em}
+.meta{font-size:11px;color:var(--muted)}.stage{position:relative;min-height:0;background:radial-gradient(ellipse at 50% 50%,#22323c,#111920 65%);overflow:hidden}
+#stageCanvas{width:100%;height:100%;display:block;touch-action:none}
+.overview{position:absolute;left:20px;top:20px;max-width:270px;pointer-events:none}
+.label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#b5cad2}
+.overview h1{font-size:21px;line-height:1.2;letter-spacing:-.045em;margin:10px 0;font-weight:570}
+.overview p,.notes{font-size:11px;color:#acbfc7;line-height:1.7;margin:8px 0}
+.inspector{position:absolute;right:20px;top:20px;width:min(265px,30vw);border:1px solid #43535a;background:rgba(15,24,30,.88);padding:15px;border-radius:5px;pointer-events:none}
+.inspector h2{font-size:17px;letter-spacing:-.025em;font-weight:540;margin:9px 0}
+.info{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px;padding:9px 0;border-bottom:1px solid #293841}.info strong{font-weight:560;color:var(--ink)}
+footer{position:absolute;bottom:14px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:end;gap:16px}
+small{font-size:10px;color:var(--muted)}.cta{display:flex;gap:10px;align-items:center}
+button,a.back{font:inherit;font-size:11px;border:1px solid #56707c;border-radius:4px;background:#202f38;color:#e6edef;text-decoration:none;padding:9px 12px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#enterVR button{background:#c1dfe3!important;color:#101b22!important;border:0!important}
+#enterVR{position:relative;display:inline-flex}
+#enterVR>button{position:static!important;left:auto!important;bottom:auto!important;width:auto!important;max-width:none!important;height:auto!important;opacity:1!important;transform:none!important;padding:10px 15px!important;border-radius:4px!important;font:600 12px system-ui!important}
+#status{font-variant-numeric:tabular-nums}
+@media(max-width:760px){header{padding:0 12px}.meta{display:none}.overview{left:12px;top:12px;max-width:185px}.overview h1{font-size:16px}.inspector{top:12px;right:12px;width:165px;padding:10px}.inspector h2{font-size:14px}.info{font-size:10px;padding:5px 0}.notes{display:none}footer{left:12px;right:12px;bottom:10px;flex-wrap:wrap}.cta{flex-wrap:wrap}}
+
+/* XR-02 editorial control strip: no floating dashboard cards. */
+.workspace-actions{position:absolute;left:20px;top:185px;display:flex;flex-direction:column;align-items:flex-start;gap:7px;max-width:260px}
+.workspace-actions .mode-choices{display:flex;gap:4px;padding:3px;border:1px solid #394d58;background:#17232b;border-radius:5px}
+.workspace-actions button{font-size:11px;letter-spacing:0;padding:7px 10px;border:0;background:none}
+.workspace-actions button[aria-pressed="true"]{background:#354c57;color:#f5f8f8}
+.workspace-actions .tools{display:flex;flex-wrap:wrap;gap:5px}
+.workspace-actions .tools button{border:1px solid #394d58;background:#152129}
+.workspace-actions p{color:#a7b8c0;font-size:10px;margin:3px 0;max-width:235px;line-height:1.5}
+#routeControls{display:none;align-items:center;gap:8px;min-width:210px;padding:7px 9px;border:1px solid #354b56;background:#18252d;border-radius:4px}
+#routeControls label{font-size:10px;color:#c3d1d8}
+#routeProgress{width:145px;accent-color:#b2d9df}
+#routePercent{font-size:11px;font-variant-numeric:tabular-nums;color:#c6dce2}
+#routeControls.active{display:flex}
+#sectionControls{display:none;align-items:center;gap:8px;min-width:210px;padding:7px 9px;border:1px solid #354b56;background:#18252d;border-radius:4px}
+#sectionControls.active{display:flex}
+#sectionPosition{width:145px;accent-color:#b2d9df}
+#sectionControls label{font-size:10px;color:#c3d1d8}
+#sectionPercent{font-size:11px;font-variant-numeric:tabular-nums;color:#c6dce2}
+#status{max-width:350px}
+#stageCanvas:focus-visible{outline:2px solid #c2e4e9;outline-offset:-3px}
+@media(max-width:760px){
+ .workspace-actions{top:123px;left:12px;max-width:185px}
+ .workspace-actions button{font-size:10px;padding:5px 7px}
+ .workspace-actions p{display:none}
+ .workspace-actions .mode-choices{flex-wrap:wrap}
+ .inspector{top:10px}
+ #routeControls{min-width:160px}
+ #routeProgress{width:75px}
+}
+</style></head><body>
+<main><header><div class="brand">PulmoSIMU <small>XR-06 · SOURCE ANATOMY WORKBENCH</small></div><span class="meta">XR-06 · Source-based branch + section · Not clinically validated</span></header>
+<div class="stage"><canvas id="stageCanvas" aria-label="Interactive anatomical model"></canvas>
+<section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Use controllers to handle and examine the anatomy. Switch deliberately between exterior exploration and airway-route inspection.</p><p class="notes">Source: original PulmoSIMU airway reference and schematic lobe envelopes. Not measured or patient-specific anatomy.</p></section>
+<div class="workspace-actions" aria-label="Spatial mode and object controls">
+<div class="mode-choices" role="group" aria-label="VR working mode">
+<button id="modeAnatomy" aria-pressed="true" type="button">Explore anatomy</button>
+<button id="modeAirway" aria-pressed="false" type="button">Airway guide</button>
+<button id="modeSection" aria-pressed="false" type="button">Section view</button>
+</div>
+<div class="tools"><button id="isolateLobe" aria-pressed="false" type="button">Isolate lobe</button><button id="nextBranch" type="button">Next airway branch</button><button id="panelToggle" aria-pressed="true" type="button">Spatial inspector</button></div>
+<div id="routeControls"><label for="routeProgress">Route</label><input id="routeProgress" type="range" min="0" max="100" step="1" value="0"><output id="routePercent" for="routeProgress">0%</output></div>
+<div id="sectionControls"><label for="sectionPosition">Reference section</label><input id="sectionPosition" type="range" min="-100" max="100" step="1" value="0"><output id="sectionPercent" for="sectionPosition">0%</output></div>
+<p id="modeExplanation">In Quest: squeeze the side grip to hold the anatomy. Use both grips to resize and rotate. Trigger selects a structure.</p></div>
+<aside class="inspector"><div class="label">Selected structure</div><h2 id="selectedRegion">Right upper lobe</h2><div class="info"><span>Identifier</span><strong id="selectedId">RUL</strong></div><div class="info"><span>Source</span><strong>Procedural reference</strong></div><div class="info"><span>Airway branches</span><strong id="branchCount">—</strong></div><div class="info"><span>Selected airway</span><strong id="branchName">—</strong></div><div class="info"><span>Generation</span><strong id="branchGeneration">—</strong></div><div class="notes" id="selectionNote">Select a lobe or airway branch.</div></aside>
+<footer><div><div class="label" id="status">Initializing model…</div><small id="vrGuidance">Desktop: drag to orbit · Scroll to zoom · Click a structure</small></div>
+<div class="cta"><a class="back" href="../studio.html">Back to Studio</a><button id="resetView" type="button">Recenter anatomy</button><a class="back" id="procedureLink" href="../procedural-workspace.html" title="Open the separate PNEUMO VR bronchoscopy engine">Procedures</a><div id="enterVR"></div></div></footer>
+</div></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
+import {createSpatialRig} from './xr/controller-rig.js?xr06=20261120-1';
+import {normalizeProgress} from './xr/spatial-interaction.js';
+import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
+import {createAnatomicalWorkbench,sectionalLocalPoint} from './xr/anatomy-workbench.js';
+import {anatomyObjectRecord,tagAnatomyObject,REFERENCE_SOURCE,SCHEMATIC_SOURCE} from './anatomy/object-contract.js';
+import {REGIONS} from './core/mechanistic-lung.js';
+import {createFocus,readFocus} from './shared/reference-focus.js';
+import {safeReferenceRegion} from './shared/workspace-route.js';
+
+const $=id=>document.getElementById(id);
+const canvas=$('stageCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+renderer.setClearColor(0x101820,1);renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.xr.enabled=true;
+renderer.localClippingEnabled=true;
+// Quest 2 headset thermal budget: request moderate XR resolution and fixed foveation.
+// These are performance hints only; unsupported browser APIs are optional.
+renderer.xr.setFramebufferScaleFactor?.(.85);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(58,1,.04,40);
+scene.background=new THREE.Color(0x19262d);
+scene.fog=new THREE.Fog(0x19262d,4.8,8.5);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(4.5,64),
+  new THREE.MeshBasicMaterial({color:0x1c2a31,side:THREE.DoubleSide,depthWrite:false}));
+floor.rotation.x=-Math.PI/2;floor.position.y=-.035;scene.add(floor);
+const floorGrid=new THREE.GridHelper(7,18,0x40545c,0x2b3e47);
+floorGrid.position.y=-.031;floorGrid.material.transparent=true;
+floorGrid.material.opacity=.19;scene.add(floorGrid);
+camera.position.set(0,1.5,1.4);
+const focus=new THREE.Vector3(0,1.30,-1.35);camera.lookAt(focus);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.target.copy(focus);controls.minDistance=.55;controls.maxDistance=4;
+const hemi=new THREE.HemisphereLight(0xdce9ef,0x3b4850,2.0);scene.add(hemi);
+const key=new THREE.DirectionalLight(0xffffff,2.7);key.position.set(-2,4,3);scene.add(key);
+const rim=new THREE.DirectionalLight(0x89afc0,.9);rim.position.set(2,2,-3);scene.add(rim);
+const anatomy=new THREE.Group();
+anatomy.position.set(0,1.27,-1.38);
+scene.add(anatomy);
+// 1 source scene unit is approximately 0.1 m in the original *procedural*
+// sample, but has no calibrated physical provenance. Enlarged X2.2 purely
+// for comfortable inspection inside the Quest. NEVER claim life-size.
+// Source reference has no calibrated millimetres. This is a display-only size.
+const displayScale=.22;
+const layers=new THREE.Group();layers.scale.setScalar(displayScale);anatomy.add(layers);
+const meshes=[],regions=new Map();let hoveredRegion=null;
+const lobeShapes=[
+ {id:'RUL',pos:[1.0,.52,0],size:[.78,.79,.65],angle:-.17},
+ {id:'RML',pos:[1.00,-.12,.27],size:[.72,.47,.56],angle:-.17},
+ {id:'RLL',pos:[1.08,-.77,-.03],size:[.84,.72,.74],angle:.10},
+ {id:'LUL',pos:[-1.03,.28,0],size:[.81,1.02,.67],angle:.18},
+ {id:'LLL',pos:[-1.1,-.72,-.04],size:[.86,.84,.74],angle:-.1}
+];
+const lobeMaterials=new Map();
+for(const l of lobeShapes){
+ const geometry=new THREE.SphereGeometry(1,24,16);
+ const material=new THREE.MeshStandardMaterial({color:0x9e8587,roughness:.93,metalness:0,transparent:true,opacity:.38,depthWrite:false,side:THREE.DoubleSide});
+ const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...l.pos);mesh.scale.set(...l.size);mesh.rotation.z=l.angle;
+ mesh.userData.regionId=l.id;mesh.userData.kind='schematic-lobe';
+ tagAnatomyObject(mesh,anatomyObjectRecord({sourceId:SCHEMATIC_SOURCE,role:'lobe',regionId:l.id}));
+ layers.add(mesh);meshes.push(mesh);regions.set(l.id,mesh);lobeMaterials.set(l.id,material);
+}
+const airwayGroup=new THREE.Group();layers.add(airwayGroup);
+// A reversible source-local section plane: illustrative clipping, not surgery.
+const sectionPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+const sectionGuide=new THREE.Mesh(new THREE.PlaneGeometry(2.8,2.45),
+ new THREE.MeshBasicMaterial({color:0x94c2ce,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false}));
+sectionGuide.visible=false;sectionGuide.renderOrder=12;layers.add(sectionGuide);
+const lobeDepthLimits=lobeShapes.reduce((p,l)=>[Math.min(p[0],l.pos[2]-l.size[2]),Math.max(p[1],l.pos[2]+l.size[2])],[Infinity,-Infinity]);
+const sectionBounds={center:[0,0,(lobeDepthLimits[0]+lobeDepthLimits[1])/2],depth:lobeDepthLimits[1]-lobeDepthLimits[0]};
+const routeGroup=new THREE.Group();layers.add(routeGroup);
+const routeMaterial=new THREE.LineBasicMaterial({color:0xc1e9e6,transparent:true,opacity:.95,depthTest:false});
+const routeMarker=new THREE.Mesh(new THREE.SphereGeometry(.075,12,10),
+ new THREE.MeshBasicMaterial({color:0xece9d0,depthTest:false}));
+routeGroup.add(routeMarker);routeMarker.renderOrder=15;
+let routeCurve=null,routeLine=null,routeProgress=0;
+let mode='anatomy',isolated=false;routeGroup.visible=false;
+const worldSelect=new THREE.Raycaster();worldSelect.params.Line.threshold=.02;
+const pointer=new THREE.Vector2();
+let graph=null,workbench=null,selected=safeReferenceRegion(new URLSearchParams(location.search).get('focus'))||'RUL';
+let lastSharedRevision=-1;
+function studioHref(mode='mechanisms'){
+ const u=new URL('../studio.html',location.href);
+ u.searchParams.set('mode',mode);
+ if(safeReferenceRegion(selected))u.searchParams.set('focus',selected);
+ return u.toString();
+}
+function updateWorkspaceLinks(){
+ $('procedureLink').href=studioHref('procedure');
+ document.querySelector('a.back').href=studioHref('mechanisms');
+}
+function emitFocus(){
+ // Live synchronization occurs only when embedded in the same-origin Studio.
+ // Standalone Quest pages hand off canonical focus only through a typed URL.
+ if(window.parent===window)return;
+ try{window.parent.postMessage(createFocus({regionId:selected,origin:'xr',revision:1}),location.origin)}catch{}
+}
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ const incoming=readFocus(event.data);
+ if(!incoming||incoming.origin!=='studio'||incoming.revision<=lastSharedRevision)return;
+ lastSharedRevision=incoming.revision;
+ if(incoming.regionId!==selected)setSelected(incoming.regionId);
+});
+updateWorkspaceLinks();
+function setSelected(regionId){
+ if(!regions.has(regionId))return;
+ selected=regionId;
+ workbench?.selectRegion(regionId);
+ const state=workbench?.snapshot();
+ $('branchName').textContent=state?.branchName||'—';
+ $('branchGeneration').textContent=state?.generation!=null?'G'+state.generation:'—';
+ const r=REGIONS.find(x=>x.id===regionId);
+ $('selectedId').textContent=regionId;$('selectedRegion').textContent=r?.label+' lobe'||regionId;
+ $('branchCount').textContent=graph?String(graph.nodes.filter(n=>graph.regionOf(n.id)===regionId).length):'—';
+ $('selectionNote').textContent='Schematic lobe and proximal airway hierarchy; anatomical accuracy not established.';
+ applyAppearance();
+ updateWorldLabel();
+ updateWorkspaceLinks();
+ if(graph)buildRoute();
+}
+let airwayMaterial=null,sectionMaterialEnabled=false;
+function updateSectionPlane(){
+ const state=workbench?.snapshot();
+ if(!state)return;
+ sectionGuide.visible=state.sectionActive;
+ if(sectionMaterialEnabled!==state.sectionActive){
+  sectionMaterialEnabled=state.sectionActive;
+  const planes=state.sectionActive?[sectionPlane]:[];
+  for(const material of lobeMaterials.values()){
+   material.clippingPlanes=planes;material.needsUpdate=true;
+  }
+  if(airwayMaterial){airwayMaterial.clippingPlanes=planes;airwayMaterial.needsUpdate=true}
+ }
+ if(!state.sectionActive)return;
+ const localPoint=sectionalLocalPoint({center:sectionBounds.center,depth:sectionBounds.depth,fraction:state.sectionFraction});
+ sectionGuide.position.set(...localPoint);
+ layers.updateWorldMatrix(true,false);
+ const normal=new THREE.Vector3(0,0,1).transformDirection(layers.matrixWorld);
+ const origin=layers.localToWorld(new THREE.Vector3(...localPoint));
+ sectionPlane.setFromNormalAndCoplanarPoint(normal,origin);
+}
+function setSectionFraction(v){
+ if(!workbench)return;
+ const value=workbench.setSectionFraction(v);
+ $('sectionPosition').value=String(Math.round(value*100));
+ $('sectionPercent').textContent=(value>=0?'+':'')+Math.round(value*100)+'%';
+ updateSectionPlane();
+}
+function moveSection(delta){if(workbench)setSectionFraction(workbench.moveSection(delta))}
+function nextAirwayBranch(){
+ if(!workbench)return;
+ workbench.nextBranch(1);
+ setSelected(workbench.snapshot().regionId);
+}
+const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=164;
+const labelContext=labelCanvas.getContext('2d');
+const labelTexture=new THREE.CanvasTexture(labelCanvas);
+labelTexture.colorSpace=THREE.SRGBColorSpace;
+const panel=new THREE.Mesh(new THREE.PlaneGeometry(.52,.17),new THREE.MeshBasicMaterial({map:labelTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
+panel.position.set(.28,1.76,-1.42);scene.add(panel);
+function updateWorldLabel(){
+ const ctx=labelContext;ctx.clearRect(0,0,512,164);ctx.fillStyle='rgba(16,29,38,.88)';ctx.fillRect(0,0,512,164);
+ ctx.fillStyle='#a5bdc7';ctx.font='22px system-ui';ctx.fillText('SELECTED LOBE',24,43);
+ ctx.fillStyle='#e6edf0';ctx.font='bold 35px system-ui';ctx.fillText((REGIONS.find(x=>x.id===selected)?.label||selected)+' · '+selected,24,99);
+ ctx.fillStyle='#b1c4cc';ctx.font='18px system-ui';ctx.fillText('REFERENCE MODEL · UNVALIDATED',24,140);
+ labelTexture.needsUpdate=true;
+}
+async function buildReference(){
+ const loaded=await fetchReferenceAirwayGraph();
+ graph=loaded;
+ workbench=createAnatomicalWorkbench(graph,{initialRegion:selected});
+ airwayMaterial=new THREE.MeshStandardMaterial({color:0xc8d0d3,roughness:.87,transparent:true,opacity:.87,side:THREE.DoubleSide});
+ for(const node of graph.nodes){
+   const pts=node.points.map(p=>new THREE.Vector3(...p));
+   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
+   const n=16,sides=8,frames=curve.computeFrenetFrames(n,false);
+   const positions=[],normals=[],triangles=[];
+   for(let i=0;i<=n;i++){
+    const t=i/n,p=curve.getPoint(t),r=node.radiusStart*(1-t)+node.radiusEnd*t;
+    for(let j=0;j<=sides;j++){
+     const a=j/sides*2*Math.PI;
+     const normal=frames.normals[i].clone().multiplyScalar(Math.cos(a)).addScaledVector(frames.binormals[i],Math.sin(a));
+     const point=p.clone().addScaledVector(normal,r);
+     positions.push(...point.toArray());normals.push(...normal.toArray());
+     if(i<n&&j<sides){const v=i*(sides+1)+j,w=v+sides+1;triangles.push(v,w,v+1,w,w+1,v+1)}
+    }
+   }
+   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+   g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));g.setIndex(triangles);
+   const mesh=new THREE.Mesh(g,airwayMaterial);mesh.userData.regionId=graph.regionOf(node.id);
+   mesh.userData.branchId=node.id;mesh.userData.kind='reference-airway';
+   tagAnatomyObject(mesh,anatomyObjectRecord({sourceId:REFERENCE_SOURCE,role:'airway',regionId:graph.regionOf(node.id),branchId:node.id}));
+   airwayGroup.add(mesh);meshes.push(mesh);
+ }
+ setSelected(selected);
+ $('status').textContent='REFERENCE AIRWAYS · '+graph.nodes.length+' SOURCE BRANCHES';
+ buildRoute();
+}
+
+function buildRoute(){
+ if(!graph)return;
+ const chosen=workbench?.snapshot().branchId;
+ const leaf=chosen!=null?graph.get(chosen):graph.nodes.filter(n=>n.children.length===0&&graph.regionOf(n.id)===selected)
+   .sort((a,b)=>b.generation-a.generation||a.id-b.id)[0];
+ if(!leaf){routeCurve=null;routeGroup.visible=false;return}
+ const coords=[];
+ for(const node of graph.chain(leaf.id)){
+   for(const p of node.points){
+     const point=new THREE.Vector3(...p);
+     if(coords.length&&point.distanceTo(coords[coords.length-1])<.0001)continue;
+     coords.push(point);
+   }
+ }
+ if(coords.length<2)return;
+ routeCurve=new THREE.CatmullRomCurve3(coords,false,'centripetal');
+ if(routeLine){routeGroup.remove(routeLine);routeLine.geometry.dispose()}
+ routeLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(routeCurve.getPoints(90)),routeMaterial);
+ routeLine.renderOrder=13;routeGroup.add(routeLine);
+ setRouteProgress(0);
+ routeGroup.visible=mode==='path';
+}
+function setRouteProgress(value){
+ routeProgress=normalizeProgress(value);
+ $('routeProgress').value=String(Math.round(routeProgress*100));
+ $('routePercent').textContent=Math.round(routeProgress*100)+'%';
+ if(routeCurve)routeMarker.position.copy(routeCurve.getPoint(routeProgress));
+}
+function applyAppearance(){
+ for(const [id,mat] of lobeMaterials){
+   mat.color.set(id===selected?0xc8a9a8:id===hoveredRegion?0xb7adb0:0x9e8587);
+   mat.opacity=id===selected?(isolated?.81:.57):(isolated?.045:.27);
+   mat.emissive.set(id===selected?0x39252b:id===hoveredRegion?0x172f36:0x090c0e);
+   mat.emissiveIntensity=id===hoveredRegion?.62:.24;
+ }
+ routeGroup.visible=(mode==='path'||mode==='section')&&Boolean(routeCurve);
+}
+function hoverRegion(raycaster){
+ const hit=raycaster?.intersectObjects([...airwayGroup.children,...regions.values()],false)
+  ?.find(h=>h.object.visible&&h.object.userData.regionId);
+ const next=hit?.object?.userData?.regionId||null;
+ if(next!==hoveredRegion){hoveredRegion=next;applyAppearance()}
+ return next;
+}
+function setMode(next){
+ if(!['anatomy','path','section'].includes(next))return;
+ mode=next;
+ $('modeAnatomy').setAttribute('aria-pressed',String(next==='anatomy'));
+ $('modeAirway').setAttribute('aria-pressed',String(next==='path'));
+ $('modeSection').setAttribute('aria-pressed',String(next==='section'));
+ workbench?.setSection(next==='section');
+ updateSectionPlane();
+ $('sectionControls').classList.toggle('active',next==='section');
+ $('routeControls').classList.toggle('active',next==='path');
+ $('modeExplanation').textContent=next==='path'?
+  'Airway guide: the joystick advances a route marker, never your head. Open Procedures for the original bronchoscopy simulator.':
+  next==='section'?'Display-only section: left thumbstick sweeps a plane through the reference geometry. No tissue cutting or calibrated depth.':
+  'In Quest: side grips hold the lungs. Both grips rotate and resize. Triggers select structures.';
+ applyAppearance();
+}
+function toggleIsolate(){
+ isolated=!isolated;$('isolateLobe').setAttribute('aria-pressed',String(isolated));
+ $('isolateLobe').textContent=isolated?'Show all lobes':'Isolate lobe';
+ applyAppearance();
+}
+function touchNearby(point,radius=.19){
+ if(!point?.isVector3)return null;
+ let best=null,bestDistance=radius;
+ for(const mesh of [...airwayGroup.children,...regions.values()]){
+   if(!mesh.visible||!mesh.userData.regionId||!mesh.geometry)continue;
+   const box=new THREE.Box3().setFromObject(mesh);
+   const distance=box.distanceToPoint(point);
+   if(distance<bestDistance){bestDistance=distance;best=mesh}
+ }
+ if(!best)return null;
+ const regionId=best.userData.regionId;
+ if(regionId!==selected){setSelected(regionId);emitFocus()}
+ return regionId;
+}
+function pick(raycaster){
+ // Raycast airway before transparent lobe surfaces for usable selection.
+ const hits=raycaster.intersectObjects([...airwayGroup.children,...regions.values()],false);
+ const hit=hits.find(h=>h.object.visible&&h.object.userData.regionId);
+ if(hit){
+  const wasSelected=selected;
+  if(Number.isInteger(hit.object.userData.branchId))workbench?.selectBranch(hit.object.userData.branchId);
+  setSelected(hit.object.userData.regionId);
+  if(wasSelected!==selected)emitFocus();
+  return hit.object.userData.regionId;
+ }
+ return null;
+}
+let down=null;
+canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+canvas.addEventListener('pointerup',e=>{
+ if(renderer.xr.isPresenting||!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+ const rect=canvas.getBoundingClientRect();
+ pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+ worldSelect.setFromCamera(pointer,camera);pick(worldSelect);
+});
+
+// A single XR rig owns controller tracking and spatial interaction. Geometry,
+// airway data and the original bronchoscopy engine are never duplicated here.
+function resetExperience(){
+ if(!renderer.xr.isPresenting){
+   anatomy.position.set(0,1.27,-1.38);anatomy.quaternion.identity();anatomy.scale.setScalar(1);
+   camera.position.set(0,1.5,1.4);controls.target.copy(focus);controls.update();
+ }
+ isolated=false;$('isolateLobe').setAttribute('aria-pressed','false');
+ $('isolateLobe').textContent='Isolate lobe';
+ // Recenter must preserve the user's current reference lobe and Studio focus.
+ setSelected(selected);setRouteProgress(0);setMode('anatomy');
+}
+const rig=createSpatialRig({
+ renderer,scene,camera,anatomy,
+ onSelect:ray=>pick(ray),
+ onHover:ray=>hoverRegion(ray),
+ onTouch:(point,radius)=>touchNearby(point,radius),
+ onMode:setMode,
+ onReset:resetExperience,
+ onIsolate:toggleIsolate,
+ onProcedure:()=>window.location.assign(studioHref('procedure')),
+ onRouteStep:delta=>setRouteProgress(routeProgress+delta),
+ onSectionStep:moveSection,
+ onNextBranch:nextAirwayBranch,
+ getInfo:()=>({region:selected,
+   name:REGIONS.find(r=>r.id===selected)?.label||selected,
+   isolated,progress:Math.round(routeProgress*100),
+   branch:workbench?.snapshot().branchName||'—',
+   generation:workbench?.snapshot().generation,
+   section:workbench?.snapshot().sectionFraction||0})
+});
+$('modeAnatomy').addEventListener('click',()=>rig.setMode('anatomy'));
+$('modeAirway').addEventListener('click',()=>rig.setMode('path'));
+$('modeSection').addEventListener('click',()=>rig.setMode('section'));
+$('nextBranch').addEventListener('click',nextAirwayBranch);
+$('sectionPosition').addEventListener('input',()=>setSectionFraction(Number($('sectionPosition').value)/100));
+$('isolateLobe').addEventListener('click',toggleIsolate);
+$('panelToggle').addEventListener('click',()=>{
+ const visible=!rig.getPanelVisible();
+ rig.setPanelVisible(visible);
+ $('panelToggle').setAttribute('aria-pressed',String(visible));
+ $('panelToggle').textContent=visible?'Spatial inspector':'Show inspector';
+});
+$('routeProgress').addEventListener('input',()=>setRouteProgress(Number($('routeProgress').value)/100));
+$('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy')});
+window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
+ routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
+ workbench:workbench?.snapshot()||null,
+ sectionRenderer:{clippingEnabled:renderer.localClippingEnabled,
+  clippingActive:sectionMaterialEnabled,
+  lobeClipping: [...lobeMaterials.values()].every(m=>Boolean(m.clippingPlanes?.length)===sectionMaterialEnabled),
+  airwayClipping:airwayMaterial?Boolean(airwayMaterial.clippingPlanes?.length)===sectionMaterialEnabled:false},
+ geometrySources:{airways:REFERENCE_SOURCE,lobes:SCHEMATIC_SOURCE,physicalScaleValidated:false},
+ version:'XR-06-ANATOMY-WORKBENCH'});
+const container=$('enterVR');
+const vrButton=VRButton.createButton(renderer,{
+ optionalFeatures:['local-floor','bounded-floor','hand-tracking']
+});
+container.append(vrButton);
+async function checkVR(){
+ try{
+  if(!navigator.xr){$('vrGuidance').textContent='WebXR unavailable here. Use Meta Quest Browser over HTTPS for immersive mode.';return}
+  const supported=await navigator.xr.isSessionSupported('immersive-vr');
+  $('vrGuidance').textContent=supported?'Quest: use either controller trigger to select · Browser Exit VR to return':
+   'Immersive VR unavailable in this browser. Desktop inspection is supported.';
+ }catch{$('vrGuidance').textContent='VR capability could not be detected; desktop mode remains available.'}
+}
+checkVR();
+// Immersive WebXR has its own tracked viewer. The old desktop orbit camera
+// was translated by (0,1.5,1.4); do not inherit that offset in headset space.
+let desktopCameraRestore=null;
+renderer.xr.addEventListener('sessionstart',()=>{
+ $('status').textContent='IMMERSIVE REFERENCE ANATOMY · CONTROLLERS ACTIVE';
+ desktopCameraRestore={position:camera.position.clone(),quaternion:camera.quaternion.clone()};
+ controls.enabled=false;
+ camera.position.set(0,0,0);
+ camera.quaternion.identity();
+ camera.updateMatrixWorld(true);
+ renderer.xr.setFoveation?.(.45);
+});
+renderer.xr.addEventListener('sessionend',()=>{
+ if(desktopCameraRestore){
+   camera.position.copy(desktopCameraRestore.position);
+   camera.quaternion.copy(desktopCameraRestore.quaternion);
+   desktopCameraRestore=null;
+   camera.updateMatrixWorld(true);
+ }
+ controls.enabled=true;
+ controls.update();
+ $('status').textContent='REFERENCE ANATOMY · DESKTOP INSPECTION';
+});
+const resize=new ResizeObserver(()=>{
+ const w=canvas.clientWidth,h=canvas.clientHeight;
+ if(w>0&&h>0){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+});resize.observe(canvas);
+let lastFrame=0;
+renderer.setAnimationLoop((time,frame)=>{
+ const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
+ if(renderer.xr.isPresenting)rig.update(dt,frame);
+ else controls.update();
+ updateSectionPlane();
+ // Web page annotations are redundant in VR. In-headset spatial inspector
+ // remains world-anchored and never follows the user's controller grips.
+ panel.visible=!renderer.xr.isPresenting;
+ renderer.render(scene,camera);
+});
+buildReference().catch(err=>{$('status').textContent='AIRWAY REFERENCE ERROR: '+err.message});
+updateWorldLabel();
+</script></body></html>
