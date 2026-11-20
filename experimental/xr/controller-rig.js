@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import {XRControllerModelFactory} from 'three/addons/webxr/XRControllerModelFactory.js';
 import {bimanualPose,clampDisplayScale,dominantThumbstick} from './spatial-interaction.js';
 import {createWelcomeSequence} from './experience-sequence.js';
+import {fitSeatedAnatomy,COMFORT_DEFAULTS} from './comfort-framing.js';
 
 export function createSpatialRig({
   renderer,scene,camera,anatomy,onSelect,onHover,onMode,onReset,onIsolate,onProcedure,onRouteStep,getInfo
@@ -18,7 +19,8 @@ export function createSpatialRig({
   const raycaster=new THREE.Raycaster(),basis=new THREE.Matrix4();
   const headPosition=new THREE.Vector3(),headForward=new THREE.Vector3(),headRight=new THREE.Vector3(),q=new THREE.Quaternion();
   const tmpVec=new THREE.Vector3(),tmpMatrix=new THREE.Matrix4();
-  const scaleLimits={minScale:.55,maxScale:1.9};
+  const scaleLimits={minScale:COMFORT_DEFAULTS.minUserScale,maxScale:COMFORT_DEFAULTS.maxUserScale};
+  let validViewerPose=false,firstFrameBounds=null,firstFrame=null;
   const controllerFactory=new XRControllerModelFactory();
 
   const panelCanvas=document.createElement('canvas');
@@ -113,48 +115,104 @@ export function createSpatialRig({
     ctx.fillText('PROCEDURAL REFERENCE  ·  NOT VALIDATED HUMAN ANATOMY',65,933);
     tex.needsUpdate=true;
   }
-  function headPose(){
-    const xrCamera=renderer.xr.getCamera(camera);
-    xrCamera.updateMatrixWorld(true);
-    xrCamera.getWorldPosition(headPosition);
-    xrCamera.getWorldQuaternion(q);
+
+  // Crucial XR-04: the WebXR frame owns the viewer pose. Reading an XR camera
+  // before its first renderer update (or inheriting the desktop camera's
+  // position) can place the model around the user instead of in front.
+  function readViewerPose(frame){
+    if(!frame||!renderer.xr.isPresenting)return false;
+    const space=renderer.xr.getReferenceSpace();
+    if(!space)return false;
+    const pose=frame.getViewerPose?.(space);
+    if(!pose?.transform)return false;
+    const p=pose.transform.position,o=pose.transform.orientation;
+    if(![p.x,p.y,p.z,o.x,o.y,o.z,o.w].every(Number.isFinite))return false;
+    headPosition.set(p.x,p.y,p.z);
+    q.set(o.x,o.y,o.z,o.w).normalize();
     headForward.set(0,0,-1).applyQuaternion(q);headForward.y=0;
-    if(headForward.lengthSq()<.02)headForward.set(0,0,-1);
+    if(headForward.lengthSq()<.01)headForward.set(0,0,-1);
     headForward.normalize();
     headRight.set(1,0,0).applyQuaternion(q);headRight.y=0;
-    if(headRight.lengthSq()<.02)headRight.set(1,0,0);
+    if(headRight.lengthSq()<.01)headRight.set(1,0,0);
     headRight.normalize();
+    validViewerPose=true;
+    return true;
+  }
+  function headPose(){
+    if(renderer.xr.isPresenting)return validViewerPose;
+    camera.updateMatrixWorld(true);
+    camera.getWorldPosition(headPosition);camera.getWorldQuaternion(q);
+    headForward.set(0,0,-1).applyQuaternion(q);headForward.y=0;
+    if(headForward.lengthSq()<.01)headForward.set(0,0,-1);
+    headForward.normalize();
+    headRight.set(1,0,0).applyQuaternion(q);headRight.y=0;
+    if(headRight.lengthSq()<.01)headRight.set(1,0,0);
+    headRight.normalize();
+    return true;
+  }
+  function sourceBounds(){
+    // Measure only the actual reference airway and schematic lobar meshes.
+    // Transform each local mesh box into anatomy-root coordinates so grab
+    // rotation, model scale, and desktop camera do not bias the source bounds.
+    anatomy.updateMatrixWorld(true);
+    const inverseRoot=new THREE.Matrix4().copy(anatomy.matrixWorld).invert();
+    const box=new THREE.Box3().makeEmpty();
+    const matrix=new THREE.Matrix4();
+    anatomy.traverse(mesh=>{
+      if(!mesh.isMesh||!mesh.userData.regionId||!mesh.geometry)return;
+      if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+      matrix.multiplyMatrices(inverseRoot,mesh.matrixWorld);
+      box.union(mesh.geometry.boundingBox.clone().applyMatrix4(matrix));
+    });
+    if(box.isEmpty())return {size:[1,1,1],center:[0,0,0]};
+    return {size:box.getSize(new THREE.Vector3()).toArray(),
+      center:box.getCenter(new THREE.Vector3()).toArray()};
   }
   function placePanel(){
-    headPose();
+    if(!headPose())return;
     panel.position.copy(headPosition).addScaledVector(headForward,1.42)
-      .addScaledVector(headRight,.82);
-    panel.position.y-=.04;
+      .addScaledVector(headRight,.83);
+    panel.position.y-=.05;
     panel.lookAt(headPosition);
     panel.visible=renderer.xr.isPresenting&&menuVisible;
     drawPanel(true);
   }
   function recenter(){
     if(renderer.xr.isPresenting){
-      headPose();
-      anatomy.position.copy(headPosition).addScaledVector(headForward,1.44);
-      anatomy.position.y-=.18;
+      if(!headPose())return false;
+      const bounds=sourceBounds();
+      const fit=fitSeatedAnatomy({
+        head:headPosition.toArray(),forward:headForward.toArray(),
+        bounds:bounds.size,localCenter:bounds.center
+      });
+      // The full *visible* anatomical envelope, not an arbitrary group
+      // origin, starts 2.15 m ahead and approx. 0.56 m across.
       anatomy.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),headForward);
+      anatomy.scale.setScalar(fit.scale);
+      anatomy.position.fromArray(fit.center).sub(
+        new THREE.Vector3(...fit.localCenter)
+          .multiplyScalar(fit.scale).applyQuaternion(anatomy.quaternion)
+      );
+      firstFrame={head:headPosition.toArray(),...fit};
+      firstFrameBounds=bounds;
     }else{
-      anatomy.position.set(0,1.27,-1.38);anatomy.quaternion.identity();
+      anatomy.position.set(0,1.27,-1.38);
+      anatomy.quaternion.identity();
+      anatomy.scale.setScalar(1);
     }
-    anatomy.scale.setScalar(1);
     grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
     if(renderer.xr.isPresenting)placePanel();
     onReset?.();
+    return true;
   }
   function keepComfortable(){
-    headPose();
+    if(!headPose())return;
     const offset=tmpVec.copy(anatomy.position).sub(headPosition);
     const distance=offset.length();
-    if(distance<.68||distance>3.3){
+    const minDistance=Math.max(1.25,.85+Math.max(...(firstFrameBounds?.size||[1,1,1]))*anatomy.scale.x*.38);
+    if(distance<minDistance||distance>3.5){
       if(distance<.001)offset.copy(headForward);
-      offset.normalize().multiplyScalar(THREE.MathUtils.clamp(distance,.68,3.3));
+      offset.normalize().multiplyScalar(THREE.MathUtils.clamp(distance,minDistance,3.5));
       anatomy.position.copy(headPosition).add(offset);
     }
     const s=clampDisplayScale(anatomy.scale.x,scaleLimits.minScale,scaleLimits.maxScale);
@@ -304,7 +362,8 @@ export function createSpatialRig({
     }
   }
   renderer.xr.addEventListener('sessionstart',()=>{
-    started=false;menuVisible=true;previousButtons=[[],[]];
+    started=false;validViewerPose=false;firstFrame=null;firstFrameBounds=null;
+    menuVisible=true;previousButtons=[[],[]];
     try{
       if(sessionStorage.getItem('pulmosimu.xr.tour.completed')==='1')welcome.skip();
       else welcome.restart();
@@ -313,13 +372,14 @@ export function createSpatialRig({
     panel.visible=false;
   });
   renderer.xr.addEventListener('sessionend',()=>{
-    started=false;grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
+    started=false;validViewerPose=false;grabbing.fill(false);twoHandStart=null;handAnchors.fill(null);
     panel.visible=false;mode='anatomy';onMode?.('anatomy');
     anatomy.position.set(0,1.27,-1.38);anatomy.quaternion.identity();anatomy.scale.setScalar(1);
   });
-  function update(dt=.016){
+  function update(dt=.016,frame=null){
     if(!renderer.xr.isPresenting)return;
-    if(!started){started=true;recenter();placePanel()}
+    if(!readViewerPose(frame))return; // do not guess placement from desktop camera
+    if(!started){started=true;recenter()}
     pollGamepads(dt);updateGrabs();
     // Keep this static readable panel in world space; don't attach it to hands.
     drawPanel();
@@ -331,5 +391,8 @@ export function createSpatialRig({
   }
   return {update,setMode,recenter,setPanelVisible,
     getMode:()=>mode,getPanelVisible:()=>menuVisible,
-    debugState:()=>({mode,menuVisible,grabbing:[...grabbing],scale:anatomy.scale.x,started,tour:welcome.get(),hands:controllers.map(c=>c.userData.handedness||null)})};
+    debugState:()=>({mode,menuVisible,grabbing:[...grabbing],scale:anatomy.scale.x,started,
+      validViewerPose,firstFrame,firstFrameBounds,tour:welcome.get(),
+      modelPosition:anatomy.position.toArray(),headPosition:headPosition.toArray(),
+      hands:controllers.map(c=>c.userData.handedness||null)})};
 }
