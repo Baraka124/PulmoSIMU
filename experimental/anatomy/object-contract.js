@@ -45,6 +45,8 @@ export function canReportMetric(record,metric){
  // Formal gate: no length, resistance, compliance, or clinical metric can be
  // asserted from arbitrary procedural units or schematic lobar envelopes.
  if(!record||!SOURCE_DESCRIPTORS[record.sourceId])return false;
- if(!record.measurementsAllowed||!record.physicalScaleValidated)return false;
+ const descriptor=SOURCE_DESCRIPTORS[record.sourceId];
+ if(!descriptor.measurementsAllowed||!descriptor.physicalScaleValidated||
+   !record.measurementsAllowed||!record.physicalScaleValidated)return false;
  return ['length','area','volume','diameter','angle'].includes(metric);
 }
