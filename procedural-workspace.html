@@ -156,7 +156,7 @@ function initialise(){
 }
 frame.addEventListener('load',()=>{state.ready=false;state.booted=false;initialise()});
 applyButtons();
-
+</script>
 <script type="module">
 import {createFocus,readFocus,REGIONS} from './experimental/shared/reference-focus.js';
 const childFrame=document.getElementById('frame');
@@ -204,4 +204,4 @@ setInterval(()=>{
   activeRegion=region;emit(region,branch);
  }catch{}
 },900);
-</script></script></body></html>
+</script></body></html>
