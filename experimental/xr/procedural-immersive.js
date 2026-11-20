@@ -9,6 +9,7 @@
 function install(ctx){
   const {THREE,scene,rBro,rExt,camScope,mGrp,vrCam,scope,CFG,
     SEGS,SEG_MAP,pathCurves,patientData,getMeshMode,getAnatomyMeshes,
+    getPatientAudit,getMmPerSceneUnit,getScopeDiameterMm,
     setClinMode,getClinMode,fireAction,enterBranch,hideBranchSel,
     updateScope,onResize,showToast,getExtIdle,setExtIdle}=ctx;
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
@@ -19,6 +20,7 @@ function install(ctx){
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
   const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
+  let scaleMode='comfort',lastPanelUpdate=0;
   let saved=null,scopeSteering=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
@@ -86,11 +88,38 @@ function install(ctx){
     const scale=safe(.1,1.2,Math.min(width/bounds.size.x,.65/bounds.size.y));
     const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.1,0));
     mGrp.quaternion.identity();
-    mGrp.scale.setScalar(scale);
+    mGrp.scale.setScalar(scale);scaleMode='comfort';
     mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale));
     mGrp.updateMatrixWorld(true);placed=true;
     positionPanels();
     return true;
+  }
+  function setSourceScale(){
+    const audit=getPatientAudit?.();
+    if(!audit||getMeshMode()!=='patient'||audit.status!=='coframed'||
+       !audit.sourceScaleEligible||mode!=='anatomy'||grab.some(Boolean))
+      return false;
+    const sourceScale=audit.sceneUnitMetres;
+    if(!Number.isFinite(sourceScale)||sourceScale<.005||sourceScale>2)return false;
+    const local=sourceBounds().center;
+    const currentCenter=local.clone().multiplyScalar(mGrp.scale.x)
+      .applyQuaternion(mGrp.quaternion).add(mGrp.position);
+    mGrp.scale.setScalar(sourceScale);
+    mGrp.position.copy(currentCenter)
+      .sub(local.clone().multiplyScalar(sourceScale).applyQuaternion(mGrp.quaternion));
+    scaleMode='source-derived';
+    mGrp.updateMatrixWorld(true);
+    return true;
+  }
+  function clearanceState(){
+    const seg=SEG_MAP[scope.segId];
+    if(!seg||!global.PulmoXR08)return null;
+    try{
+      return global.PulmoXR08.assessLumenClearance({
+        segment:seg,t:scope.t,scopeDiameterMm:getScopeDiameterMm(),
+        mmPerSceneUnit:getMmPerSceneUnit()
+      });
+    }catch{return null}
   }
   function positionPanels(){
     if(!viewerValid)return;
@@ -244,6 +273,9 @@ function install(ctx){
     if(action==='anatomy')setMode('anatomy');
     if(action==='procedure')setMode('procedure');
     if(action==='reset')frameGroup();
+    if(action==='scale'){
+      if(!setSourceScale())showToast('Source scale requires co-framed CT metadata (not synthetic)','warn');
+    }
     if(action==='tool')setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
     if(action==='exit')rBro.xr.getSession()?.end().catch(()=>{});
     paint();
@@ -297,37 +329,56 @@ function install(ctx){
     new THREE.MeshBasicMaterial({map:panelTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));
   worldMenu.renderOrder=40;worldMenu.visible=false;scene.add(worldMenu);
   actionHitbox=[
-    {id:'anatomy',label:'ANATOMY',u:.05,v:.48,w:.43,h:.16},
-    {id:'procedure',label:'BRONCHOSCOPY',u:.52,v:.48,w:.43,h:.16},
-    {id:'tool',label:'INSTRUMENT',u:.05,v:.67,w:.43,h:.16},
-    {id:'reset',label:'RECENTER',u:.52,v:.67,w:.43,h:.16},
-    {id:'exit',label:'EXIT VR',u:.52,v:.85,w:.43,h:.11}
+    {id:'anatomy',label:'ANATOMY',u:.05,v:.54,w:.43,h:.12},
+    {id:'procedure',label:'BRONCHOSCOPY',u:.52,v:.54,w:.43,h:.12},
+    {id:'tool',label:'INSTRUMENT',u:.05,v:.69,w:.43,h:.12},
+    {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
+    {id:'scale',label:'SOURCE SCALE',u:.05,v:.84,w:.43,h:.12},
+    {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
   ];
   function paint(){
     const c=panelCtx,w=1024,h=600;
+    const audit=getPatientAudit?.();
+    const role=getMeshMode();
+    const source=role==='patient'&&audit?.status==='coframed'
+      ?(audit.source==='synthetic'?'SYNTHETIC · COFRAMED ONLY':'CT-DERIVED · COFRAMED / UNVERIFIED')
+      :'PROCEDURAL REFERENCE · UNCALIBRATED';
+    const clearance=mode==='procedure'?clearanceState():null;
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
-    c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 29px system-ui';
-    c.fillText('PULMOSIMU  /  PROCEDURAL XR',48,72);
-    c.fillStyle='#e8f0f2';c.font='600 53px system-ui';
-    c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,162);
-    c.fillStyle='#d3e0e5';c.font='30px system-ui';
-    c.fillText(mode==='procedure'?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—')):'Original surgical anatomy · Spatial handling',48,230);
-    c.fillStyle='#a8c4cc';c.font='25px system-ui';
-    c.fillText(mode==='procedure'?'LEFT: ADVANCE  ·  RIGHT GRIP: STEER  ·  TRIGGER: ACT':
-      'TRIGGER: SUMMON  ·  NEAR GRIP: HOLD  ·  BOTH: RESIZE',48,280);
+    c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
+    c.fillText('PULMOSIMU  /  XR-08 ORIGINAL ENGINE',48,64);
+    c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
+    c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
+    c.fillStyle='#d3e0e5';c.font='28px system-ui';
+    c.fillText((mode==='procedure'
+      ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
+      :'Original anatomical scene · '+scaleMode+' scale').slice(0,51),48,189);
+    c.fillStyle='#a8c4cc';c.font='23px system-ui';
+    c.fillText(mode==='procedure'
+       ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
+       :'TRIGGER: SUMMON · NEAR GRIP: HOLD · BOTH: RESIZE',48,236);
+    c.fillStyle='#95bdc8';c.font='23px system-ui';
+    c.fillText(source,48,274);
+    c.fillStyle='#d8e1e4';c.font='22px system-ui';
+    const clinicalLabel=mode==='procedure'
+      ?(clearance
+        ?'EST. LUMEN '+clearance.diameterMm.toFixed(1)+' mm  /  TOOL '+clearance.scopeDiameterMm.toFixed(1)+' mm  ·  '+(clearance.canAdvance?'PASS':'BLOCK')
+        :'NO VALID LUMEN-TOOL CLEARANCE MODEL')
+      :'CT SOURCE SCALE IS METADATA-DERIVED, NOT CLINICALLY VERIFIED';
+    c.fillText(clinicalLabel.slice(0,83),48,311);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
-      const selected=a.id===mode;
-      c.fillStyle=selected?'#345463':'#213641';
+      const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
+      const available=a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient');
+      c.fillStyle=selected?'#345463':available?'#213641':'#1c2a32';
       c.fillRect(x,y,width,height);
-      c.strokeStyle=selected?'#adcdd5':'#4b6673';
+      c.strokeStyle=selected?'#adcdd5':available?'#4b6673':'#314652';
       c.lineWidth=2;c.strokeRect(x,y,width,height);
-      c.fillStyle='#e5eef1';c.font='600 29px system-ui';
-      c.fillText(a.label,x+24,y+height*.62);
+      c.fillStyle=available?'#e5eef1':'#6f8791';
+      c.font='600 27px system-ui';
+      c.fillText(a.label,x+23,y+height*.66);
     }
-    c.fillStyle='#93acb7';c.font='23px system-ui';
-    c.fillText('MODE '+getClinMode()?.toUpperCase()+'  ·  REFERENCE ONLY / NOT VALIDATED',48,554);
     panelTex.needsUpdate=true;
   }
   // Real endoscopic feed from the ORIGINAL camScope, rendered into the
@@ -396,6 +447,7 @@ function install(ctx){
   }
   rBro.xr.addEventListener('sessionstart',()=>{
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
+    lastPanelUpdate=0;scaleMode='comfort';
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
@@ -413,6 +465,7 @@ function install(ctx){
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);updateGrab();updateSteering();
+      if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       if(mode==='procedure')captureFeed(time);
       // The same clinical scene and source model are drawn stereoscopically.
       rBro.render(scene,vrCam);
@@ -434,6 +487,9 @@ function install(ctx){
     mode,active,placed,viewerValid,monitor:scopeScreen.visible,
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
+    sourceAudit:getPatientAudit?.()||null,
+    scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
+    clearance:clearanceState(),
     originalPathologyCount:Object.keys(ctx.pathoMeshes||{}).length,
     originalAnatomyMeshes:getAnatomyMeshes().length});
   global.pulmoProceduralXRDebug=diagnostics;
