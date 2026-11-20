@@ -55,7 +55,7 @@ The monitor now receives the actual original `camScope` image as a `THREE.WebGLR
 
 - Original endoscopic scene and camera; **no recorded placeholder**.
 - 640×360 offscreen target; bounded update cadence, initially ~11 Hz.
-- Temporary disabling of Three's XR camera override during the auxiliary camera pass, restoring render-target, camera projection and XR state in `finally`.
+- Temporary disabling of Three's XR camera override during the auxiliary camera pass, restoring render-target, camera projection and XR state in `finally`. **Three.js r128 requires explicitly rebinding `session.renderState.baseLayer.framebuffer` through `renderer.state.bindXRFramebuffer`** after returning from the offscreen target; otherwise stereo XR can render to the wrong framebuffer.
 - On failure, the monitor is flagged **unavailable** and its image hidden; never silently represented as a valid clinical feed.
 - `window.pulmoProceduralXRDebug()` exposes `monitorSource`, `monitorStatus`, `monitorFrames`, source audit, scale mode and estimated clearance.
 
