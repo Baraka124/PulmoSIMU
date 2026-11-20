@@ -32,7 +32,7 @@ test('Spatial controller rig has real dual grips, lifecycle and world-anchored V
  assert.ok(!rig.includes('scope.velocity'),'Quest controller grip must not silently advance the bronchoscope');
 });
 test('XR-04 placement uses the current headset frame, resets desktop camera offset and fits the complete visible anatomy',()=>{
- for(const token of ['XR-04','setAnimationLoop((time,frame)=>','rig.update(dt,frame)',
+ for(const token of ['XR-05','setAnimationLoop((time,frame)=>','rig.update(dt,frame)',
    'camera.position.set(0,0,0)','desktopCameraRestore']){
    assert.ok(html.includes(token),'XR04 viewer invariant: '+token);
  }
