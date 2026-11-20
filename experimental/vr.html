@@ -425,6 +425,10 @@ $('resetView').addEventListener('click',()=>{rig.recenter();rig.setMode('anatomy
 window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
  workbench:workbench?.snapshot()||null,
+ sectionRenderer:{clippingEnabled:renderer.localClippingEnabled,
+  clippingActive:sectionMaterialEnabled,
+  lobeClipping: [...lobeMaterials.values()].every(m=>Boolean(m.clippingPlanes?.length)===sectionMaterialEnabled),
+  airwayClipping:airwayMaterial?Boolean(airwayMaterial.clippingPlanes?.length)===sectionMaterialEnabled:false},
  geometrySources:{airways:REFERENCE_SOURCE,lobes:SCHEMATIC_SOURCE,physicalScaleValidated:false},
  version:'XR-06-ANATOMY-WORKBENCH'});
 const container=$('enterVR');
