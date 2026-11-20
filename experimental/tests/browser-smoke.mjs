@@ -173,6 +173,20 @@ try {
   assert.deepEqual(xrErrors,[],'No WebXR viewer script errors');
   console.log('PASS Quest viewer: reference anatomy, airway guide, progress, isolation, spatial controls and desktop fallback');
  }finally{await xr.close()}
+ // New uncached XR-04 entry must identify itself before entering an immersive session.
+ const uniqueQuest=await browser.newPage({viewport:{width:1100,height:760}});
+ try{
+   await uniqueQuest.goto(host+'/quest4.html',{waitUntil:'domcontentloaded'});
+   assert.match(await uniqueQuest.title(),/XR-04/);
+   assert.match(await uniqueQuest.locator('h1').innerText(),/XR-04/);
+   assert.match(await uniqueQuest.locator('#launchCurrent').getAttribute('href'),/XR04-NEW-20261120-1/);
+   await uniqueQuest.locator('#launchCurrent').click();
+   await uniqueQuest.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('release')==='XR04-NEW-20261120-1');
+   await uniqueQuest.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
+   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-04/);
+   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-04-COMFORT-FIT');
+   console.log('PASS explicit XR-04 Quest entrance, unique URL and correct spatial laboratory identity');
+ }finally{await uniqueQuest.close()}
  // The headset's short entry must land on the same integrated reference
  // viewer, retain valid region focus, and remain usable on desktop.
  const questEntry=await browser.newPage({viewport:{width:1050,height:760}});
