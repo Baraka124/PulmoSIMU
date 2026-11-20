@@ -10,7 +10,7 @@ function install(ctx){
   const {THREE,scene,rBro,rExt,camScope,mGrp,vrCam,scope,CFG,
     SEGS,SEG_MAP,pathCurves,patientData,getMeshMode,getAnatomyMeshes,
     getPatientAudit,getMmPerSceneUnit,getScopeDiameterMm,
-    setClinMode,getClinMode,fireAction,enterBranch,hideBranchSel,
+    setClinMode,getClinMode,fireAction,enterBranch,advance,retract,hideBranchSel,
     updateScope,onResize,showToast,getExtIdle,setExtIdle}=ctx;
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
   rBro.xr.enabled=true;
@@ -499,6 +499,15 @@ function install(ctx){
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);updateGrab();updateSteering();
+      // Advance the ORIGINAL medical procedure engine on XR time, not
+      // tab requestAnimationFrame, which can be throttled in a headset.
+      if(mode==='procedure'&&Math.abs(scope.velocity)>.0001){
+        const step=Math.min(1.5,Math.max(.1,dt*60));
+        const distance=scope.velocity*step;
+        if(distance>0)advance(distance);else retract(-distance);
+        scope.velocity*=Math.pow(scope.velocityDecay,step);
+      }
+      updateScope();
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       if(mode==='procedure')captureFeed(time);
       // The same clinical scene and source model are drawn stereoscopically.
