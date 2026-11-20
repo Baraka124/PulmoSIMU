@@ -141,6 +141,20 @@ try {
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
+ const studio=await browser.newPage({viewport:{width:1440,height:900}});
+ try{
+   await studio.goto(host+'/studio.html',{waitUntil:'domcontentloaded'});
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
+   await studio.locator('#modeMechanisms').click();
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Mechanistic laboratory');
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.getAttribute('src')==='./experimental/lab.html');
+   await studio.frameLocator('#workspaceFrame').locator('#networkStatus').waitFor({state:'visible',timeout:45000});
+   await studio.locator('#modeProcedure').click();
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
+   assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
+   assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./index.html');
+   console.log('PASS studio: procedural and mechanistic workspaces remain independent and reachable');
+ } finally {await studio.close();}
  const legacy=await browser.newPage({viewport:{width:1360,height:820}});
  try {
    await legacy.goto(host+'/',{waitUntil:'domcontentloaded',timeout:45000});
