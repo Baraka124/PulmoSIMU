@@ -17,11 +17,11 @@ function install(ctx){
 
   const safe=(a,b,v)=>Math.max(a,Math.min(b,v));
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
-  const leftRight=[null,null],hands=[null,null],grips=[null,null],grab=[null,null];
+  const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
   let saved=null,poseInfo=null,panelsReady=false,hoverAction=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
-  let button=null,lastFeed=0,actionHitbox=[],controllerReady=[false,false];
+  let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
@@ -30,6 +30,7 @@ function install(ctx){
   const currentGrip=i=>grips[i];
   function setMode(next){
     if(!['anatomy','procedure'].includes(next))return;
+    summonGeneration++;
     mode=next;grab[0]=grab[1]=null;gesture=null;
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(next==='anatomy')scope.velocity=0;
@@ -73,6 +74,8 @@ function install(ctx){
   }
   function frameGroup(distance=1.55,width=.62){
     if(!viewerValid)return false;
+    summonGeneration++;
+    release(0);release(1);
     const bounds=sourceBounds();
     const scale=safe(.1,1.2,Math.min(width/bounds.size.x,.65/bounds.size.y));
     const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.1,0));
@@ -116,6 +119,7 @@ function install(ctx){
   function startGrab(i){
     if(!active||!placed||mode!=='anatomy'||grab[i]||proximity(i)>.18)return false;
     const grip=grips[i];if(!grip)return false;
+    summonGeneration++;
     grab[i]={relative:new THREE.Matrix4()};capture(i);
     if(grab[0]&&grab[1]){
       grips[0].updateMatrixWorld(true);grips[1].updateMatrixWorld(true);
@@ -177,9 +181,9 @@ function install(ctx){
     const start=mGrp.position.clone(),old=mGrp.scale.x;
     // No camera motion. Smoothly approach a reachable workbench.
     gesture=null;
-    const begin=performance.now();
+    const begin=performance.now(),generation=++summonGeneration;
     const update=()=>{
-      if(!active||mode!=='anatomy'||grab.some(Boolean))return;
+      if(generation!==summonGeneration||!active||mode!=='anatomy'||grab.some(Boolean))return;
       const t=safe(0,1,(performance.now()-begin)/480);
       const eased=1-Math.pow(1-t,3);
       mGrp.position.copy(start).lerp(targetPosition,eased);
@@ -201,9 +205,10 @@ function install(ctx){
   function onTrigger(i){
     if(!active||!rayFrom(i))return;
     const action=findPanelHit(ray);
+    const side=controllerSide[i]|| (i===0?'left':'right');
     if(action){activate(action);return}
     if(mode==='anatomy')pickFromScene(ray);
-    else if(i===1){
+    else if(side==='right'){
       if(scope.atBranch){enterBranch(Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1))}
       else fireAction();
     }else if(scope.atBranch)enterBranch(0);
@@ -312,6 +317,7 @@ function install(ctx){
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]),
       new THREE.LineBasicMaterial({color:i?0xb6d1d9:0x789ba9,transparent:true,opacity:.45}));
     line.scale.z=1.9;controller.add(line);
+    controller.addEventListener('connected',event=>{controllerSide[i]=event.data?.handedness||null});
     controller.addEventListener('selectstart',()=>onTrigger(i));
     controller.addEventListener('squeezestart',()=>startGrab(i));
     controller.addEventListener('squeezeend',()=>release(i));
@@ -372,7 +378,7 @@ function install(ctx){
       mGrp.scale.copy(saved.scale);setExtIdle(saved.extIdle);
     }
     for(let i=0;i<2;i++)grab[i]=null;
-    gesture=null;placed=false;viewerValid=false;
+    summonGeneration++;gesture=null;placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
   paint();
