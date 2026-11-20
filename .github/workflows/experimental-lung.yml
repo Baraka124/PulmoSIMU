@@ -3,12 +3,16 @@ on:
   pull_request:
     paths:
       - 'experimental/**'
+      - 'index.html'
+      - 'quest-short/**'
       - '.github/workflows/experimental-lung.yml'
   push:
     branches:
       - feature/mechanistic-lung-foundation
     paths:
       - 'experimental/**'
+      - 'index.html'
+      - 'quest-short/**'
       - '.github/workflows/experimental-lung.yml'
 jobs:
   model-tests:
@@ -25,11 +29,15 @@ jobs:
       - name: Test anatomy, physiology and therapeutic invariants
         run: npm test
         working-directory: experimental
-      - name: Protect original procedural and CT processing source
+      - name: Preserve CT processing and test original procedural integration
         shell: bash
         run: |
           git fetch origin main --depth=1
-          git diff --exit-code origin/main -- index.html pipeline.py server.py synthetic.py
+          # XR is now deliberately integrated into feature-branch index.html.
+          # Keep the unmodified source of truth on main and gate the actual
+          # surgical features with procedural-xr-adapter + original-browser tests.
+          git diff --exit-code origin/main -- pipeline.py server.py synthetic.py
+          node --test experimental/tests/procedural-xr-adapter.test.mjs
   browser-smoke:
     runs-on: ubuntu-latest
     container:
