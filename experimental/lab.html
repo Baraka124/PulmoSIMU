@@ -129,6 +129,7 @@ import {parameterSensitivity} from './core/sensitivity-analysis.js';
 import {adaptCtMetadata} from './anatomy/ct-metadata-adapter.js';
 import {validateCtSceneAlignment} from './anatomy/ct-geometry-validation.js';
 import {validateSurfaceManifest,matchAtlasObjects,atlasCoverage} from './anatomy/surface-atlas.js';
+import {createFocus,readFocus} from './shared/reference-focus.js';
 import {describeLobe,validateAtlas,ATLAS_PROVENANCE} from './anatomy/whole-lung-atlas.js';
 const $=id=>document.getElementById(id);let experiment=createTherapyExperiment({disease:'healthy'}),state=experiment.treated,result=experiment.after,selected='RUL',overlay='vent';
 const canvas=$('lungCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
@@ -374,7 +375,7 @@ canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e
  if(anatomicalId)$('surfaceProvenance').textContent=surfaceData.manifest.source+' · '+anatomicalId+
    ' · unverified geometric mapping';
  }return;
-}if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild()}}});
+}if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild();publishReferenceFocus(region)}}});
 function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
 const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
 function draw(){
@@ -405,6 +406,23 @@ $('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESIS
 }
 function rebuild(){experiment=createTherapyExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},intervention:$('therapy').value,phenotype:$('phenotype').value,responseScale:Number($('responseScale').value)/100,days:Number($('days').value)});state=experiment.treated;draw()}
 for(const id of ['scenario','severity','focusRegion','burden','therapy','phenotype','responseScale','days'])$(id).addEventListener('input',rebuild);
+let lastSharedRevision=-1;
+function publishReferenceFocus(regionId){
+ if(window.parent===window||ctMode||surfaceMode)return;
+ try{window.parent.postMessage(createFocus({regionId,origin:'mechanistic',revision:1}),location.origin)}catch{}
+}
+$('focusRegion').addEventListener('change',()=>{selected=$('focusRegion').value;rebuild();publishReferenceFocus(selected)});
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ const incoming=readFocus(event.data);
+ if(!incoming||incoming.revision<=lastSharedRevision)return;
+ lastSharedRevision=incoming.revision;
+ if(ctMode||surfaceMode)return; // Never map reference IDs onto patient CT or external mesh.
+ selected=incoming.regionId;
+ $('focusRegion').value=selected;
+ rebuild(); // updates the reference numerical model; no clinical state exported.
+});
+
 for(const id of ['frequency','pressureAmplitude'])$(id).addEventListener('input',draw);
 function updateNumerics(){
  if(!airwayGraph)return;
