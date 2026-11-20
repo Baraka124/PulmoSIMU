@@ -64,8 +64,8 @@ window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==frame.contentWindow)return;
  const incoming=readFocus(event.data);
  if(!incoming)return;
- const expected=frame.getAttribute('src')?.includes('mechanistic')?'mechanistic':
-   frame.getAttribute('src')?.includes('procedural')?'procedural':null;
+ const expected=frame.getAttribute('src')==='./experimental/lab.html'?'mechanistic':
+   frame.getAttribute('src')==='./procedural-workspace.html'?'procedural':null;
  if(!expected||incoming.origin!==expected)return;
  if(focus?.regionId===incoming.regionId&&focus.branchId===incoming.branchId)return;
  focus=createFocus({regionId:incoming.regionId,branchId:incoming.branchId,
