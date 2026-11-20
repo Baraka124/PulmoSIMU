@@ -3835,7 +3835,8 @@ function _applyPatientMeta(meta) {
       pts:      pts3,
       r0:       s.r0,
       r1:       s.r1,
-      children: s.children,
+      children: Array.isArray(s.children)?s.children:
+        meta.segments.filter(candidate=>candidate.parent===s.id).map(candidate=>candidate.id),
       parent:   s.parent ?? -1,
     };
     SEGS.push(seg);
@@ -3879,9 +3880,11 @@ function _applyPatientMeta(meta) {
   }
 
   // Reset scope to start of new tree
-  scope.segId = 0;
+  const ids=new Set(meta.segments.map(segment=>segment.id));
+  const rootSegment=meta.segments.find(segment=>!ids.has(segment.parent));
+  scope.segId = rootSegment.id;
   scope.t = 0.01;
-  scope.history = [{ segId: 0, t: 0.01 }];
+  scope.history = [{ segId: rootSegment.id, t: 0.01 }];
   hideBranchSel();
   updateScope();
   drawMap();
@@ -3889,10 +3892,10 @@ function _applyPatientMeta(meta) {
   // Calibrate mm scale from pipeline transform
   if(meta.transform?.is_synthetic){
     mmPerUnit = 100; // synthetic: 2.4 units span ≈ 240mm airway → 100mm/unit
-  } else if(meta.transform?.scale && meta.transform.scale > 1){
-    mmPerUnit = 1000 / meta.transform.scale;
   } else {
-    mmPerUnit = 100;
+    // Non-synthetic CT pipeline mapping: sceneUnitMetres = 1 / scale.
+    // This is source transform provenance, not independent CT registration.
+    mmPerUnit = 1000 / meta.transform.scale;
   }
 
   // Switch view to patient mode
