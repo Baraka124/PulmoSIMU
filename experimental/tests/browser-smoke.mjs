@@ -173,6 +173,19 @@ try {
   assert.deepEqual(xrErrors,[],'No WebXR viewer script errors');
   console.log('PASS Quest viewer: reference anatomy, airway guide, progress, isolation, spatial controls and desktop fallback');
  }finally{await xr.close()}
+ // The headset's short entry must land on the same integrated reference
+ // viewer, retain valid region focus, and remain usable on desktop.
+ const questEntry=await browser.newPage({viewport:{width:1050,height:760}});
+ try{
+   await questEntry.goto(host+'/quest.html?focus=LLL',{waitUntil:'domcontentloaded'});
+   await questEntry.waitForURL(/experimental\\/vr\\.html\\?focus=LLL/,{timeout:15000});
+   await questEntry.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
+   assert.equal(await questEntry.locator('#selectedId').innerText(),'LLL');
+   await questEntry.locator('#resetView').click();
+   assert.equal(await questEntry.locator('#selectedId').innerText(),'LLL','Recenter must not discard selected reference lobe');
+   assert.equal(await questEntry.evaluate(()=>window.pulmoXRDebug()?.selected),'LLL');
+   console.log('PASS Quest short launch entry: direct viewer, canonical focus, recenter preserves integration');
+ }finally{await questEntry.close()}
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
  studio.on('pageerror',error=>console.error('STUDIO PAGE ERROR',error.message));
  try{
