@@ -1,7 +1,38 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#15232c"><title>PulmoSIMU XR · Quest 2</title>
-<meta http-equiv="refresh" content="0;url=https://pulmosimu-xr-preview.vercel.app/experimental/vr.html?release=XR04-NEW-20261120-1">
-<style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#15232c;color:#e8f0f1;font:16px/1.5 system-ui;text-align:center}main{padding:24px;max-width:480px}a{color:#d3e7e9;display:inline-block;padding:14px;font-weight:650;font-size:18px}small{color:#afc5cb}</style>
-<script>location.replace('https://pulmosimu-xr-preview.vercel.app/experimental/vr.html?release=XR04-NEW-20261120-1');</script>
-</head><body><main><h1>PulmoSIMU XR-04</h1><p>Opening the spatial anatomy laboratory…</p><a href="https://pulmosimu-xr-preview.vercel.app/experimental/vr.html?release=XR04-NEW-20261120-1">Continue to XR-04</a><small>Non-clinical reference anatomy · Quest 2</small></main></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#121e26">
+<title>PulmoSIMU — Full system and XR pilot</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#121e26;color:#edf3f5;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100dvh;display:grid;place-items:center}
+main{width:min(680px,100%);padding:clamp(25px,5vw,58px)}
+.kicker{font-size:11px;letter-spacing:.1em;color:#a8c3cd;font-weight:650}
+h1{font-size:clamp(33px,6vw,51px);font-weight:550;letter-spacing:-.055em;line-height:1.1;margin:18px 0 13px}
+.lead{color:#b5c6cc;max-width:560px;font-size:14px;line-height:1.8;margin:0 0 28px}
+section{padding:22px 0;border-top:1px solid #334751}
+section h2{font-size:19px;letter-spacing:-.025em;font-weight:560;margin:0 0 5px}
+section p{font-size:13px;color:#aebfc6;max-width:540px;margin:0 0 15px;line-height:1.7}
+a.launch{display:inline-block;text-decoration:none;border:1px solid #9ab7c0;color:#e8f0f2;border-radius:4px;padding:10px 15px;font-size:13px;font-weight:650}
+a.primary{background:#d6e7eb;border-color:#d6e7eb;color:#15242b}
+a:focus-visible{outline:3px solid #f2f8fa;outline-offset:4px}
+footer{color:#859da6;font-size:11px;margin-top:16px}
+</style>
+</head>
+<body><main>
+<div class="kicker">RESPIRATORY ENGINEERING LABORATORY</div>
+<h1>PulmoSIMU</h1>
+<p class="lead">Choose the original comprehensive procedural simulator or the new experimental spatial interface. They are not yet the same VR application.</p>
+<section>
+<h2>Full PulmoSIMU · procedural system</h2>
+<p>Original surgical planning environment, bronchoscopy, instrument controls and pathology workflows. This is the richer system; its legacy VR mode still needs headset positioning improvements.</p>
+<a class="launch primary" href="https://pulmosimu-xr-preview.vercel.app/">Open full PulmoSIMU</a>
+</section>
+<section>
+<h2>Spatial anatomy · XR pilot</h2>
+<p>Quest controller grabbing, small reference airway tree, simplified schematic lobes and seated comfort positioning. Experimental only—not a full port of the procedural simulator.</p>
+<a class="launch" href="https://pulmosimu-xr-preview.vercel.app/experimental/vr.html?release=XR04-NEW-20261120-1">Open XR pilot</a>
+</section>
+<footer>One repository · original application preserved · advanced immersive integration in development</footer>
+</main></body></html>
