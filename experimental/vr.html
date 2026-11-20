@@ -292,7 +292,8 @@ function resetExperience(){
  }
  isolated=false;$('isolateLobe').setAttribute('aria-pressed','false');
  $('isolateLobe').textContent='Isolate lobe';
- setSelected('RUL');setRouteProgress(0);setMode('anatomy');
+ // Recenter must preserve the user's current reference lobe and Studio focus.
+ setSelected(selected);setRouteProgress(0);setMode('anatomy');
 }
 const rig=createSpatialRig({
  renderer,scene,camera,anatomy,
