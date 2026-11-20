@@ -57,7 +57,7 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
  #routeProgress{width:75px}
 }
 </style></head><body>
-<main><header><div class="brand">PulmoSIMU <small>XR-05 · SPATIAL INTERACTIONS</small></div><span class="meta">XR-05 · Near + far interaction · Not clinically validated</span></header>
+<main><header><div class="brand">PulmoSIMU <small>XR-06 · SOURCE ANATOMY WORKBENCH</small></div><span class="meta">XR-06 · Source-based branch + section · Not clinically validated</span></header>
 <div class="stage"><canvas id="stageCanvas" aria-label="Interactive anatomical model"></canvas>
 <section class="overview"><div class="label">Respiratory systems laboratory</div><h1>Anatomy in space.</h1><p>Use controllers to handle and examine the anatomy. Switch deliberately between exterior exploration and airway-route inspection.</p><p class="notes">Source: original PulmoSIMU airway reference and schematic lobe envelopes. Not measured or patient-specific anatomy.</p></section>
 <div class="workspace-actions" aria-label="Spatial mode and object controls">
@@ -79,7 +79,7 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
-import {createSpatialRig} from './xr/controller-rig.js?xr05=20261120-1';
+import {createSpatialRig} from './xr/controller-rig.js?xr06=20261120-1';
 import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
 import {createAnatomicalWorkbench,sectionalLocalPoint} from './xr/anatomy-workbench.js';
@@ -426,7 +426,7 @@ window.pulmoXRDebug=()=>({mode:rig.getMode(),selected,isolated,
  routeProgress,spatial:rig.debugState(),airwayBranches:graph?.nodes.length??0,
  workbench:workbench?.snapshot()||null,
  geometrySources:{airways:REFERENCE_SOURCE,lobes:SCHEMATIC_SOURCE,physicalScaleValidated:false},
- version:'XR-05-SPATIAL-INTERACTIONS'});
+ version:'XR-06-ANATOMY-WORKBENCH'});
 const container=$('enterVR');
 const vrButton=VRButton.createButton(renderer,{
  optionalFeatures:['local-floor','bounded-floor','hand-tracking']
