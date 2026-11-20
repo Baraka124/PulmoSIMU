@@ -152,9 +152,33 @@ try {
    await studio.locator('#modeProcedure').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
-   assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./index.html');
+   assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./procedural-workspace.html');
    console.log('PASS studio: procedural and mechanistic workspaces remain independent and reachable');
  } finally {await studio.close();}
+ const procedural=await browser.newPage({viewport:{width:1440,height:900}});
+ try{
+   await procedural.goto(host+'/procedural-workspace.html',{waitUntil:'domcontentloaded'});
+   await procedural.frameLocator('#frame').locator('#sbtn').waitFor({state:'attached',timeout:45000});
+   await procedural.waitForFunction(()=>document.getElementById('frame')?.contentDocument?.getElementById('pl-ui-style')!==null,null,{timeout:15000});
+   assert.equal(await procedural.locator('#modeFocus').getAttribute('aria-pressed'),'true');
+   const childDoc=procedural.frameLocator('#frame');
+   assert.ok(await childDoc.locator('#c-ext').count()>0);
+   assert.ok(await childDoc.locator('#c-bro').count()>0);
+   await procedural.locator('#modeInspector').click();
+   assert.equal(await procedural.locator('#modeInspector').getAttribute('aria-pressed'),'true');
+   assert.ok(await childDoc.locator('body.pl-inspector').count()>0);
+   await procedural.locator('#modeGestures').click();
+   assert.ok(await childDoc.locator('body.pl-gestures').count()>0);
+   await procedural.locator('#modeFocus').click();
+   assert.ok(await childDoc.locator('body.pl-focus').count()>0);
+   await procedural.locator('#viewDual').click();
+   assert.equal(await procedural.locator('#viewDual').getAttribute('aria-pressed'),'true');
+   await procedural.locator('#viewExternal').click();
+   assert.equal(await procedural.locator('#viewExternal').getAttribute('aria-pressed'),'true');
+   const fitAvailable=await procedural.locator('#frame').evaluate(frame=>typeof frame.contentWindow.plFitAnatomy==='function');
+   assert.ok(fitAvailable,'Original procedural camera is exposed through non-destructive framing helper');
+   console.log('PASS procedural quality layer: focus mode, inspector, gestures, preserved canvases, view controls');
+ } finally {await procedural.close();}
  const legacy=await browser.newPage({viewport:{width:1360,height:820}});
  try {
    await legacy.goto(host+'/',{waitUntil:'domcontentloaded',timeout:45000});
