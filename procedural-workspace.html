@@ -110,6 +110,14 @@ function initialise(){
  // functions remain in the original system and are not reimplemented.
  const script=doc.createElement('script');
  script.textContent=`
+ // Expose a read-only reference-branch getter, using original scope and SEGS.
+ // No patient metadata, scope manipulation, or camera commands are exchanged.
+ window.plReferenceBranch=function(){
+  if(typeof meshMode==='undefined'||meshMode!=='reference')return null;
+  if(typeof scope==='undefined'||typeof SEGS==='undefined')return null;
+  if(!Number.isInteger(scope.segId)||!SEGS.some(s=>s.id===scope.segId))return null;
+  return scope.segId;
+ };
  window.plFitAnatomy=function(){
    if(typeof THREE==='undefined'||typeof mGrp==='undefined'||typeof camExt==='undefined')return false;
    mGrp.updateMatrixWorld(true);
@@ -148,4 +156,52 @@ function initialise(){
 }
 frame.addEventListener('load',()=>{state.ready=false;state.booted=false;initialise()});
 applyButtons();
-</script></body></html>
+
+<script type="module">
+import {createFocus,readFocus,REGIONS} from './experimental/shared/reference-focus.js';
+const childFrame=document.getElementById('frame');
+const status=document.getElementById('status');
+let lastBranch=null,activeRegion=null,lastAppliedRevision=-1;
+const referenceRoots={2:'LUL',3:'LLL',5:'RUL',6:'RML',7:'RLL'};
+function inspectBranch(branchId){
+ const w=childFrame.contentWindow;
+ if(!w||!Number.isInteger(branchId))return null;
+ try{
+  const segments=w.eval('typeof SEGS!=="undefined"?SEGS:[]');
+  if(!Array.isArray(segments)||segments.length!==18)return null;
+  const childParent=new Map();
+  for(const seg of segments)for(const id of seg.children||[])childParent.set(id,seg.id);
+  const path=new Set(),chain=[];let id=branchId;
+  while(Number.isInteger(id)&&!path.has(id)){
+   path.add(id);chain.unshift(id);id=childParent.get(id);
+  }
+  const root=chain.find(x=>Object.hasOwn(referenceRoots,x));
+  return root===undefined?null:referenceRoots[root];
+ }catch{return null}
+}
+function emit(regionId,branchId){
+ if(window.parent===window)return;
+ try{window.parent.postMessage(createFocus({regionId,branchId,origin:'procedural',revision:1}),location.origin)}catch{}
+}
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ const focus=readFocus(event.data);
+ if(!focus||focus.revision<=lastAppliedRevision)return;
+ lastAppliedRevision=focus.revision;
+ activeRegion=focus.regionId;
+ status.textContent='Reference focus: '+activeRegion+' · no procedure reposition';
+});
+setInterval(()=>{
+ try{
+  const w=childFrame.contentWindow;
+  if(!w||!w.document||w.document.getElementById('app')?.style.display!=='flex')return;
+  if(typeof w.plReferenceBranch!=='function')return;
+  const branch=w.plReferenceBranch();
+  if(!Number.isInteger(branch)||branch===lastBranch)return;
+  lastBranch=branch;
+  const region=inspectBranch(branch);
+  if(!region||!REGIONS.includes(region)||region===activeRegion)return;
+  activeRegion=region;emit(region,branch);
+ }catch{}
+},900);
+</script></script></body></html>
