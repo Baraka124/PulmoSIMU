@@ -40,6 +40,11 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 #routeProgress{width:145px;accent-color:#b2d9df}
 #routePercent{font-size:11px;font-variant-numeric:tabular-nums;color:#c6dce2}
 #routeControls.active{display:flex}
+#sectionControls{display:none;align-items:center;gap:8px;min-width:210px;padding:7px 9px;border:1px solid #354b56;background:#18252d;border-radius:4px}
+#sectionControls.active{display:flex}
+#sectionPosition{width:145px;accent-color:#b2d9df}
+#sectionControls label{font-size:10px;color:#c3d1d8}
+#sectionPercent{font-size:11px;font-variant-numeric:tabular-nums;color:#c6dce2}
 #status{max-width:350px}
 #stageCanvas:focus-visible{outline:2px solid #c2e4e9;outline-offset:-3px}
 @media(max-width:760px){
@@ -59,11 +64,13 @@ button:disabled{opacity:.45;cursor:default}button:focus-visible,a.back:focus-vis
 <div class="mode-choices" role="group" aria-label="VR working mode">
 <button id="modeAnatomy" aria-pressed="true" type="button">Explore anatomy</button>
 <button id="modeAirway" aria-pressed="false" type="button">Airway guide</button>
+<button id="modeSection" aria-pressed="false" type="button">Section view</button>
 </div>
-<div class="tools"><button id="isolateLobe" aria-pressed="false" type="button">Isolate lobe</button><button id="panelToggle" aria-pressed="true" type="button">Spatial inspector</button></div>
+<div class="tools"><button id="isolateLobe" aria-pressed="false" type="button">Isolate lobe</button><button id="nextBranch" type="button">Next airway branch</button><button id="panelToggle" aria-pressed="true" type="button">Spatial inspector</button></div>
 <div id="routeControls"><label for="routeProgress">Route</label><input id="routeProgress" type="range" min="0" max="100" step="1" value="0"><output id="routePercent" for="routeProgress">0%</output></div>
+<div id="sectionControls"><label for="sectionPosition">Reference section</label><input id="sectionPosition" type="range" min="-100" max="100" step="1" value="0"><output id="sectionPercent" for="sectionPosition">0%</output></div>
 <p id="modeExplanation">In Quest: squeeze the side grip to hold the anatomy. Use both grips to resize and rotate. Trigger selects a structure.</p></div>
-<aside class="inspector"><div class="label">Selected structure</div><h2 id="selectedRegion">Right upper lobe</h2><div class="info"><span>Identifier</span><strong id="selectedId">RUL</strong></div><div class="info"><span>Source</span><strong>Procedural reference</strong></div><div class="info"><span>Airway branches</span><strong id="branchCount">—</strong></div><div class="notes" id="selectionNote">Select a lobe or airway branch.</div></aside>
+<aside class="inspector"><div class="label">Selected structure</div><h2 id="selectedRegion">Right upper lobe</h2><div class="info"><span>Identifier</span><strong id="selectedId">RUL</strong></div><div class="info"><span>Source</span><strong>Procedural reference</strong></div><div class="info"><span>Airway branches</span><strong id="branchCount">—</strong></div><div class="info"><span>Selected airway</span><strong id="branchName">—</strong></div><div class="info"><span>Generation</span><strong id="branchGeneration">—</strong></div><div class="notes" id="selectionNote">Select a lobe or airway branch.</div></aside>
 <footer><div><div class="label" id="status">Initializing model…</div><small id="vrGuidance">Desktop: drag to orbit · Scroll to zoom · Click a structure</small></div>
 <div class="cta"><a class="back" href="../studio.html">Back to Studio</a><button id="resetView" type="button">Recenter anatomy</button><a class="back" id="procedureLink" href="../procedural-workspace.html" title="Open the separate PNEUMO VR bronchoscopy engine">Procedures</a><div id="enterVR"></div></div></footer>
 </div></main>
@@ -75,6 +82,7 @@ import {VRButton} from 'three/addons/webxr/VRButton.js';
 import {createSpatialRig} from './xr/controller-rig.js?xr05=20261120-1';
 import {normalizeProgress} from './xr/spatial-interaction.js';
 import {fetchReferenceAirwayGraph} from './anatomy/airway-graph.js';
+import {createAnatomicalWorkbench,sectionalLocalPoint} from './xr/anatomy-workbench.js';
 import {anatomyObjectRecord,tagAnatomyObject,REFERENCE_SOURCE,SCHEMATIC_SOURCE} from './anatomy/object-contract.js';
 import {REGIONS} from './core/mechanistic-lung.js';
 import {createFocus,readFocus} from './shared/reference-focus.js';
@@ -85,6 +93,7 @@ const canvas=$('stageCanvas'),renderer=new THREE.WebGLRenderer({canvas,antialias
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
 renderer.setClearColor(0x101820,1);renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.xr.enabled=true;
+renderer.localClippingEnabled=true;
 // Quest 2 headset thermal budget: request moderate XR resolution and fixed foveation.
 // These are performance hints only; unsupported browser APIs are optional.
 renderer.xr.setFramebufferScaleFactor?.(.85);
@@ -130,6 +139,13 @@ for(const l of lobeShapes){
  layers.add(mesh);meshes.push(mesh);regions.set(l.id,mesh);lobeMaterials.set(l.id,material);
 }
 const airwayGroup=new THREE.Group();layers.add(airwayGroup);
+// A reversible source-local section plane: illustrative clipping, not surgery.
+const sectionPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+const sectionGuide=new THREE.Mesh(new THREE.PlaneGeometry(2.8,2.45),
+ new THREE.MeshBasicMaterial({color:0x94c2ce,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false}));
+sectionGuide.visible=false;sectionGuide.renderOrder=12;layers.add(sectionGuide);
+const lobeDepthLimits=lobeShapes.reduce((p,l)=>[Math.min(p[0],l.pos[2]-l.size[2]),Math.max(p[1],l.pos[2]+l.size[2])],[Infinity,-Infinity]);
+const sectionBounds={center:[0,0,(lobeDepthLimits[0]+lobeDepthLimits[1])/2],depth:lobeDepthLimits[1]-lobeDepthLimits[0]};
 const routeGroup=new THREE.Group();layers.add(routeGroup);
 const routeMaterial=new THREE.LineBasicMaterial({color:0xc1e9e6,transparent:true,opacity:.95,depthTest:false});
 const routeMarker=new THREE.Mesh(new THREE.SphereGeometry(.075,12,10),
@@ -139,7 +155,7 @@ let routeCurve=null,routeLine=null,routeProgress=0;
 let mode='anatomy',isolated=false;routeGroup.visible=false;
 const worldSelect=new THREE.Raycaster();worldSelect.params.Line.threshold=.02;
 const pointer=new THREE.Vector2();
-let graph=null,selected=safeReferenceRegion(new URLSearchParams(location.search).get('focus'))||'RUL';
+let graph=null,workbench=null,selected=safeReferenceRegion(new URLSearchParams(location.search).get('focus'))||'RUL';
 let lastSharedRevision=-1;
 function studioHref(mode='mechanisms'){
  const u=new URL('../studio.html',location.href);
