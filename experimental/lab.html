@@ -373,34 +373,70 @@ canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e
  if(anatomicalId)$('surfaceProvenance').textContent=surfaceData.manifest.source+' · '+anatomicalId+
    ' · unverified geometric mapping';
  }return;
-}if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}const hit=ray.intersectObjects([...Object.values(meshes),...airwayGroup.children])[0];if(hit){const region=hit.object.userData.region;if(region){selected=region;$('focusRegion').value=region;rebuild();publishReferenceFocus(region)}}});
-function colorFor(r){let value=overlay==='infl'?r.mechanisms.inflammation:overlay==='mucus'?r.mechanisms.mucus:overlay==='tumor'?r.mechanisms.tumor:overlay==='res'?Math.min(1,(r.resistanceIndex-1)/6):overlay==='vent'?Math.min(1,r.ventilationIndex/1.4):.5;
-const base=overlay==='base'?new THREE.Color('#b5797c'):new THREE.Color('#536a77').lerp(new THREE.Color('#c8a4a1'),value);return base}
+}if(ctMode){const hit=ray.intersectObjects(ctGroup.children,true)[0];if(hit){const sid=hit.object.userData.ctSourceBranchId;$('ctSelectedBranch').textContent=sid===undefined?'Segmented mesh':'Source branch '+sid;$('ctPickNote').textContent='3D source position inspected locally. CT anatomy and segmentation remain unvalidated.'}return;}});
+const regionalViews={
+ vent:{title:'Ventilation allocation',scale:'Share of modeled total · %',key:r=>r.ventilationFraction*100,suffix:'%',digits:1,maximum:100},
+ infl:{title:'Inflammation proxy',scale:'Assumed dimensionless burden · %',key:r=>r.mechanisms.inflammation*100,suffix:'%',digits:0,maximum:100},
+ res:{title:'Resistance index',scale:'Relative model index · ×',key:r=>r.resistanceIndex,suffix:'×',digits:2},
+ mucus:{title:'Mucus burden proxy',scale:'Assumed dimensionless burden · %',key:r=>r.mechanisms.mucus*100,suffix:'%',digits:0,maximum:100},
+ tumor:{title:'Tumor burden proxy',scale:'Hypothetical local state · %',key:r=>r.mechanisms.tumor*100,suffix:'%',digits:0,maximum:100},
+ base:{title:'Compliance index',scale:'Relative model index · ×',key:r=>r.complianceIndex,suffix:'×',digits:3}
+};
+function renderRegionalBoard(){
+ const view=regionalViews[overlay]||regionalViews.vent;
+ const values=result.regions.map(row=>({row,value:view.key(row)}));
+ const domain=view.maximum||Math.max(1,...values.map(({value})=>Math.abs(value)));
+ $('regionalProfileTitle').textContent=view.title;
+ $('regionalProfileScale').textContent=view.scale+(view.maximum?'':' · bars relative to current maximum');
+ $('regionalBars').replaceChildren(...values.filter(({row})=>!isolation||row.id===selected).map(({row,value})=>{
+  const button=document.createElement('button');button.type='button';
+  button.className='region-row';button.dataset.region=row.id;
+  button.setAttribute('aria-pressed',String(row.id===selected));
+  const name=document.createElement('span');name.className='region-name';name.textContent=row.label;
+  const track=document.createElement('span');track.className='region-track';
+  const fill=document.createElement('i');fill.style.width=(100*Math.min(1,Math.max(0,value/domain))).toFixed(2)+'%';track.append(fill);
+  const amount=document.createElement('span');amount.className='region-value';amount.textContent=value.toFixed(view.digits)+view.suffix;
+  button.append(name,track,amount);
+  button.addEventListener('click',()=>{selected=row.id;$('focusRegion').value=selected;rebuild();publishReferenceFocus(selected)});
+  return button;
+ }));
+}
 function draw(){
-result=experiment.after;for(const row of result.regions){const m=meshes[row.id];m.material.color.copy(colorFor(row));m.material.opacity=row.id===selected?.96:.72;m.material.emissive.set(row.id===selected?'#152932':'#000000')}
-airwayGroup.visible=airwaysVisible;for(const branch of airwayGroup.children){branch.material.opacity=isolation&&branch.userData.region&&branch.userData.region!==selected?.05:.90;branch.material.color.set(branch.userData.region===selected?'#d5eef0':'#bccdd1')};for(const row of result.regions){meshes[row.id].visible=!isolation||row.id===selected}
-$('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
-$('burdenText').textContent=$('burden').value+'%';
-const detail=describeLobe(selected);
-$('atlasSegmentCount').textContent=String(detail.segments.length);
-$('atlasSegments').textContent=detail.segments.map(x=>x.id.replace(/^[RL]-/,'')+' · '+x.name).join('  |  ');
-$('atlasFissures').textContent=detail.fissures.map(x=>x.name).join(' · ')||'No fissure recorded';
-$('atlasVessels').textContent=detail.vessels.map(x=>x.name).join(' · ')||'No vascular relation recorded';
-$('anatomicalAtlas').hidden=ctMode||surfaceMode;
-const r=result.regions.find(x=>x.id===selected);$('selected').textContent=r.label+' lobe';$('regionNote').textContent='Region '+r.id+' · dimensionless experimental state';
-$('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';$('radius').textContent=r.radiusIndex.toFixed(3);
-$('resist').textContent=r.resistanceIndex.toFixed(2)+'×';$('comp').textContent=r.complianceIndex.toFixed(3);
-$('mechanisms').replaceChildren(...Object.entries(r.mechanisms).map(([k,v])=>{const d=document.createElement('div');d.className='stat';const a=document.createElement('span'),b=document.createElement('b');a.textContent=k.replace(/([A-Z])/g,' $1');b.textContent=(v*100).toFixed(0)+'%';d.append(a,b);return d}));
-$('globalVent').textContent=result.summary.overallVentilationIndex.toFixed(3);$('globalRes').textContent=result.summary.meanResistanceIndex.toFixed(2)+'×';$('hetero').textContent=result.summary.ventilationHeterogeneity.toFixed(3);
-const c=experiment.comparison;
-$('deltaInfl').textContent=(c.mechanisms.inflammation.delta*100).toFixed(1)+' pp';
-$('deltaResistance').textContent=c.resistanceIndex.delta.toFixed(3);
-$('deltaVent').textContent=c.ventilationIndex.delta.toFixed(3);
-$('responseText').textContent=$('responseScale').value+'%';
-$('pathwayNote').textContent=INTERVENTIONS[experiment.response.intervention].pathway+' · '+PHENOTYPES[experiment.response.phenotype].label+' · assumed pathway sensitivity '+(experiment.response.phenotypeSensitivity*100).toFixed(0)+'%';
-updateNumerics();
-$('daysText').textContent=state.timeDays+' days';$('severityText').textContent=Math.round(state.severity*100)+'%';
-$('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',mucus:'MUCUS',tumor:'TUMOR',base:'ANATOMY'}[overlay];
+ result=experiment.after;
+ $('diseaseNarrative').textContent=DISEASE_LIBRARY[state.scenario].description+' · '+(state.diseaseExperiment?.distribution||'diffuse')+' illustrative distribution';
+ $('burdenText').textContent=$('burden').value+'%';
+ const detail=describeLobe(selected);
+ $('atlasSegmentCount').textContent=String(detail.segments.length);
+ $('atlasSegments').textContent=detail.segments.map(x=>x.id.replace(/^[RL]-/,'')+' · '+x.name).join('  |  ');
+ $('atlasFissures').textContent=detail.fissures.map(x=>x.name).join(' · ')||'No fissure recorded';
+ $('atlasVessels').textContent=detail.vessels.map(x=>x.name).join(' · ')||'No vascular relation recorded';
+ $('anatomicalAtlas').hidden=ctMode||surfaceMode;
+ const r=result.regions.find(x=>x.id===selected);
+ $('selected').textContent=r.label+' lobe';
+ $('regionNote').textContent='Region '+r.id+' · computed proxy only, no inferred organ surface';
+ $('vent').textContent=(r.ventilationFraction*100).toFixed(1)+'%';
+ $('radius').textContent=r.radiusIndex.toFixed(3);
+ $('resist').textContent=r.resistanceIndex.toFixed(2)+'×';
+ $('comp').textContent=r.complianceIndex.toFixed(3);
+ $('mechanisms').replaceChildren(...Object.entries(r.mechanisms).map(([k,v])=>{
+  const d=document.createElement('div');d.className='stat';
+  const a=document.createElement('span'),b=document.createElement('b');
+  a.textContent=k.replace(/([A-Z])/g,' $1');b.textContent=(v*100).toFixed(0)+'%';d.append(a,b);return d
+ }));
+ $('globalVent').textContent=result.summary.overallVentilationIndex.toFixed(3);
+ $('globalRes').textContent=result.summary.meanResistanceIndex.toFixed(2)+'×';
+ $('hetero').textContent=result.summary.ventilationHeterogeneity.toFixed(3);
+ const c=experiment.comparison;
+ $('deltaInfl').textContent=(c.mechanisms.inflammation.delta*100).toFixed(1)+' pp';
+ $('deltaResistance').textContent=c.resistanceIndex.delta.toFixed(3);
+ $('deltaVent').textContent=c.ventilationIndex.delta.toFixed(3);
+ $('responseText').textContent=$('responseScale').value+'%';
+ $('pathwayNote').textContent=INTERVENTIONS[experiment.response.intervention].pathway+' · '+PHENOTYPES[experiment.response.phenotype].label+' · assumed pathway sensitivity '+(experiment.response.phenotypeSensitivity*100).toFixed(0)+'%';
+ updateNumerics();
+ $('daysText').textContent=state.timeDays+' days';
+ $('severityText').textContent=Math.round(state.severity*100)+'%';
+ $('overlayLabel').textContent={vent:'VENTILATION',infl:'INFLAMMATION',res:'RESISTANCE',mucus:'MUCUS',tumor:'TUMOR',base:'COMPLIANCE'}[overlay];
+ renderRegionalBoard();
 }
 function rebuild(){experiment=createTherapyExperiment({disease:$('scenario').value,severity:Number($('severity').value)/100,focusRegion:$('focusRegion').value,modifiers:{inflammation:Number($('burden').value)/100},intervention:$('therapy').value,phenotype:$('phenotype').value,responseScale:Number($('responseScale').value)/100,days:Number($('days').value)});state=experiment.treated;draw()}
 for(const id of ['scenario','severity','focusRegion','burden','therapy','phenotype','responseScale','days'])$(id).addEventListener('input',rebuild);
@@ -465,9 +501,8 @@ function renderTrace(samples){
  ctx.strokeStyle='#aed4de';ctx.lineWidth=1.8;ctx.stroke();
 }
 for(const [id,kind] of [['overlayVent','vent'],['overlayInfl','infl'],['overlayRes','res'],['overlayMucus','mucus'],['overlayTumor','tumor'],['overlayBase','base']])$(id).onclick=()=>{overlay=kind;document.querySelectorAll('.left button').forEach(b=>b.classList.toggle('active',b.id===id));draw()};
-$('toggleAirways').onclick=()=>{airwaysVisible=!airwaysVisible;$('toggleAirways').textContent=airwaysVisible?'Hide airway hierarchy':'Show airway hierarchy';draw()};
-$('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all lobes':'Isolate selected lobe';draw()};
+$('isolateRegion').onclick=()=>{isolation=!isolation;$('isolateRegion').textContent=isolation?'Show all regions':'Focus selected region';draw()};
 $('resetCamera').onclick=()=>{if(surfaceMode&&surfaceGroup.children.length){frameGroup(surfaceGroup)}else if(ctMode&&ctGroup.children.length){const b=new THREE.Box3().setFromObject(ctGroup),c=b.getCenter(new THREE.Vector3()),radius=b.getBoundingSphere(new THREE.Sphere()).radius;camera.position.copy(c).add(new THREE.Vector3(0,radius*.3,Math.max(3,radius*2.7)));controls.target.copy(c)}else{camera.position.set(0,.25,9);controls.target.set(0,.12,0)}controls.update()};
-const resize=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(canvas);
-function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}draw();animate();
+const resize=new ResizeObserver(()=>{const w=canvas.clientWidth,h=canvas.clientHeight;if(w<1||h<1)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()});resize.observe(canvas);
+function animate(){requestAnimationFrame(animate);if(ctMode||surfaceMode){controls.update();renderer.render(scene,camera)}}draw();animate();
 </script></body></html>
