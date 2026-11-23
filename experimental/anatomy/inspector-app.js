@@ -16,7 +16,7 @@ function setMessage(text,kind='note'){
 function short(n){return Number(n).toFixed(2)}
 function escapeHtml(text){return String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const fileLabels=['glb','nii','json'];
-// Known A1 research mesh has failed source-RAS anatomical laterality QA.
+// Known A1 mesh needs anatomical review. Earlier A2 wrongly inverted RAS X; preserve fail-closed safety until independently reviewed.
 // This fingerprint also catches the older private manifest which predates A2.
 const A2_FLAGGED_GLBSHA='5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f';
 function a2LateralityConflict(){
@@ -24,14 +24,14 @@ function a2LateralityConflict(){
     state.qa?.mesh_sha256===A2_FLAGGED_GLBSHA ||
     state.qa?.quality_gates?.laterality_labels==='FAIL_A2_SOURCE_RAS_CONFLICT';
 }
-const a2Warning='A2 QUALITY GATE FAILED: the original GLB RIGHT and LEFT labels conflict with source NIfTI RAS laterality (85.2% and 99.0% opposite-side mesh area). Source-image review required. These are mesh names, NOT verified anatomical sides. Bronchoscope and clinical coupling remain blocked.';
+const a2Warning='A2 GEOMETRY REVIEW REQUIRED: earlier label-swap audit used the WRONG RAS sign. In NIfTI RAS +X is patient RIGHT. Existing right mesh has 14.8% of surface area crossing into the opposite hemisphere; left mesh 1.05%. Labels are NOT proven reversed. Independent CT segmentation review required; bronchoscopy and clinical coupling remain blocked.';
 const A2_CANDIDATE_SHA='8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f';
 function a2CandidateReviewPending(){
  return state.meshSha===A2_CANDIDATE_SHA ||
    state.qa?.mesh_sha256===A2_CANDIDATE_SHA ||
    state.qa?.quality_gates?.laterality_labels==='CANDIDATE_CORRECTED_RAS_INDEPENDENT_REVIEW_PENDING';
 }
-const a2CandidateWarning='A2 VERSIONED CANDIDATE: mesh node names follow NIfTI RAS laterality but segmentation is NOT independently validated. CT-voxel QA found 16.3 mL overlap between candidate lungs; 14.8% of left-mesh surface AREA (1.06% of left-mesh voxel VOLUME) crosses RAS midline. Five lobes, vessels, airway lumen, clinical coupling and patient-specific bronchoscopy remain BLOCKED.';
+const a2CandidateWarning='A2 CANDIDATE INVALID: old GLB was relabelled using a sign-inverted RAS convention (+X was incorrectly called LEFT). Do NOT treat its left/right labels as correct, or publish this candidate. Historical voxel overlap 16.3 mL; use the newer A2.1 airspace QA instead. CT-linked bronchoscopy remains BLOCKED.';
 function updateResearchGates(){
   if(!window.PulmoSourceAnatomyGate?.assess)return;
   const status=window.PulmoSourceAnatomyGate.assess({
@@ -45,8 +45,8 @@ function updateResearchGates(){
 }
 function applyQa(){
   $('source-state').textContent=a2LateralityConflict()
-    ?'A2 LATERALITY FAIL · UNVALIDATED'
-    :a2CandidateReviewPending()?'A2 CANDIDATE · CLINICAL QA PENDING'
+    ?'A2 CT GEOMETRY · REVIEW REQUIRED'
+    :a2CandidateReviewPending()?'A2 CANDIDATE · INVALID RAS LABELS'
     :state.qa?String(state.qa.validation||'UNVALIDATED').replaceAll('_',' '):'No manifest loaded';
   if(state.qa){
     $('source-shape').textContent=(state.qa.source_shape_vox||[]).join(' × ')||'—';
@@ -73,9 +73,9 @@ function validate(){
   $('registration').textContent=!status?'Awaiting NIfTI + manifest':!status.valid?'Mismatch · '+status.reason:
     !ctHashOK?'CT SHA-256 not verified':!meshHashOK?'GLB SHA-256 not verified':
     a2LateralityConflict()
-      ?'File hashes matched · A2 LATERALITY FAIL · tissue segmentation UNVALIDATED'
+      ?'File hashes matched · A2 geometry needs expert review · UNVALIDATED'
       :a2CandidateReviewPending()
-      ?'Exact files aligned · A2 candidate labels reviewed computationally · segmentation/clinical QA PENDING'
+      ?'Exact files aligned · INVALID old A2 RAS-relabelled candidate · do not use'
       :'Exact study files and header matched · tissue segmentation UNVALIDATED';
   $('registration').dataset.state=a2LateralityConflict()?'error':
     a2CandidateReviewPending()?'pending':aligned?'valid':status?'error':'pending';
@@ -204,9 +204,9 @@ async function loadModel(file){
   $('structure-select').disabled=false;
   viewReset();applyQa();updateStructureVisibility();
   setMessage(a2LateralityConflict()?
-    'A2 LATERALITY QUALITY FAILURE: original surface labels are reversed relative to CT RAS. No patient-specific use.':
+    'A2 QUALITY REVIEW: prior RAS sign audit was wrong. Original right surface crosses physical midline. No patient-specific use.':
     a2CandidateReviewPending()?
-    'A2 candidate: source RAS labels corrected, but anatomical mask and 16.3 mL bilateral overlap are unvalidated. Do not use for CT-linked bronchoscopy.':
+    'Old A2 candidate relabel used reversed RAS X sign and is INVALID. Do not use for CT-linked bronchoscopy.':
     'Local GLB loaded. Geometry inspection is not clinical segmentation validation.',
     a2LateralityConflict()?'error':a2CandidateReviewPending()?'note':'ok');
 }
