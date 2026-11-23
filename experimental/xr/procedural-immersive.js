@@ -656,27 +656,47 @@ function install(ctx){
     marker.visible=false;marker.renderOrder=36;scene.add(marker);contactMarkers.push(marker);
   }
   function updatePointerAim(now){
-    if(!active)return;
-    if(now-lastAimTime<90)return;
+    if(!active||now-lastAimTime<55)return;
     lastAimTime=now;
+    let hoverChanged=false;
     for(let i=0;i<2;i++){
       const laser=laserLines[i],tip=laserTips[i];
       if(!laser||!tip)continue;
-      const available=mode==='anatomy'&&placed&&
-        controllerSources[i]&&!controllerSources[i].hand;
+      const available=placed&&controllerSources[i]&&!controllerSources[i].hand;
       laser.visible=Boolean(available);
-      tip.visible=false;
-      aimTargets[i]=null;
-      if(!available)continue;
-      const aim=global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5});
-      aimTargets[i]={hit:aim.hit,reason:aim.reason,distanceM:aim.distanceM??null};
-      laser.scale.z=aim.hit?Math.max(.03,aim.distanceM):3.5;
-      laser.material.color.setHex(aim.hit?0x7be3dd:0x718e9b);
-      laser.material.opacity=aim.hit?.95:.35;
-      if(aim.hit){
-        tip.position.copy(aim.point);tip.visible=true;
+      tip.visible=false;aimTargets[i]=null;
+      if(!available){
+        if(hoverPanels[i]!==null){hoverPanels[i]=null;hoverChanged=true}
+        continue;
+      }
+      // The menu competes with the organ for the NEAREST actual surface.
+      // Its ray collider is the real textured THREE.Plane, not a fake menu.
+      const panel=panelIntersection(rayFrom(i));
+      const organ=mode==='anatomy'
+        ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
+        :null;
+      const menuWins=Boolean(panel&&(!organ?.hit||panel.distance<=organ.distanceM));
+      const nextHover=menuWins?panel.action:null;
+      if(hoverPanels[i]!==nextHover){hoverPanels[i]=nextHover;hoverChanged=true}
+      const hit=menuWins?panel:organ?.hit?organ:null;
+      if(menuWins){
+        aimTargets[i]={kind:'panel',hit:true,action:panel.action,distanceM:panel.distance};
+      }else if(organ){
+        aimTargets[i]={kind:'anatomy',hit:organ.hit,reason:organ.reason,
+          distanceM:organ.distanceM??null};
+      }
+      // If nothing is hit, use a short muted aiming ray, never a laser
+      // extending across the entire room or through the operating panel.
+      const distance=hit?(menuWins?panel.distance:organ.distanceM):1.10;
+      laser.scale.z=Math.max(.05,Math.min(3.5,distance));
+      laser.material.color.setHex(menuWins?0xeecb96:organ?.hit?0x80dfd8:0x7896a1);
+      laser.material.opacity=hit?.95:.26;
+      if(hit?.point){
+        tip.position.copy(hit.point);tip.visible=true;
+        tip.material.color.setHex(menuWins?0xeecb96:0x80dfd8);
       }
     }
+    if(hoverChanged)paint();
   }
   for(let i=0;i<2;i++){
     const controller=rBro.xr.getController(i),grip=rBro.xr.getControllerGrip(i);
