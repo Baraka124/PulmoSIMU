@@ -47,7 +47,7 @@ test('A2 voxel QC discloses CT-derived threshold circularity and source midline 
  assert.ok(left.volume_fraction_on_opposite_side>.01);
  assert.ok(left.inside_mesh_HU_threshold_fraction>.95);
  assert.equal(voxel.mask_approval,'FAILED_PENDING_CLINICAL_REVIEW');
- assert.match(voxel.threshold_method,/NOT independent ground truth|not independent ground truth/i);
+ assert.match(voxel.threshold_method,/not independent (segmentation )?ground truth/i);
  assert.match(maskAudit,/vtkPolyDataToImageStencil/);
  assert.match(maskAudit,/sha256/);
 });
