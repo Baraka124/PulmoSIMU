@@ -12,6 +12,18 @@
 <script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
 <script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
 <script src="./experimental/xr/procedural-immersive.js?v=XR09-20261123"></script>
+<script type="module">
+import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
+window.PulmoXRReferencePhysicsStatus='loading';
+loadXRReferencePhysics().then(engine=>{
+  window.PulmoXRReferencePhysics=engine;
+  window.PulmoXRReferencePhysicsStatus='reference-ready';
+}).catch(error=>{
+  window.PulmoXRReferencePhysics=null;
+  window.PulmoXRReferencePhysicsStatus='unavailable';
+  console.warn('Reference R3 physiology is unavailable:',error.message);
+});
+</script>
 <style>
 /* ============================================================
    PNEUMO·VR SURGICAL — Design System v20
