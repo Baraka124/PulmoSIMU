@@ -13,6 +13,9 @@ function install(ctx){
     setClinMode,getClinMode,fireAction,enterBranch,advance,retract,hideBranchSel,
     updateScope,onResize,showToast,getExtIdle,setExtIdle}=ctx;
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
+  if(!global.PulmoXRSessionHealth?.createSessionHealth)
+    throw Error('XR-09 local session health runtime missing');
+  const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
 
@@ -250,6 +253,7 @@ function install(ctx){
       }
     }
     for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
+      if(handSeen[i])health.event('handTrackingLost');
       handSeen[i]=false;handPinched[i]=false;
       if(contactMarkers[i])contactMarkers[i].visible=false;
       if(grabSource[i]==='hand')release(i,'hand');
@@ -338,10 +342,12 @@ function install(ctx){
   const mapButtons=[[],[]];
   function poll(dt){
     const session=rBro.xr.getSession();if(!session)return;
+    let leftControllerAvailable=false;
     for(const src of session.inputSources){
       if(!src.gamepad)continue;
       const i=src.handedness==='left'?0:src.handedness==='right'?1:-1;
       if(i<0)continue;
+      if(i===0)leftControllerAvailable=true;
       const buttons=src.gamepad.buttons||[];
       const edge=idx=>{const pressed=!!buttons[idx]?.pressed,prior=!!mapButtons[i][idx];mapButtons[i][idx]=pressed;return pressed&&!prior};
       const axes=Array.from(src.gamepad.axes||[]);
@@ -361,6 +367,8 @@ function install(ctx){
       }
       if(i===1&&edge(5))activate('tool');
     }
+    // A vanished controller must not leave the original scope advancing.
+    if(mode==='procedure'&&!leftControllerAvailable)scope.velocity=0;
   }
   // World-space context for a seated user. This is environmental staging,
   // deliberately independent of anatomy/scopes and ignored by raycasting.
@@ -523,7 +531,10 @@ function install(ctx){
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]),
       new THREE.LineBasicMaterial({color:i?0xb6d1d9:0x789ba9,transparent:true,opacity:.45}));
     line.scale.z=1.9;controller.add(line);
-    controller.addEventListener('connected',event=>{controllerSide[i]=event.data?.handedness||null});
+    controller.addEventListener('connected',event=>{
+      controllerSide[i]=event.data?.handedness||null;
+      mapButtons[i].length=0;health.event('controllerConnected');
+    });
     controller.addEventListener('selectstart',event=>{
       // A tracked-hand selectstart is the same physical pinch handled by
       // XRJointPose. Never treat it as an unrelated distance-ray click.
@@ -531,7 +542,11 @@ function install(ctx){
     });
     controller.addEventListener('squeezestart',()=>startGrab(i,'controller'));
     controller.addEventListener('squeezeend',()=>release(i,'controller'));
-    controller.addEventListener('disconnected',()=>release(i,'controller'));
+    controller.addEventListener('disconnected',()=>{
+      health.event('controllerDisconnected');
+      release(i,'controller');controllerSide[i]=null;mapButtons[i].length=0;
+      if(i===0)scope.velocity=0;
+    });
   }
   // Event buttons and actual headset session lifecycle
   button=document.createElement('button');
@@ -541,6 +556,30 @@ function install(ctx){
     padding:'13px 19px',border:'1px solid #9ebfc8',background:'#0e2029',
     color:'#d9edf1',font:'600 12px system-ui',cursor:'pointer',borderRadius:'4px'});
   global.document.body.appendChild(button);
+  // User-initiated local export after XR exit. Aggregates only, no patient
+  // imaging, 6DoF tracking poses, trajectories, geometry or uploads.
+  const reportButton=document.createElement('button');
+  reportButton.type='button';reportButton.id='pulmo-xr-session-report';
+  reportButton.textContent='EXPORT XR SESSION REPORT';
+  Object.assign(reportButton.style,{position:'fixed',bottom:'74px',right:'18px',
+    zIndex:10020,padding:'9px 13px',border:'1px solid #516b76',
+    background:'#13212a',color:'#c6d8de',font:'500 11px system-ui',
+    cursor:'pointer',borderRadius:'3px',display:'none'});
+  global.document.body.appendChild(reportButton);
+  const localSessionReport=()=>({
+    session:health.snapshot(),
+    endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
+    integration:'XR-09 original procedural scene; unvalidated research build'
+  });
+  reportButton.addEventListener('click',()=>{
+    const blob=new Blob([JSON.stringify(localSessionReport(),null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='pulmosimu-xr09-session-report.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  });
+  global.pulmoXRSessionReport=localSessionReport;
   button.addEventListener('click',async()=>{
     if(rBro.xr.isPresenting){await rBro.xr.getSession()?.end();return}
     try{
@@ -563,6 +602,8 @@ function install(ctx){
     }).catch(()=>{button.disabled=true;button.textContent='PROCEDURAL XR UNAVAILABLE'});
   }
   rBro.xr.addEventListener('sessionstart',()=>{
+    health.begin(rBro.xr.getSession()?.frameRate??null);
+    reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';
     physicsSnapshot=null;physicsError=null;
@@ -579,7 +620,15 @@ function install(ctx){
     button.textContent='EXIT PROCEDURAL XR';setMode('anatomy');paint();
     rBro.setAnimationLoop((time,frame)=>{
       if(!active||!rBro.xr.isPresenting)return;
-      if(!headPose(frame))return;
+      health.startFrame(time);
+      if(!headPose(frame)){
+        // Tracking loss: never continue the last object or instrument command.
+        health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
+        viewerValid=false;scope.velocity=0;release(0);release(1);
+        handSeen.fill(false);handPinched.fill(false);
+        contactMarkers.forEach(marker=>marker.visible=false);
+        return;
+      }
       if(!placed){
         room.position.copy(head).setY(head.y-1.18);
         const center=head.clone().addScaledVector(forward,1.5);
@@ -604,12 +653,22 @@ function install(ctx){
       }
       updateScope();
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
-      if(mode==='procedure')captureFeed(time);
-      // The same clinical scene and source model are drawn stereoscopically.
-      rBro.render(scene,vrCam);
+      let monitorCpuMs=0;
+      if(mode==='procedure'){
+        const monitorStarted=performance.now(),beforeStatus=monitorStatus;
+        captureFeed(time);monitorCpuMs=performance.now()-monitorStarted;
+        if(beforeStatus!=='unavailable'&&monitorStatus==='unavailable')
+          health.event('monitorUnavailable');
+      }
+      // Stereoscopic source render. CPU call time is NOT a GPU timing.
+      const renderStarted=performance.now();
+      try{rBro.render(scene,vrCam)}
+      finally{health.endFrame({renderMs:performance.now()-renderStarted,
+        monitorMs:monitorCpuMs})}
     });
   });
   rBro.xr.addEventListener('sessionend',()=>{
+    health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
     if(saved){
@@ -631,6 +690,7 @@ function install(ctx){
     contact:lastContact,
     handTracking:handSeen.slice(),grabSources:grabSource.slice(),
     physics:physicsSnapshot,physicsError,
+    sessionHealth:health.snapshot(),
     referencePhysicsStatus:global.PulmoXRReferencePhysicsStatus||'not-loaded',
     referenceFocus:getReferenceFocus?.()||null,
     sourceAudit:getPatientAudit?.()||null,
