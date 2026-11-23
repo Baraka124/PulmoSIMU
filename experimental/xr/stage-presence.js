@@ -5,7 +5,7 @@
  */
 (function(global){
 'use strict';
-function create(THREE,room,{floor=null,grid=null,plinth=null}={}){
+function create(THREE,room,{floor=null,grid=null,plinth=null,rings=[]}={}){
   if(!THREE?.LineSegments||!THREE?.DirectionalLight||!room?.isObject3D)
     throw new Error('XR-13 requires the original Three.js room');
   const architectural=new THREE.Group();
@@ -45,6 +45,7 @@ function create(THREE,room,{floor=null,grid=null,plinth=null}={}){
     boundaries.visible=next==='studio';
     if(grid)grid.visible=next==='studio';
     if(plinth)plinth.visible=next==='studio';
+    for(const ring of rings)if(ring)ring.visible=next==='studio';
     if(floor)floor.material.opacity=next==='focus'?.52:1;
     key.intensity=next==='focus'?.48:.34;
     fill.intensity=next==='focus'?.22:.16;
