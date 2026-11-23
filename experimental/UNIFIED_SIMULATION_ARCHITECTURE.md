@@ -30,7 +30,7 @@ An imported GLB and centreline points being close in the same numeric frame is n
 
 ## 2. Components retired from active navigation
 
-The older `experimental/vr.html` (XR-04–XR-06, schematic ellipsoids and duplicated reference airway geometry) is retained **only as an explicitly historical, browser-testable research fixture**. The files are not deleted because they preserve earlier experiments and regression coverage.
+The older `experimental/vr.html` (XR-04–XR-06, schematic ellipsoids and duplicated reference airway geometry) is retained **only as an explicitly historical, browser-testable research fixture**. Direct visits now redirect to the canonical original-engine XR; deliberate archive inspection requires `?archive=1` and is not offered in product navigation. The files are not deleted because they preserve earlier experiments and regression coverage.
 
 These surfaces no longer direct normal usage to that viewer:
 - `studio.html`: immersive mode now uses original `index.html?xr=procedural`.
@@ -39,6 +39,12 @@ These surfaces no longer direct normal usage to that viewer:
 - `experimental/shared/workspace-route.js`: canonical XR route points to original engine.
 
 Avoid reviving a competing app during future development. Historical route tests are maintained only as archive integrity tests, not as future product gates.
+
+### Mechanistic laboratory source-integrity correction (23 November 2026)
+
+The active `experimental/lab.html` numerical laboratory no longer creates five stretched sphere-based lobes, reference airway surface tubes or disease-coloured lung illustrations. Its default stage is a region-indexed quantitative observatory driven by the original R3–R5 mathematical engines. It does **not** pretend that five numerical compartments form a full anatomical mesh. Three-dimensional source inspection is available only after locally loading a co-frame-checked CT/GLB pair or manifest-backed external surfaces. Source-authored GLB materials are preserved; source centreline overlays are lines, not invented bronchial walls. Studio routes to this corrected laboratory.
+
+The original `index.html` procedural scene remains the authoritative procedural and original-engine XR anatomy. It is an authored reference model, not a claim of patient-specific or measured anatomical fidelity. This correction does not validate the numerical physics or imported image segmentation.
 
 ## 3. Scientific fidelity and visual truth
 
