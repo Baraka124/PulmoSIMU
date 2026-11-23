@@ -3561,7 +3561,23 @@ setTimeout(()=>{
 
 
 // ================================================================
-// XR-07 — Immersive bridge to ORIGINAL PNEUMO·VR procedural engine.
+// XR-09 — Unified original-engine WebXR, reference-region context only.
+// Context never changes scope position, treatment or patient anatomy.
+// ================================================================
+const _refRegions=new Set(['RUL','RML','RLL','LUL','LLL']);
+const _refQuery=new URLSearchParams(location.search).get('focus');
+window.pulmoActiveReferenceRegion=_refRegions.has(_refQuery)?_refQuery:null;
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||event.source!==window.parent)return;
+  const value=event.data;
+  if(!value||value.channel!=='pulmosimu.reference-focus.v1'||
+    value.source!=='original-procedural-SEGS-snapshot-r2'||
+    value.type!=='anatomical-focus'||!_refRegions.has(value.regionId))return;
+  // Reference anatomical context is NOT the patient CT label or a scope instruction.
+  window.pulmoActiveReferenceRegion=value.regionId;
+});
+// ================================================================
+// XR-09 — Immersive bridge to ORIGINAL PNEUMO·VR procedural engine.
 // Single source of truth: this scene, lobes, pathologies and scope.
 // NOTE: This experimental adapter does not confer clinical validation.
 // ================================================================
@@ -3570,6 +3586,7 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   vrCam:new THREE.PerspectiveCamera(76,1,.01,30),
   scope, CFG, SEGS, SEG_MAP, pathCurves, patientData,
   getMeshMode:()=>meshMode,
+  getReferenceFocus:()=>meshMode==='reference'?window.pulmoActiveReferenceRegion:null,
   getPatientAudit:()=>patientData.xrAudit||null,
   getMmPerSceneUnit:()=>mmPerUnit,
   getScopeDiameterMm:()=>scopeDiamMm,
