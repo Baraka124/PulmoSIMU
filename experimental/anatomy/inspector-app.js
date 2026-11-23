@@ -25,21 +25,31 @@ function a2LateralityConflict(){
     state.qa?.quality_gates?.laterality_labels==='FAIL_A2_SOURCE_RAS_CONFLICT';
 }
 const a2Warning='A2 QUALITY GATE FAILED: the original GLB RIGHT and LEFT labels conflict with source NIfTI RAS laterality (85.2% and 99.0% opposite-side mesh area). Source-image review required. These are mesh names, NOT verified anatomical sides. Bronchoscope and clinical coupling remain blocked.';
+const A2_CANDIDATE_SHA='8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f';
+function a2CandidateReviewPending(){
+ return state.meshSha===A2_CANDIDATE_SHA ||
+   state.qa?.mesh_sha256===A2_CANDIDATE_SHA ||
+   state.qa?.quality_gates?.laterality_labels==='CANDIDATE_CORRECTED_RAS_INDEPENDENT_REVIEW_PENDING';
+}
+const a2CandidateWarning='A2 VERSIONED CANDIDATE: mesh node names follow NIfTI RAS laterality but segmentation is NOT independently validated. CT-voxel QA found 16.3 mL overlap between candidate lungs; 14.8% of left-mesh surface AREA (1.06% of left-mesh voxel VOLUME) crosses RAS midline. Five lobes, vessels, airway lumen, clinical coupling and patient-specific bronchoscopy remain BLOCKED.';
 function applyQa(){
   $('source-state').textContent=a2LateralityConflict()
     ?'A2 LATERALITY FAIL · UNVALIDATED'
+    :a2CandidateReviewPending()?'A2 CANDIDATE · CLINICAL QA PENDING'
     :state.qa?String(state.qa.validation||'UNVALIDATED').replaceAll('_',' '):'No manifest loaded';
   if(state.qa){
     $('source-shape').textContent=(state.qa.source_shape_vox||[]).join(' × ')||'—';
     $('source-spacing').textContent=(state.qa.spacing_mm||[]).map(x=>Number(x).toFixed(3)).join(' / ')+' mm';
     $('volume-stats').textContent=Object.entries(state.qa.structures||{}).map(([side,s])=>
       side+' '+(s.airspace_volume_l_approx||'—')+' L').join(' · ')||'No volume summary';
-    $('qa-details').textContent=(a2LateralityConflict()?[a2Warning]:[])
-      .concat(state.qa.research_flags||state.qa.known_limitations||[]).join('\n• ');
+    $('qa-details').textContent=(a2LateralityConflict()?[a2Warning]:
+      a2CandidateReviewPending()?[a2CandidateWarning]:[])
+      .concat(state.qa.research_flags||state.qa.known_limitations||state.qa.review_notes||[]).join('\n• ');
   }else{
     $('source-shape').textContent='—';$('source-spacing').textContent='—';
     $('volume-stats').textContent='No source QA loaded';
     $('qa-details').textContent=a2LateralityConflict()?a2Warning:
+      a2CandidateReviewPending()?a2CandidateWarning:
       'No segmentation review or source registration has been established.';
   }
   validate();
@@ -53,8 +63,11 @@ function validate(){
     !ctHashOK?'CT SHA-256 not verified':!meshHashOK?'GLB SHA-256 not verified':
     a2LateralityConflict()
       ?'File hashes matched · A2 LATERALITY FAIL · tissue segmentation UNVALIDATED'
+      :a2CandidateReviewPending()
+      ?'Exact files aligned · A2 candidate labels reviewed computationally · segmentation/clinical QA PENDING'
       :'Exact study files and header matched · tissue segmentation UNVALIDATED';
-  $('registration').dataset.state=a2LateralityConflict()?'error':aligned?'valid':status?'error':'pending';
+  $('registration').dataset.state=a2LateralityConflict()?'error':
+    a2CandidateReviewPending()?'pending':aligned?'valid':status?'error':'pending';
   const enabled=aligned;
   $('clip-toggle').disabled=!enabled;
   $('cross-3d').disabled=!enabled;
@@ -148,9 +161,11 @@ async function loadModel(file){
   $('structure-select').disabled=false;
   viewReset();applyQa();updateStructureVisibility();
   setMessage(a2LateralityConflict()?
-    'A2 LATERALITY QUALITY FAILURE: this study mesh has reversed patient-side names relative to the CT. Cross-sections remain available for research review; patient-specific procedures are blocked.':
+    'A2 LATERALITY QUALITY FAILURE: original surface labels are reversed relative to CT RAS. No patient-specific use.':
+    a2CandidateReviewPending()?
+    'A2 candidate: source RAS labels corrected, but anatomical mask and 16.3 mL bilateral overlap are unvalidated. Do not use for CT-linked bronchoscopy.':
     'Local GLB loaded. Geometry inspection is not clinical segmentation validation.',
-    a2LateralityConflict()?'error':'ok');
+    a2LateralityConflict()?'error':a2CandidateReviewPending()?'note':'ok');
 }
 async function loadNifti(file){
   if(!/\.nii$/i.test(file.name))throw new Error('Choose an uncompressed NIfTI .nii file');
@@ -176,7 +191,10 @@ async function loadManifest(file){
     throw new Error('This is not a supported research CT geometry manifest.');
   }
   state.qa=data;applyQa();renderSlices();
-  setMessage('Local manifest loaded. Registration and tissue segmentation are separate validations.','ok');
+  setMessage(a2LateralityConflict()?a2Warning:
+    a2CandidateReviewPending()?a2CandidateWarning:
+    'Local manifest loaded. Registration and tissue segmentation are separate validations.',
+    a2LateralityConflict()?'error':'note');
 }
 function imageBuffer(plane){
   const volume=state.volume;
