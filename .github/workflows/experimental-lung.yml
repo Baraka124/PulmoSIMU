@@ -30,6 +30,7 @@ jobs:
         run: |
           python3 -m py_compile experimental/anatomy/a31_disjoint_airspace.py
           python3 -m py_compile experimental/anatomy/a32_a34_source_mask_qa.py
+          python3 -m py_compile experimental/anatomy/a32_a34_registered_surfaces.py
           python3 -m py_compile experimental/anatomy/a2_ras_relabel.py
           python3 -m py_compile experimental/anatomy/a2_ct_surface_voxel_qa.py
       - name: Test anatomy, physiology and therapeutic invariants
