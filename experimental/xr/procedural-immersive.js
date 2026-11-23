@@ -166,7 +166,14 @@ function install(ctx){
     gesture=null;
   };
   function setMode(next){
-    if(!['anatomy','procedure'].includes(next))return;
+    if(!['anatomy','procedure'].includes(next))return false;
+    // A4: the actual original bronchoscope traverses SEGS (a reference
+    // tree), not the uploaded CT GLB. Never silently call that patient-specific.
+    if(next==='procedure'&&getMeshMode()==='patient'){
+      grabFeedback='CT-SPECIFIC BRONCHOSCOPY BLOCKED / NO REGISTERED AIRWAY';
+      showToast('The CT mesh has no reviewed airway centreline. Return to the procedural reference before bronchoscopy.','warn');
+      paint();return false;
+    }
     if(mode==='anatomy'&&next!=='anatomy')finishViewChange();
     summonGeneration++;
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
@@ -175,7 +182,7 @@ function install(ctx){
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy')scope.velocity=0;
-    paint();
+    paint();return true;
   }
   function headPose(frame){
     const ref=rBro.xr.getReferenceSpace();
@@ -839,7 +846,8 @@ function install(ctx){
       const hovered=hoverPanels.includes(a.id);
       const available=(a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient')) &&
         (a.id!=='undo'||viewHistory.status().undo>0) &&
-        (a.id!=='redo'||viewHistory.status().redo>0);
+        (a.id!=='redo'||viewHistory.status().redo>0) &&
+        (a.id!=='procedure'||role==='reference');
       const label=a.id==='view'
         ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
@@ -1329,6 +1337,8 @@ function install(ctx){
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,procedureGuideVisible:Boolean(guidePlane?.visible),
     viewHistory:viewHistory.status(),pivotMode,axisMode,
+    A4SourceProcedureStatus:getMeshMode()==='patient'
+      ?'BLOCKED_NO_VERIFIED_CT_AIRWAY':'ORIGINAL_PROCEDURAL_REFERENCE_ONLY',
     panelPage:menuPage,
     worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
