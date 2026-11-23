@@ -38,3 +38,10 @@ test('XR source context cannot quietly redefine real procedure or patient state'
  assert.ok(!main.includes('const PATIENT_F='));
  assert.ok(main.includes('if(!child.material)child.material=neutralFallback'));
 });
+
+test('immersive XR never uses decorative desktop breathing as physical deformation',()=>{
+ assert.ok(main.includes('const illustrativeTime=rBro.xr.isPresenting?0:time;'));
+ assert.ok(main.includes('if(!rBro.xr.isPresenting){\n    // Desktop-only illustrative breathing'));
+ assert.ok(main.includes('// Stable source geometry: no invented pulsation/deformation in XR.'));
+ assert.ok(main.includes('rUpperL.scale.setScalar(1);rMidL.scale.setScalar(1);'));
+});
