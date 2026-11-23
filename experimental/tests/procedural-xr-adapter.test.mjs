@@ -103,7 +103,7 @@ test('XR-10 controller grabbing targets original mesh triangles at a distance',(
  const targeting=readFileSync(new URL('../xr/remote-target.js',import.meta.url),'utf8');
  const syntax=spawnSync(process.execPath,['--check'],{input:targeting,encoding:'utf8'});
  assert.equal(syntax.status,0,syntax.stderr||'Ray target runtime syntax invalid');
- assert.ok(original.includes('remote-target.js?v=XR10-'));
+ assert.ok(original.includes('remote-target.js?v=XR11-'));
  assert.ok(source.includes('global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget()'));
  assert.ok(source.includes("startGrab(i,'controller','trigger')"));
  assert.ok(source.includes("startGrab(i,'controller','grip')"));
