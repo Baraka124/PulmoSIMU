@@ -3,27 +3,33 @@
   "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
   "mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
   "method": "Triangle-area-weighted centroid side, original GLB scene transforms inverted through model_from_ras_mm and verified NIfTI sform",
-  "laterality_convention": "RAS anatomical left is X>0, right is X<0",
+  "laterality_convention": "NIfTI RAS+ anatomical right is X>0; anatomical left is X<0",
   "results": [
     {
       "mesh_name": "NLST_CT_right_lung_airspace",
       "stored_label": "right",
       "surface_faces": 27498,
       "watertight": true,
-      "area_fraction_patient_left": 0.8519357580932623,
-      "area_fraction_opposite_name": 0.8519357580932623,
+      "area_fraction_patient_left": 0.14806424190673773,
+      "area_fraction_opposite_name": 0.14806424190673773,
       "area_weighted_RAS_x_mm": 46.80655792628952,
-      "review_gate": "FAIL"
+      "review_gate": "FAIL",
+      "area_fraction_patient_right": 0.8519357580932623,
+      "anatomical_label_reversal_supported": false,
+      "midline_crossing_requires_review": true
     },
     {
       "mesh_name": "NLST_CT_left_lung_airspace",
       "stored_label": "left",
       "surface_faces": 22690,
       "watertight": true,
-      "area_fraction_patient_right": 0.9895153290722436,
-      "area_fraction_opposite_name": 0.9895153290722436,
+      "area_fraction_patient_right": 0.010484670927756408,
+      "area_fraction_opposite_name": 0.010484670927756408,
       "area_weighted_RAS_x_mm": -56.3893571798635,
-      "review_gate": "FAIL"
+      "review_gate": "FAIL",
+      "area_fraction_patient_left": 0.9895153290722436,
+      "anatomical_label_reversal_supported": false,
+      "midline_crossing_requires_review": false
     }
   ],
   "reference_slices": [
@@ -32,18 +38,19 @@
     95,
     125
   ],
-  "overall_gate": "FAIL_RESEARCH_SEGMENTATION_LATERALITY",
+  "overall_gate": "REVIEW_REQUIRED_RIGHT_SURFACE_MIDLINE_LEAKAGE; BILATERAL_LABEL_REVERSAL_NOT_SUPPORTED",
   "source_CT_overlay_generated_locally": true,
   "qa_image_binary_published": false,
   "source_glb_renamed": false,
   "automatic_clinical_relabelling": false,
   "bronchoscopy_to_CT": "BLOCKED",
   "further_requirements": [
-    "Independent expert-review of source CT anatomical sides and GLB surface labels",
-    "Check bilateral airspace boundaries throughout original source",
-    "Correct names only in a versioned audited transformation; never silently edit original GLB",
-    "Obtain validated airway centreline and lumen before CT-specific procedure",
-    "Physical Quest source rendering after correct anatomical QA"
+    "Correct earlier sign-inverted candidate relabel before any deployment",
+    "Review old right mesh surface that crosses RAS x=0 by 14.81% of triangle area",
+    "Use A2.1 source-segmented masks, but preserve clinical/bronchoscopy gate pending expert review"
   ],
-  "research_only": true
+  "research_only": true,
+  "previous_report_superseded": "Earlier audit incorrectly treated RAS +X as patient LEFT; corrected according to NIfTI RAS+ standard (+X patient RIGHT).",
+  "critical_label_reversal": false,
+  "reference_coordinate_authority": "https://slicer.readthedocs.io/en/5.10/user_guide/coordinate_systems.html"
 }
