@@ -84,7 +84,8 @@ function updateQuestLink(){
 }
 updateQuestLink();
 function transmit(){
- if(!focus||!frame.contentWindow)return;
+ // CT source workspace never receives synthetic reference-lobe focus messages.
+ if(current==='source'||!focus||!frame.contentWindow)return;
  frame.contentWindow.postMessage(focus,location.origin);
 }
 frame.addEventListener('load',transmit);
