@@ -111,7 +111,9 @@ function install(ctx){
     if(modelBox.isEmpty())return {center:new THREE.Vector3(),size:new THREE.Vector3(2,2,1)};
     return {center:modelBox.getCenter(new THREE.Vector3()),size:modelBox.getSize(new THREE.Vector3())};
   }
-  function frameGroup(distance=1.55,width=.62){
+  // Reachable seated default: the anatomy is close enough for a real grip,
+  // while remote laser grabs still work at larger distances.
+  function frameGroup(distance=1.05,width=.68){
     if(!viewerValid)return false;
     summonGeneration++;summonTween=null;
     release(0);release(1);
