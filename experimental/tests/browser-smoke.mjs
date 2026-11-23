@@ -265,6 +265,43 @@ try {
   assert.equal(researchBridge?.sourceControls,true);
   assert.equal(researchBridge?.sourceInitiallyHidden,true);
   console.log('PASS CT research scene is separate from patient airway metadata and reference procedure');
+  const atlasCheck=await proceduralXR.evaluate(()=>{
+    const T=window.THREE;
+    const stage=new T.Group(),source=new T.Group();
+    stage.add(source);
+    const geom=new T.BufferGeometry();
+    geom.setAttribute('position',new T.Float32BufferAttribute([
+      90,60,-310, 90,120,-360, 90,80,-470,
+      -90,60,-330, -90,60,-460, -90,70,-400
+    ],3));
+    geom.setIndex([0,1,2,3,4,5]);
+    geom.computeVertexNormals();
+    const material=new T.MeshStandardMaterial({color:0xd2c4b1});
+    const mesh=new T.Mesh(geom,material);source.add(mesh);
+    const atlas=window.PulmoCTLobeTerritories.create(T,source,stage,{
+      model_from_ras_mm:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+    });
+    const initial=atlas.enable();
+    const newMat=mesh.material;
+    const newGeom=mesh.geometry;
+    const update=atlas.update({rightMajor:18,rightMinor:12,selected:'RUL'});
+    atlas.disable();
+    const result={fiveLabels:Object.keys(atlas.names).length,initial:initial.mode,
+      next:update.mode,vertices:update.vertices,derivedNewMesh:newGeom!==geom,
+      derivedNewMaterial:newMat!==material,originalGeometry:mesh.geometry===geom,
+      originalMaterial:mesh.material===material};
+    atlas.dispose();geom.dispose();material.dispose();
+    return result;
+  });
+  assert.equal(atlasCheck.fiveLabels,5);
+  assert.equal(atlasCheck.initial,'editable-atlas-territories');
+  assert.equal(atlasCheck.next,'editable-atlas-territories');
+  assert.equal(atlasCheck.vertices,6);
+  assert.equal(atlasCheck.derivedNewMesh,true);
+  assert.equal(atlasCheck.derivedNewMaterial,true);
+  assert.equal(atlasCheck.originalGeometry,true);
+  assert.equal(atlasCheck.originalMaterial,true);
+  console.log('PASS A2.2 atlas renders five source-space territory labels without altering source topology');
   const originalCount=status.originalSegments;
   await proceduralXR.evaluate(()=>{
     window._applyPatientMeta({version:'pneumovr-1.1',
