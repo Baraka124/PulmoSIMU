@@ -31,7 +31,8 @@ The NIfTI header identifies TCIA NLST and its voxel calibration / RAS transform.
 On Windows, install [GitHub CLI](https://cli.github.com/) and sign in with `gh auth login`. Download the latest private A1 study kit from your ChatGPT working session and keep the original .nii available locally. Run the checked publisher script from this directory as follows:
 
 ```powershell
-pwsh -File .\publish-a1-release.ps1 -SourceNifti "C:\path\NLST_Chest_CT_150_Slices_R21(1).nii" -MeshGlb "C:\path\PulmoSIMU_NLST_CT_Lung_Quest_Research.glb"
+powershell -File .\publish-a1-release.ps1 -SourceNifti "C:\path\NLST_Chest_CT_150_Slices_R21(1).nii" -MeshGlb "C:\path\PulmoSIMU_NLST_CT_Lung_Quest_Research.glb"
+# When the dry run passes, repeat the command with -Publish at the end.
 ```
 
 The script verifies both exact hashes, requires an explicit opt-in, and creates a GitHub prerelease containing the two binaries and manifest. **Do not infer that a release exists until you have checked its actual GitHub release URL and assets.**
