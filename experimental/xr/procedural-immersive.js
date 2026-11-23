@@ -19,6 +19,8 @@ function install(ctx){
     throw Error('XR-10 triangle-backed remote aiming runtime missing');
   if(!global.PulmoXRInteractionMath?.clampScale)
     throw Error('XR-11 world-space manipulation limits missing');
+  if(!global.PulmoXRSpatialTarget?.choose)
+    throw Error('XR-12 deterministic menu/anatomy input router missing');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
@@ -30,7 +32,7 @@ function install(ctx){
   // WebXR getController(index) is connection-order, NOT reliably left=0/right=1.
   const controllerSources=[null,null],laserLines=[null,null],laserTips=[null,null];
   const aimTargets=[null,null],squeezeHeld=[false,false],hoverPanels=[null,null];
-  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0,menuActions:0,thumbstickFrames:0};
+  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0,menuActions:0,thumbstickFrames:0,panelToggles:0,hapticRequests:0};
   let lastAimTime=0,grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
@@ -71,6 +73,27 @@ function install(ctx){
     }
     mGrp.updateMatrixWorld(true);
   }
+  function haptic(i,intensity=.24,duration=35){
+    // Capability-gated, subtle Quest feedback only. Absent actuators must
+    // never block select, menu actions or movement, and do not imply real
+    // anatomy/tool tissue forces.
+    const gp=controllerSources[i]?.gamepad;
+    try{
+      const actuator=gp?.hapticActuators?.[0];
+      const vibration=gp?.vibrationActuator;
+      let result=null;
+      if(actuator?.pulse)result=actuator.pulse(intensity,duration);
+      else if(vibration?.playEffect)result=vibration.playEffect('dual-rumble',{
+        duration,strongMagnitude:intensity,weakMagnitude:intensity*.6
+      });
+      else return;
+      attempts.hapticRequests++;
+      if(result?.catch)result.catch(()=>{});
+    }catch{/* Unsupported Quest/browser haptics: no impact on controls. */}
+  }
+  function feedbackToController(i){
+    if(Number.isInteger(i)&&i>=0&&i<2)haptic(i);
+  }
   const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
   const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
   const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:trackedController(i);
@@ -80,14 +103,10 @@ function install(ctx){
     const endedGrab=grab[i];
     grab[i]=null;grabSource[i]=null;
     if(endedGrab){
-      grabFeedback='RELEASED '+(endedGrab.method||'ANATOMY');
-      // A short trigger TAP on the actual surface summons the lung
-      // within reach, while a HOLD translates/rotates it at a distance.
-      if(source==='controller'&&input==='trigger'&&mode==='anatomy'&&
-        performance.now()-endedGrab.startedAt<400&&
-        mGrp.position.distanceTo(endedGrab.startPosition)<.025 &&
-        mGrp.quaternion.angleTo(endedGrab.startQuaternion)<.045)
-        summon();
+      // Release is deterministic: the model stays where it was placed.
+      // No automatic summon, resize, teleport or camera movement on tap.
+      grabFeedback='RELEASED '+(endedGrab.method||'ANATOMY')+' / POSITION PRESERVED';
+      if(source==='controller')haptic(i,.10,22);
     }
     if(scopeSteering?.i===i&&(!source||source==='controller'))scopeSteering=null;
     if(grab[0]&&!grab[1])capture(0);
