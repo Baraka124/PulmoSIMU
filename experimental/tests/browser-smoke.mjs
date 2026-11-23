@@ -286,7 +286,7 @@ try {
     const newGeom=mesh.geometry;
     const update=atlas.update({rightMajor:18,rightMinor:12,selected:'RUL'});
     atlas.disable();
-    const result={fiveLabels:Object.keys(atlas.names).length,initial:initial.mode,
+    const result={fiveLabels:Object.keys(window.PulmoCTLobeTerritories.names).length,initial:initial.mode,
       next:update.mode,vertices:update.vertices,derivedNewMesh:newGeom!==geom,
       derivedNewMaterial:newMat!==material,originalGeometry:mesh.geometry===geom,
       originalMaterial:mesh.material===material};
