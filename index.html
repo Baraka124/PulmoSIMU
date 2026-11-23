@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
 <script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
 <script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
 <script src="./experimental/xr/session-health.js?v=XR09-PROFILE"></script>
@@ -1162,6 +1163,40 @@ input[type=range]::-webkit-slider-thumb {
 
 /* ── Planning mode: hide training UI ── */
 #lp, #bpanel-l, #score-bar, #debrief, #biopsy-bleed { display:none !important; }
+/* Source-only CT research stage: do not combine research meshes with
+   reference simulated lesions, airway UI or unverified procedure readouts. */
+#ct-source-desk{display:none}
+body.ct-source-mode #ct-source-desk{
+ display:flex;position:absolute;top:18px;left:22px;z-index:70;
+ width:min(650px,calc(100% - 44px));gap:16px;align-items:center;
+ justify-content:space-between;padding:14px 17px;
+ background:rgba(13,23,32,.94);border:1px solid #486273;border-radius:4px;
+ font:500 12px/1.5 system-ui,sans-serif;color:#dbe6eb;
+}
+#ct-source-desk strong{font-size:13px;letter-spacing:.015em}
+#ct-source-desk small{display:block;color:#a5bac6;font-size:11px;font-weight:400}
+#ct-source-desk .source-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#ct-source-desk button,#ct-source-desk a{background:none;border:none;padding:0;cursor:pointer;
+ color:#bad7e4;font:600 11px system-ui,sans-serif;text-decoration:none;
+ border-bottom:1px solid #759eaf}
+body.ct-source-mode #patient-loader,
+body.ct-source-mode #rp,
+body.ct-source-mode #sp-panel,
+body.ct-source-mode #seg-card,
+body.ct-source-mode #bro-view,
+body.ct-source-mode #scope-svg,
+body.ct-source-mode #cam-p,
+body.ct-source-mode #route-panel{display:none!important}
+body.ct-source-mode #ext-label{
+ top:auto;bottom:12px;left:22px;font-size:10px;letter-spacing:.08em;
+ color:#a1b9c5
+}
+body.ct-source-mode #ext-view{width:100%;flex:1}
+@media(max-width:680px){
+ body.ct-source-mode #ct-source-desk{top:12px;left:12px;
+ width:calc(100% - 24px);display:block}
+ #ct-source-desk .source-actions{margin-top:9px}
+}
 </style>
 </head>
 <body>
@@ -1283,6 +1318,15 @@ input[type=range]::-webkit-slider-thumb {
     <div id="ext-view">
       <canvas id="c-ext"></canvas>
       <div id="ext-label">BILATERAL LUNG · External View · Click=Teleport · Drag=Rotate · Scroll=Zoom</div>
+      <div id="ct-source-desk" aria-label="CT research source controls">
+        <div><strong>CT-derived airspace · Research model</strong>
+        <small id="ct-source-warning">Not clinically validated · No verified airway or pathology</small></div>
+        <div class="source-actions">
+          <button type="button" onclick="triggerPatientLoad()">Change study</button>
+          <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">View original CT</a>
+          <button type="button" onclick="setViewMode('reference')">Reference simulator</button>
+        </div>
+      </div>
       <svg id="scope-svg">
         <defs>
           <radialGradient id="sg" cx="50%" cy="50%" r="50%">
