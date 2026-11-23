@@ -34,9 +34,23 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
       <div><div class="minor">Source status</div><div class="nameval" id="source-state">No manifest loaded</div><div class="muted" id="mesh-count">No surface</div><div class="muted" id="mesh-faces">—</div></div>
       <div><div class="minor">CT volume</div><div class="nameval" id="source-shape">—</div><div class="muted" id="source-spacing">—</div><div class="muted" id="ct-state">No volume loaded</div></div>
       <div><div class="minor">Source alignment</div><div class="nameval" id="registration" data-state="pending">Awaiting NIfTI + manifest</div><div class="muted">Header matching does not establish segmentation accuracy.</div></div>
-      <div class="control division"><label class="minor" for="structure-select">Source surfaces</label><select id="structure-select" disabled><option value="both">Both lung surfaces</option><option value="right">Mesh named RIGHT (unverified)</option><option value="left">Mesh named LEFT (unverified)</option></select></div>
-      <div class="control"><label class="toggle"><input type="checkbox" id="cross-3d" disabled> SHA-256 verified source crosshair in 3D</label><label class="toggle"><input type="checkbox" id="clip-toggle" disabled> Section through source surface (axial)</label></div>
+      <div class="control division"><label class="minor" for="structure-select">Source surfaces</label>
+      <select id="structure-select" disabled><option value="both">All source surfaces</option><option value="right">Patient-right mesh (unreviewed)</option><option value="left">Patient-left mesh (unreviewed)</option></select>
+      <label class="minor" for="surface-opacity">Surface transparency <span id="opacity-readout">100%</span></label>
+      <input id="surface-opacity" type="range" min="15" max="100" value="100" disabled aria-label="Source surface opacity">
+      </div>
+      <div class="control"><label class="toggle"><input type="checkbox" id="cross-3d" disabled> Verified-source crosshair in 3D</label>
+      <label class="toggle"><input type="checkbox" id="clip-toggle" disabled> CT-registered source section</label>
+      <select id="section-plane" disabled aria-label="Choose anatomical clipping plane">
+        <option value="axial">Axial section</option><option value="coronal">Coronal section</option><option value="sagittal">Sagittal section</option>
+      </select></div>
       <div><div class="minor">Estimated airspace volume</div><div class="nameval" id="volume-stats">No source QA loaded</div><div class="muted">Approximate HU-derived connected airspace; not measured whole-lung tissue.</div></div>
+      <details class="division"><summary style="color:#aacbd3;cursor:pointer;font-size:11px">A3–A4 research anatomy gates</summary>
+        <div class="muted" id="source-gates" style="white-space:pre-line;padding:10px 0">Source files not matched · CT-specific procedure blocked</div>
+        <label class="minor" for="structure-qa-file">Optional source-mask QA · JSON</label>
+        <input id="structure-qa-file" type="file" accept=".json" style="max-width:100%;font-size:10px">
+        <div class="muted">The structure report is generated from separately reviewed five-lobe, airway and vessel masks. File registration alone is not clinical approval.</div>
+      </details>
       <div class="warning">SOURCE RESEARCH ONLY. The known A1 GLB fails A2 right/left laterality QA. A matched CT hash does NOT validate anatomical side labels, lobar fissures, vessels, patient-specific bronchial routes, or clinical diagnosis.<div id="qa-details" style="white-space:pre-line;margin-top:8px;color:#9fbbc2"></div></div>
     </aside>
   </section>
@@ -53,5 +67,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="./anatomy/nifti-source.js"></script>
+<script src="./anatomy/a4-source-gate.js?v=A4-SOURCE"></script>
 <script src="./anatomy/inspector-app.js"></script>
 </body></html>
