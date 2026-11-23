@@ -39,7 +39,7 @@ function install(ctx){
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
   let scaleMode='comfort',lastPanelUpdate=0,physicsSnapshot=null;
   let physicsError=null;
-  let saved=null,scopeSteering=null;
+  let saved=null,scopeSteering=null,endedXRGeometry=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
@@ -452,6 +452,7 @@ function install(ctx){
   }
   const modes=['nav','biopsy','measure','annotate'];
   function activate(action){
+    grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
     if(action==='anatomy')setMode('anatomy');
     if(action==='procedure')setMode('procedure');
     if(action==='reset')frameGroup();
@@ -580,7 +581,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-10 / '+(active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU XR-11 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
@@ -806,8 +807,8 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     lastInteractionResult:grabFeedback,
+    xrGeometryAtExit:endedXRGeometry,
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
-    modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
     integration:'XR-09 original procedural scene; unvalidated research build'
@@ -846,7 +847,7 @@ function install(ctx){
     health.begin(rBro.xr.getSession()?.frameRate??null);
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
-    lastPanelUpdate=0;scaleMode='comfort';
+    lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
@@ -918,6 +919,13 @@ function install(ctx){
     });
   });
   rBro.xr.addEventListener('sessionend',()=>{
+    // Snapshot before restoring the original desktop scene scale.
+    endedXRGeometry={
+      modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
+      scaleMode,scaleClamps,workspaceClamps,
+      finalGrabStatus:grabFeedback,
+      controllerActions:{...attempts}
+    };
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
