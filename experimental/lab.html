@@ -273,11 +273,8 @@ $('loadSurfaceAtlas').onclick=async()=>{
     const entry=manifest.structures.find(x=>x.id===anatomicalId);
     o.userData.surfaceAtlasId=entry.id;
     o.userData.surfaceAtlasKind=entry.kind;
-    const material=new THREE.MeshPhysicalMaterial({
-      color:entry.kind==='lobe'?0xae8587:0xa4bac4,metalness:0,roughness:.53,
-      transparent:true,opacity:entry.kind==='lobe'?.74:.94,side:THREE.DoubleSide,depthWrite:false
-    });
-    o.material=material;
+    // Keep the actual imported GLB material. No invented pleural/vascular shader.
+    if(!o.material)o.material=new THREE.MeshStandardMaterial({color:0xb7c3cb,roughness:.85});
   });
   disposeSurface();disposeCt();
   surfaceGroup.add(root);surfaceMode=true;ctMode=false;
@@ -323,24 +320,22 @@ $('loadCt').onclick=async()=>{
   const min=box.min.toArray(),max=box.max.toArray();
   validateCtSceneAlignment(adapted.graph,{min,max});
   let meshCount=0;
-  loaded.traverse(o=>{if(o.isMesh){meshCount++;o.material=new THREE.MeshPhysicalMaterial({
-   color:0xc7a3a4,roughness:.54,metalness:0,transparent:true,opacity:.88,
-   side:THREE.DoubleSide,depthWrite:true
-  });o.userData.ctSource=true;}});
+  loaded.traverse(o=>{if(o.isMesh){
+   meshCount++;o.userData.ctSource=true;
+   // Preserve imported material. Do not invent tissue or vessel appearance.
+   if(!o.material)o.material=new THREE.MeshStandardMaterial({color:0xb7c3cb,roughness:.85});
+  }});
   if(!meshCount)throw Error('GLB contains no renderable airway meshes');
   disposeCt();disposeSurface();
   ctGroup.add(loaded);
-  const traceMaterial=new THREE.MeshStandardMaterial({color:0xd8e9ed,roughness:.47,emissive:0x182f3a,emissiveIntensity:.10,transparent:true,opacity:.75});
-  // Overlay CT centreline geometry in its *native GLB scene coordinates*.
-  // No arbitrary visual scaling or inferred lobe classifications.
+  // CT centreline path inspection: source coordinates only. Thin lines
+  // represent metadata paths, not synthetic cylindrical airway walls.
+  const traceMaterial=new THREE.LineBasicMaterial({color:0xc5dce5,transparent:true,opacity:.72});
   for(const node of adapted.graph.nodes){
-   const curve=new THREE.CatmullRomCurve3(node.points.map(p=>new THREE.Vector3(...p)));
-   const mesh=new THREE.Mesh(
-     new THREE.TubeGeometry(curve,Math.max(12,node.points.length*5),Math.max(0.002,(node.radiusStart+node.radiusEnd)/2*.15),8,false),
-     traceMaterial.clone()
-   );
-   mesh.userData.ctSourceBranchId=node.sourceId;
-   ctBranchGroup.add(mesh);
+   const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+     node.points.map(p=>new THREE.Vector3(...p))),traceMaterial.clone());
+   line.userData.ctSourceBranchId=node.sourceId;
+   ctBranchGroup.add(line);
   }
   $('ctBranchCount').textContent=String(adapted.graph.nodes.length);
   $('ctUnitScale').textContent=(adapted.provenance.sceneUnitMetres*1000).toPrecision(4)+' mm/unit';
