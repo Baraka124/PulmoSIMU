@@ -91,3 +91,10 @@ test('XR-09 integrates actual near-surface contact and optional Quest tracked ha
  }
  assert.ok(source.includes('getReferenceFocus?.()'),'Original reference focus context');
 });
+
+test('CT-derived geometry retains authored material instead of artificial vessel/cartilage shaders',()=>{
+ assert.ok(original.includes('if(!child.material)child.material=neutralFallback'));
+ assert.ok(original.includes('patientData._mat = null'));
+ assert.ok(!original.includes('const PATIENT_F='),'No shader-generated vessel or cartilage patterns on loaded CT surface');
+ assert.ok(!original.includes('child.material = patientMat;'),'Original mesh materials are never replaced by fabricated mucosal paint');
+});
