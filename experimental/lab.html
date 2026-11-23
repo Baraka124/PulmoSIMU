@@ -43,6 +43,7 @@ canvas{width:100%;height:100%;display:block;outline:0}.topline,.bottomline{posit
 h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--muted)}
 @media(max-width:930px){main{grid-template-columns:185px minmax(0,1fr) 220px}header{padding:0 14px}aside{padding:14px 11px}}
 @media(max-width:680px){main{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:55px 52vh auto auto}header{grid-column:1}.stage{grid-row:2}aside.left,aside.right{border:0;border-top:1px solid var(--line)}aside.left{grid-row:3}aside.right{grid-row:4}.topline,.bottomline{left:12px;right:12px;font-size:10px}}
+.stage:not(.source-mode) .topline,.stage:not(.source-mode) .bottomline{display:none}
 </style></head><body>
 <main>
 <header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · EXPERIMENTAL</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
@@ -236,7 +237,7 @@ async function loadAirways(){
 validateAtlas();
 syncGeometrySource();
 loadAirways();
-$('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&ctMode)$('restoreReference').click()});
+$('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&(ctMode||surfaceMode))$('restoreReference').click()});
 $('surfaceLobes').onclick=()=>{showSurfaceLobes=!showSurfaceLobes;updateSurfaceVisibility()};
 $('surfaceVessels').onclick=()=>{showSurfaceVessels=!showSurfaceVessels;updateSurfaceVisibility()};
 $('loadSurfaceAtlas').onclick=async()=>{
