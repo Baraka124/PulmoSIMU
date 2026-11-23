@@ -241,9 +241,14 @@ function install(ctx){
       grabFeedback='RIGHT GRIP / STEERING SOURCE SCOPE';return true;
     }
     if(!active||!placed||mode!=='anatomy'||grab[i])return false;
-    if(source==='controller'&&panelIntersection(rayFrom(i))){
-      grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
-      paint();return false;
+    if(source==='controller'){
+      const panel=panelIntersection(rayFrom(i));
+      const organ=panel?global.PulmoXRRemoteTarget.pick(
+        THREE,hands[i],surfaceTarget(),{maxDistance:3.5}):null;
+      if(panel&&(!organ?.hit||panel.distance<=organ.distanceM)){
+        grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
+        paint();return false;
+      }
     }
     const grip=source==='hand'?handProxies[i]:trackedController(i);
     if(!grip)return false;
@@ -426,8 +431,11 @@ function install(ctx){
   function onTrigger(i){
     if(!active||!rayFrom(i))return;
     const panel=panelIntersection(ray);
+    const sourceHit=panel&&mode==='anatomy'
+      ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
+      :null;
     const side=controllerSide[i]||controllerSources[i]?.handedness||'unknown';
-    if(panel){
+    if(panel&&(!sourceHit?.hit||panel.distance<=sourceHit.distanceM)){
       // Never send a trigger through the interface into the organ behind it.
       if(panel.action){attempts.menuActions++;activate(panel.action)}
       else {grabFeedback='POINT AT A PANEL CONTROL';paint()}
@@ -808,7 +816,7 @@ function install(ctx){
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
-    squeezeHeld.fill(false);aimTargets.fill(null);
+    squeezeHeld.fill(false);aimTargets.fill(null);hoverPanels.fill(null);
     laserLines.forEach(line=>{if(line)line.visible=false});
     laserTips.forEach(tip=>{if(tip)tip.visible=false});
     summonTween=null;lastAimTime=0;
@@ -889,7 +897,7 @@ function install(ctx){
     laserLines.forEach(line=>{if(line)line.visible=false});
     laserTips.forEach(tip=>{if(tip)tip.visible=false});
     controllerSources.fill(null);controllerSide.fill(null);
-    squeezeHeld.fill(false);aimTargets.fill(null);
+    squeezeHeld.fill(false);aimTargets.fill(null);hoverPanels.fill(null);
     placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
@@ -901,6 +909,9 @@ function install(ctx){
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
     activeControllerSides:controllerSide.slice(),
+    menuHoverActions:hoverPanels.slice(),
+    worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
+    scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
     hoverStatus:aimTargets.map(t=>t?{hit:t.hit,reason:t.reason,distanceM:t.distanceM}:null),
     summonActive:Boolean(summonTween),
     handTracking:handSeen.slice(),grabSources:grabSource.slice(),
