@@ -30,7 +30,10 @@
       "voxels_on_opposite_RAS_side": 32009,
       "volume_fraction_on_opposite_side": 0.010619049198818963,
       "expert_anatomy_review": "REQUIRED",
-      "clinical_validation": false
+      "clinical_validation": false,
+      "historical_inverted_RAS_opposite_fraction": 0.010619049198818963,
+      "actual_opposite_hemisphere_fraction_relative_to_archived_bad_label": 0.989380950801181,
+      "side_label_valid": false
     },
     {
       "node": "A2_candidate_patient_right_lung_airspace_UNVALIDATED",
@@ -48,15 +51,20 @@
       "voxels_on_opposite_RAS_side": 3292,
       "volume_fraction_on_opposite_side": 0.0013181260347909997,
       "expert_anatomy_review": "REQUIRED",
-      "clinical_validation": false
+      "clinical_validation": false,
+      "historical_inverted_RAS_opposite_fraction": 0.0013181260347909997,
+      "actual_opposite_hemisphere_fraction_relative_to_archived_bad_label": 0.998681873965209,
+      "side_label_valid": false
     }
   ],
   "overlap_voxels": 27702,
   "overlap_volume_ml": 16.333937362985885,
   "overlap_fraction_of_union": 0.005051345867668305,
   "threshold_method": "HU values inside threshold-derived mesh; not independent segmentation ground truth",
-  "mask_approval": "FAILED_PENDING_CLINICAL_REVIEW",
+  "mask_approval": "REJECTED_INVALID_SIDE_RELABELLING_AND_PENDING_CLINICAL_REVIEW",
   "bronchoscope_to_patient_CT": "BLOCKED",
   "vascular_and_five_lobe_anatomy": "NOT_AVAILABLE",
-  "patient_specific_physics": "BLOCKED"
+  "patient_specific_physics": "BLOCKED",
+  "review_status": "HISTORICAL_INVALID_SIDE_LABELS",
+  "warning": "Overlap and image threshold measurements remain historical observations, but side-labelled opposite-hemisphere fractions used an inverted RAS convention and are not clinically meaningful as originally interpreted."
 }
