@@ -1,0 +1,46 @@
+{
+  "protocol": "PulmoSIMU-A3.1-Voxel-Disjoint-Research-v1",
+  "input_ct_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "input_candidate_glb_sha256": "8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f",
+  "derived_glb_sha256": "049aa2b810f923ac1ae77d8f47c38d8959b59407d4bbea239181e540f6c873ff",
+  "derived_labelmap_sha256": "beeefc34c198c3ebc665f0729b440055fc17fe02366aeb9d0cc518abd1cf61fd",
+  "mask_dimensions_kji": [
+    150,
+    512,
+    512
+  ],
+  "source_voxel_count": 5484083,
+  "source_overlap_voxels": 27702,
+  "source_overlap_ml": 16.333937362985885,
+  "output_overlap_voxels": 0,
+  "output_ambiguous_overlap_voxels_reassigned": 27702,
+  "voxel_count_preserved_across_bilateral_union": true,
+  "midline_source_leakage_corrected": false,
+  "clinical_anatomical_validation": "NOT_VALIDATED",
+  "fissure_and_five_lobe_segmentation": "NOT_AVAILABLE",
+  "source_airway_and_vasculature": "NOT_AVAILABLE",
+  "CT_linked_bronchoscopy": "BLOCKED",
+  "algorithm": "Overlapping voxels allocated by distance to side-exclusive source seed masks, retaining union and original RAS affine; not an independent clinical segmentation.",
+  "surfaces": {
+    "left": {
+      "source_voxels": 3014300,
+      "candidate_voxels": 2987790,
+      "candidate_faces": 94212,
+      "mesh_watertight": true,
+      "candidate_volume_l": 1.7612925971934312
+    },
+    "right": {
+      "source_voxels": 2497485,
+      "candidate_voxels": 2496293,
+      "candidate_faces": 96634,
+      "mesh_watertight": true,
+      "candidate_volume_l": 1.4715625385929096
+    }
+  },
+  "limitations": [
+    "Clinical/independent source review remains pending",
+    "Original A2 midline leakage was not corrected",
+    "No five lobes, centreline or vascular masks",
+    "2 mm through-plane CT limits detail"
+  ]
+}
