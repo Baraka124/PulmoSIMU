@@ -5,6 +5,7 @@ import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const source=readFileSync(new URL('../anatomy/research-view.js',import.meta.url),'utf8');
 const main=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const xr=readFileSync(new URL('../xr/procedural-immersive.js',import.meta.url),'utf8');
 const w={};
 runInNewContext(source,{window:w,ArrayBuffer,Uint8Array,crypto:webcrypto});
 const bridge=w.PulmoCTResearchBridge;
@@ -66,5 +67,6 @@ test('clean original experience is preserved and source import is explicitly res
  assert.ok(main.includes("setViewMode('research')"));
  assert.ok(main.includes("setView('overview')"));
  assert.ok(main.includes("getPatientAudit:()=>patientData.xrAudit||null"));
- assert.ok(main.includes("if(next==='procedure'"),'XR procedure guard lives in canonical immersive adapter');
+ assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()==='patient')"),
+   'XR procedure guard must remain in canonical immersive adapter');
 });
