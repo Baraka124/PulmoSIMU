@@ -16,6 +16,26 @@ input[type=file]{max-width:100%;font-size:11px;color:var(--muted)}input[type=fil
 input[type=range]{width:100%;accent-color:#b5d6d9}.stat{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #29363e;padding:9px 0;gap:10px}
 .stat b{font-size:14px;font-weight:530;font-variant-numeric:tabular-nums}.stat span{font-size:11px;color:var(--muted)}
 .stage{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,#27343c 0%,#111a20 60%,#0d151a 100%)}
+[hidden]{display:none!important}
+#lungCanvas{width:100%;height:100%;display:none;outline:0}
+.stage.source-mode #lungCanvas{display:block}
+.reference-observatory{height:100%;overflow:auto;padding:clamp(26px,4vw,58px);display:flex;flex-direction:column;gap:28px;background:#111b21}
+.obs-kicker{font-size:10px;letter-spacing:.13em;color:#9ebcc9;font-weight:600}
+.obs-head{max-width:700px}.obs-head h2{font-size:clamp(29px,3vw,45px);line-height:1.14;letter-spacing:-.045em;font-weight:520;margin:10px 0 14px}
+.obs-head p{font-size:13px;line-height:1.75;max-width:670px}
+.obs-profile{max-width:900px;border-top:1px solid #344750;padding-top:20px}
+.obs-profile-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:14px}
+.obs-profile-head strong{font-size:16px;font-weight:520}.obs-profile-head small{font-size:11px;color:#9cafb7}
+.region-bars{display:grid}
+.region-row{display:grid;width:100%;grid-template-columns:minmax(130px,1fr) minmax(90px,2fr) 72px;align-items:center;gap:16px;border:0;border-bottom:1px solid #293942;border-radius:0;padding:15px 8px;text-align:left;background:transparent;color:#c8d5dc}
+.region-row[aria-pressed=true],.region-row:hover{background:#1c2b32}.region-name{font-size:12px}
+.region-row[aria-pressed=true] .region-name{font-weight:650;color:#f0f6f9}
+.region-track{display:block;height:5px;background:#293b44}.region-track i{display:block;height:100%;background:#9ebecb}
+.region-value{text-align:right;font:500 12px ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}
+.obs-evidence{max-width:900px;border-top:1px solid #344750;padding-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:auto}
+.obs-evidence strong{font-size:12px;font-weight:600}.obs-evidence p{font-size:11px;line-height:1.7}
+.obs-evidence a{font-size:12px;color:#cde6ef;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:750px){.reference-observatory{padding:22px}.obs-evidence{grid-template-columns:1fr}.region-row{grid-template-columns:100px minmax(45px,1fr) 65px;gap:9px}}
 canvas{width:100%;height:100%;display:block;outline:0}.topline,.bottomline{position:absolute;pointer-events:none;left:23px;right:23px;display:flex;justify-content:space-between;gap:12px;color:#bdcbd0;font-size:11px}.topline{top:20px}.bottomline{bottom:20px}
 .dot{width:6px;height:6px;border-radius:50%;background:#bfd7dc;display:inline-block;margin-right:6px}
 .help{color:var(--muted);font-size:11px;line-height:1.6;margin-top:12px}
@@ -27,7 +47,7 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <main>
 <header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · EXPERIMENTAL</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
 <aside class="left">
-<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Procedural reference · schematic</option><option value="ct" disabled>CT-derived airway · local pair required</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to reference</button>
+<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Numerical reference · no organ mesh</option><option value="ct" disabled>CT-derived airway · local pair required</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to numerical laboratory</button>
 <div class="eyebrow" style="margin-top:20px">Licensed surface atlas</div>
 <label for="surfaceManifest">Structure manifest · JSON</label><input type="file" id="surfaceManifest" accept=".json,application/json">
 <label for="surfaceMesh">Associated anatomical surfaces · GLB</label><input type="file" id="surfaceMesh" accept=".glb,model/gltf-binary">
@@ -59,12 +79,21 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <div class="help" id="pathwayNote">Hypothesis-only pathway attenuation; not predicted patient response.</div>
 <label for="days">Simulated treatment time <strong id="daysText">0 days</strong></label><input id="days" type="range" min="0" max="120" value="0">
 </section>
-<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayMucus">Mucus burden</button><button class="wide" id="overlayTumor">Tumor burden</button><button class="wide" id="overlayBase">Anatomical view</button><button class="wide" id="toggleAirways">Hide airway hierarchy</button><button class="wide" id="isolateRegion">Isolate selected lobe</button><button class="wide" id="resetCamera">Reset camera</button></section>
+<section><div class="eyebrow">View</div><button class="wide active" id="overlayVent">Regional ventilation proxy</button><button class="wide" id="overlayInfl">Inflammation burden</button><button class="wide" id="overlayRes">Airway resistance proxy</button><button class="wide" id="overlayMucus">Mucus burden</button><button class="wide" id="overlayTumor">Tumor burden</button><button class="wide" id="overlayBase">Compliance index</button><button class="wide" id="isolateRegion">Focus selected region</button><button class="wide" id="resetCamera" hidden>Frame loaded source</button></section>
 <div class="caution">This is a separate experimental workspace. The original PNEUMO·VR surgical procedures and navigation remain unchanged.</div>
 </aside>
-<div class="stage"><canvas id="lungCanvas"></canvas>
-<div class="topline"><span><span class="dot"></span> BILATERAL LUNG · PNEUMO·VR AIRWAY REFERENCE</span><span id="overlayLabel">VENTILATION</span></div>
-<div class="bottomline"><span>Drag rotate · Scroll zoom · Select lobe</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
+<div class="stage" id="anatomicalStage"><div id="referenceObservatory" class="reference-observatory">
+<div class="obs-head"><div class="obs-kicker">MODEL OBSERVATORY / REFERENCE CALCULATIONS</div>
+<h2>Computational state, not synthetic anatomy.</h2>
+<p>This laboratory examines mathematical respiratory compartments and hypothetical disease and treatment parameters. The five regions below are numerical indices, never reconstructed lung surfaces.</p></div>
+<div class="obs-profile"><div class="obs-profile-head"><strong id="regionalProfileTitle">Ventilation allocation</strong><small id="regionalProfileScale">Model allocation · %</small></div>
+<div id="regionalBars" class="region-bars" role="group" aria-label="Region-indexed mathematical model outputs"></div></div>
+<div class="obs-evidence"><div><strong>Shared numerical foundation</strong><p>R3 reduced-order resistance–compliance simulation. This is an assumed research model, not a calibrated patient-specific calculation.</p></div>
+<div><strong>Source integrity</strong><p>3D here is displayed only when actual source meshes are explicitly loaded. The original procedural anatomy remains in the dedicated workstation.</p>
+<a href="../index.html" target="_blank" rel="noopener noreferrer">Explore original procedural anatomy</a></div></div>
+</div><canvas id="lungCanvas" aria-label="Source-provided 3D geometry only"></canvas>
+<div class="topline"><span><span class="dot"></span> SOURCE INSPECTION · SUPPLIED 3D GEOMETRY</span><span id="overlayLabel">VENTILATION</span></div>
+<div class="bottomline"><span>Rotate source · Zoom · Inspect geometry</span><span id="anatomyProvenance">PROCEDURAL REFERENCE · NOT CT-DERIVED</span></div></div>
 <aside class="right"><section id="surfaceInspection" hidden><div class="eyebrow">Surface atlas · source inspection</div>
 <div class="stat"><span>Identified lobes</span><b id="surfaceLobeCount">—</b></div>
 <div class="stat"><span>Vascular structures</span><b id="surfaceVesselCount">—</b></div>
