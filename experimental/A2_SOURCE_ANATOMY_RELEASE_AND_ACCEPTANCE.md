@@ -1,3 +1,7 @@
+> **SUPERSEDED RAS LATERALITY INTERPRETATION (23 Nov 2026):** This historical A2 candidate document was written with an inverted NIfTI RAS X convention. Correct convention: **+X patient RIGHT, −X patient LEFT**. The candidate created by swapping mesh labels is **INVALID and must not be published or used**. Original right GLB predominantly occupies patient right (+X 85.19% surface area), but its 14.81% opposite-hemisphere area requires expert segmentation review. See [corrected source data index](data/nlst-a1/README.md) and [A2.1 observed QA](data/nlst-a1/a2_1_observed_qa.json). Statements below about verified left/right label swapping are retained only as historical context and are not valid conclusions. CT-linked bronchoscopy remains blocked.
+
+---
+
 # PulmoSIMU A2 — Computed anatomy release and remaining acceptance gates
 
 **Status:** versioned computational A2 candidate and CT-derived QA metrics complete; **clinical anatomical validation and patient-specific procedure are NOT complete**. Original PulmoSIMU bronchoscopy remains an independent reference simulation. No source file was overwritten.
