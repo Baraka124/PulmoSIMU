@@ -3771,18 +3771,33 @@ function triggerPatientLoad() {
       r.readAsText(jsonFile);
     });
 
-    Promise.all([readGLTF, readJSON]).then(([gltfBuf, jsonText]) => {
-      // Parse JSON first (fast) so it's ready when GLTF finishes
+    Promise.all([readGLTF, readJSON]).then(async ([gltfBuf, jsonText]) => {
       let meta;
       try { meta = JSON.parse(jsonText); }
       catch(err) { showToast('JSON parse error · ' + err.message, 'error'); return; }
-
-      // Load GLTF then apply meta
-      _loadGLTFFromArrayBuffer(gltfBuf, gltfFile.name, () => {
-        _applyPatientMeta(meta);
-      });
+      const research=window.PulmoCTResearchBridge;
+      if(research?.isResearchManifest(meta)){
+        // The CT airspace surface has no bronchial tree. Verify the exact
+        // binary first, then load in source-only mode: no simulation routes.
+        const integrity=await research.verifyGLB(gltfBuf,meta);
+        _loadGLTFFromArrayBuffer(gltfBuf,gltfFile.name,()=>{
+          patientData.sourceKind='ct-airspace-research';
+          patientData.sourceManifest=meta;
+          patientData.sourceIntegrity=integrity;
+          patientData.meta=null;patientData.xrAudit=null;
+          _setResearchNeutralMaterial(true);
+          setViewMode('research');
+          _focusCameraOnGLB(patientData.gltf);
+          _updateLoaderBanner(true);
+        });
+      }else{
+        if(!Array.isArray(meta?.segments)||!meta?.version){
+          throw Error('Unsupported JSON: use a CT source manifest or matching airway pipeline sidecar');
+        }
+        _loadGLTFFromArrayBuffer(gltfBuf,gltfFile.name,()=>_applyPatientMeta(meta));
+      }
     }).catch(err => {
-      showToast('File read error · ' + err.message, 'error');
+      showToast('CT/GLB import rejected · '+String(err?.message||err),'error');
     });
 
     picker.value = ''; // reset for re-selection
@@ -3811,6 +3826,11 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
     // Those require their own measured/segmented inputs and provenance.
     // Existing authored GLB material colors are preserved.
     patientData._mat = null;
+    patientData.sourceKind=null;
+    patientData.sourceManifest=null;
+    patientData.sourceIntegrity=null;
+    patientData.researchMaterials=null;
+    patientData.researchNeutral=false;
     const neutralFallback = new THREE.MeshStandardMaterial({
       color:0xb19b94,roughness:.83,metalness:0,side:THREE.DoubleSide
     });
@@ -3890,6 +3910,8 @@ function _applyPatientMeta(meta) {
     return;
   }
   patientData.meta = meta;
+  patientData.sourceKind='registered-airway-pipeline';
+  patientData.sourceManifest=null;
 
   // ── Rebuild SEGS from meta ──────────────────────────────────────
   // Clear existing procedural curves and meshes from mGrp
@@ -4005,7 +4027,17 @@ function _updateLoaderBanner(loaded) {
   const banner = document.getElementById('patient-loader');
   if (!banner) return;
   if (loaded) {
-    const pid = patientData.patientId || 'Patient';
+    const pid = patientData.patientId || 'Imported model';
+    if(patientData.sourceKind==='ct-airspace-research'){
+      banner.innerHTML = `
+      <div class="pl-icon">◈</div>
+      <div class="pl-text">
+        <div class="pl-title">CT AIRSPACE · RESEARCH SOURCE</div>
+        <div class="pl-sub">Source GLB hash matched · No registered airway or pathology</div>
+      </div>
+      <div class="pl-action" onclick="triggerPatientLoad()">CHANGE</div>`;
+      return;
+    }
     banner.innerHTML = `
       <div class="pl-icon">✓</div>
       <div class="pl-text">
