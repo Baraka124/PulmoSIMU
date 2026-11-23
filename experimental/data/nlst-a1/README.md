@@ -7,7 +7,9 @@ This folder accompanies the **PulmoSIMU CT Anatomical Source Laboratory**:
 
 | Data asset | Distribution status |
 |---|---|
-| `study-manifest.json` — source affine, HU calibration, segmentation metrics, SHA-256 hashes, limitations | **Committed in this folder** |
+| `study-manifest.json` — source affine, HU calibration, SHA-256 and A2 quality gate | **Committed** |
+| `a2-laterality-qa.json` — measured source-side naming conflict | **Committed** |
+| `a2_laterality_qa.py` — reproducible fail-closed research audit | **Committed under experimental/anatomy** |
 | `NLST_Chest_CT_150_Slices_R21(1).nii` — 75 MiB source volume | **Not attached to GitHub yet** |
 | `PulmoSIMU_NLST_CT_Lung_Quest_Research.glb` — ~1 MiB preliminary bilateral airspace surface | **Not attached to GitHub yet** |
 
@@ -19,6 +21,14 @@ Source collection: **National Lung Screening Trial (NLST)**, National Cancer Ins
 TCIA lists the public NLST radiology CT images under **Creative Commons Attribution 4.0 International (CC BY 4.0)**, subject to proper citation. See https://www.cancerimagingarchive.net/collection/nlst/ and https://creativecommons.org/licenses/by/4.0/.
 
 The NIfTI header identifies TCIA NLST and its voxel calibration / RAS transform. We have not independently re-established the NIfTI's exact original TCIA DICOM series ID, nor completed an independent de-identification audit of the original dataset lineage. **Redistribute only if the specific scan belongs to the CC BY 4.0 public NLST collection and does not contain identifying metadata.** The author of any transformation must identify its changes, avoid implying endorsement by TCIA, and retain the citation.
+
+## A2 finding — anatomical laterality QA FAILURE
+
+The source-image/GLB cross-sectional review has now exposed a **critical laterality-name conflict**. In the original GLB's physical RAS coordinate frame, the geometry named `right_lung_airspace` has **85.2%** of its triangle surface area in patient-left RAS X-positive coordinates. The surface named `left_lung_airspace` has **99.0%** of its surface area in patient-right RAS X-negative coordinates.
+
+The evidence is recorded in [a2-laterality-qa.json](./a2-laterality-qa.json) and recomputed by [a2_laterality_qa.py](../../anatomy/a2_laterality_qa.py). The CT and mesh file fingerprints must match before the validator processes them. An original-source 4-slice CT/GLB overlay can be generated locally from the research files and accompanies the ChatGPT A2 review package.
+
+**Do not interpret the original GLB's `left`/`right` names as verified patient anatomy.** The meshes themselves are kept unchanged to preserve reproducibility, and the public inspector now warns about this known-bad fingerprint even when loading an older manifest. CT-linked bronchoscopy, clinical labels and patient-specific physics remain **blocked**. A reviewer must confirm and correct the source side mapping and mask quality before any upgrade.
 
 ## Derived model and quality boundaries
 
