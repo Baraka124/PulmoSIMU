@@ -461,6 +461,22 @@ try {
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
    assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./procedural-workspace.html');
+   // CT anatomy is a separate, source-only review surface. It must neither
+   // import nor change the original procedural airway/navigation state.
+   await studio.locator('#modeSource').click();
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'CT anatomical source inspector');
+   await studio.frameLocator('#workspaceFrame').locator('#source-files')
+     .waitFor({state:'visible',timeout:45000});
+   const source=studio.frameLocator('#workspaceFrame');
+   for(const id of ['#ct-file','#mesh-file','#manifest-file','#mpr-axial',
+     '#mpr-coronal','#mpr-sagittal','#clip-toggle','#cross-3d'])
+     assert.equal(await source.locator(id).count(),1,'Missing source-only anatomy control '+id);
+   assert.equal(await source.locator('#clip-toggle').isDisabled(),true,
+     'No source manifest and locally matched NIfTI/GLB means no 3D registration');
+   assert.equal(await source.locator('#cross-3d').isDisabled(),true);
+   await studio.locator('#modeProcedure').click();
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
+   console.log('PASS A1 CT anatomy: source-only import, locked unverified registration, original procedure preserved');
    console.log('PASS integrated Studio: original procedural XR and separate research mechanisms share canonical context only');
  } finally {await studio.close();}
  const procedural=await browser.newPage({viewport:{width:1440,height:900}});
