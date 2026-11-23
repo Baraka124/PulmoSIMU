@@ -38,8 +38,8 @@ test('XR12 provides visual, tactile and local-only interaction feedback',()=>{
   "if(source==='controller')haptic(i,.31,48)",
   'hapticActuators','vibrationActuator',
   "new THREE.SphereGeometry(8,32,16)",
-  "XR-12 controller routing on original procedural scene",
-  "pulmosimu-xr12-session-report.json"]){
+  "XR-13 context-first stage on original procedural engine",
+  "pulmosimu-xr13-session-report.json"]){
   assert.ok(xr.includes(token),'Missing XR12 interaction invariant: '+token);
  }
  assert.ok(main.includes('spatial-target.js?v=XR12-ROUTER'));
