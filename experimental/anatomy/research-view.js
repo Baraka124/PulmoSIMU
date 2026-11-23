@@ -9,7 +9,7 @@ const SHA256=/^[a-f0-9]{64}$/i;
 function isResearchManifest(m){
  return Boolean(m&&typeof m==='object'&&!Array.isArray(m)
   &&typeof m.geometry_class==='string'
-  &&/CT_DERIVED_AIRSPACE_MASK/.test(m.geometry_class)
+  &&/^(?:PRELIMINARY_CT_DERIVED_AIRSPACE_MASK|A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW)$/.test(m.geometry_class)
   &&typeof m.mesh_sha256==='string'&&SHA256.test(m.mesh_sha256)
   &&typeof m.source_sha256==='string'&&SHA256.test(m.source_sha256)
   &&Array.isArray(m.model_from_ras_mm)&&m.model_from_ras_mm.length===4
