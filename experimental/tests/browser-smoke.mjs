@@ -255,6 +255,24 @@ try {
    'Without a valid GLB, patient metadata must be rejected before touching original procedure graph');
   assert.equal(afterReject.sourceAudit,null);
   assert.equal(await proceduralXR.locator('#pulmo-procedural-xr').count(),1,'Dedicated immersive original-engine entry is mounted');
+  assert.equal(await proceduralXR.locator('#pulmo-passthrough-ar').count(),1,
+    'Actual, separate AR passthrough entry is mounted');
+  const arCapability=await proceduralXR.evaluate(()=>({
+    available:!!navigator.xr,visible:document.querySelector('#pulmo-passthrough-ar').style.display,
+    alpha:window.PulmoXRProcedureGuide?.describe?true:false
+  }));
+  assert.equal(arCapability.alpha,true,'Source-grounded procedural guidance available');
+  if(!arCapability.available)assert.equal(arCapability.visible,'none',
+    'Desktop browser must never offer fake AR passthrough without immersive-ar');
+  const guided=await proceduralXR.evaluate(()=>window.PulmoXRProcedureGuide.describe({
+    segmentId:0,segment:{name:'Trachea',gen:0,children:[1,4]},
+    segments:{1:{name:'Left main bronchus'},4:{name:'Right main bronchus'}},
+    position:.99,atBranch:true,clinicalMode:'nav',monitorStatus:'live'}));
+  assert.equal(guided.branches.length,2);
+  assert.equal(guided.branches[0].enabled,true);
+  assert.equal(guided.monitor,'LIVE SOURCE VIEW');
+  assert.match(guided.provenance,/REFERENCE SIMULATION/);
+  console.log('PASS XR14 guided source branch state and feature-gated immersive AR entry');
   assert.equal(await proceduralXR.locator('#sbtn').count(),1,'Original desktop splash and clinical workflow are preserved');
   assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
   console.log('PASS original procedural PNEUMO XR: authentic source anatomy, pathology, scope bridge and desktop compatibility');
