@@ -13,7 +13,7 @@
       "area_fraction_patient_left": 0.14806424190673773,
       "area_fraction_opposite_name": 0.14806424190673773,
       "area_weighted_RAS_x_mm": 46.80655792628952,
-      "review_gate": "FAIL",
+      "review_gate": "MIDLINE_SURFACE_REVIEW_REQUIRED",
       "area_fraction_patient_right": 0.8519357580932623,
       "anatomical_label_reversal_supported": false,
       "midline_crossing_requires_review": true
@@ -26,7 +26,7 @@
       "area_fraction_patient_right": 0.010484670927756408,
       "area_fraction_opposite_name": 0.010484670927756408,
       "area_weighted_RAS_x_mm": -56.3893571798635,
-      "review_gate": "FAIL",
+      "review_gate": "NOT_INDEPENDENTLY_VALIDATED",
       "area_fraction_patient_left": 0.9895153290722436,
       "anatomical_label_reversal_supported": false,
       "midline_crossing_requires_review": false
@@ -52,5 +52,6 @@
   "research_only": true,
   "previous_report_superseded": "Earlier audit incorrectly treated RAS +X as patient LEFT; corrected according to NIfTI RAS+ standard (+X patient RIGHT).",
   "critical_label_reversal": false,
-  "reference_coordinate_authority": "https://slicer.readthedocs.io/en/5.10/user_guide/coordinate_systems.html"
+  "reference_coordinate_authority": "https://slicer.readthedocs.io/en/5.10/user_guide/coordinate_systems.html",
+  "original_A1_mesh_unchanged": true
 }
