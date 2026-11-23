@@ -109,7 +109,7 @@ def run(source_path, mesh_path, manifest_path, out_path):
         masks[side] = mask
         values = np.asarray(ct[mask], dtype=np.int32) * slope + intercept
         x_ras = affine[0, 0] * np.arange(dims[0]) + affine[0, 3]
-        opposite_indices = np.flatnonzero(x_ras < 0 if side == "left" else x_ras > 0)
+        # NIfTI RAS+: +X is patient RIGHT; opposite of left is +X.\n        opposite_indices = np.flatnonzero(x_ras > 0 if side == "left" else x_ras < 0)
         opposite_voxels = int(mask[:, :, opposite_indices].sum())
         n_voxels = int(mask.sum())
         if n_voxels == 0:
