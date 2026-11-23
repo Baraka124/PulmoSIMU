@@ -339,6 +339,34 @@ try {
    assert.ok(backface.distance>.70&&backface.distance<.80,
       'Ray terminates at NEAREST source triangle instead of far lung wall: '+JSON.stringify(backface));
    assert.equal(backface.sideRestored,true,'Source-authored material side is never modified');
+   const routing=await questEntry.evaluate(()=>{
+     const T=window.THREE;
+     const frontMenu=new T.Mesh(new T.PlaneGeometry(.82,.48),
+       new T.MeshBasicMaterial({side:T.DoubleSide}));
+     frontMenu.position.set(0,0,-.75);frontMenu.updateMatrixWorld(true);
+     const ray=new T.Raycaster(new T.Vector3(),new T.Vector3(0,0,-1),0,3.5);
+     const hit=ray.intersectObject(frontMenu,false)[0];
+     const anatomy=new T.Mesh(new T.SphereGeometry(.23,16,12),
+       new T.MeshBasicMaterial({side:T.DoubleSide}));
+     anatomy.position.set(0,0,-1.4);
+     const p=new T.Group();
+     const actual=window.PulmoXRRemoteTarget.pick(T,p,[anatomy]);
+     const front=window.PulmoXRSpatialTarget.choose({
+       panel:{distance:hit.distance,action:'reset'},anatomy:actual,mode:'anatomy'});
+     const behind=window.PulmoXRSpatialTarget.choose({
+       panel:{distance:2.2,action:'reset'},anatomy:actual,mode:'anatomy'});
+     const blank=window.PulmoXRSpatialTarget.choose({
+       panel:{distance:hit.distance,action:null},anatomy:actual,mode:'anatomy'});
+     return {front:{kind:front.kind,action:front.action},behind:behind.kind,
+       blank:{kind:blank.kind,action:blank.action},anatomyHit:actual.hit};
+   });
+   assert.equal(routing.anatomyHit,true);
+   assert.equal(routing.front.kind,'panel');
+   assert.equal(routing.front.action,'reset');
+   assert.equal(routing.behind,'anatomy');
+   assert.equal(routing.blank.kind,'panel');
+   assert.equal(routing.blank.action,null);
+   console.log('PASS XR12 actual Three plane, source geometry and no-click-through hit arbitration');
    console.log('PASS XR11 front/back ray targeting and source material preservation');
    console.log('PASS XR10 remote triangle selection with real Three.js geometry');
    console.log('PASS canonical Quest entry and source mesh-triangle near contact');
