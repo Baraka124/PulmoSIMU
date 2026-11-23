@@ -721,7 +721,7 @@ function install(ctx){
     marker.visible=false;marker.renderOrder=36;scene.add(marker);contactMarkers.push(marker);
   }
   function updatePointerAim(now){
-    if(!active||now-lastAimTime<55)return;
+    if(!active||now-lastAimTime<45)return;
     lastAimTime=now;
     let hoverChanged=false;
     for(let i=0;i<2;i++){
@@ -734,31 +734,30 @@ function install(ctx){
         if(hoverPanels[i]!==null){hoverPanels[i]=null;hoverChanged=true}
         continue;
       }
-      // The menu competes with the organ for the NEAREST actual surface.
-      // Its ray collider is the real textured THREE.Plane, not a fake menu.
-      const panel=panelIntersection(rayFrom(i));
-      const organ=mode==='anatomy'
-        ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
-        :null;
-      const menuWins=Boolean(panel&&(!organ?.hit||panel.distance<=organ.distanceM));
-      const nextHover=menuWins?panel.action:null;
-      if(hoverPanels[i]!==nextHover){hoverPanels[i]=nextHover;hoverChanged=true}
-      const hit=menuWins?panel:organ?.hit?organ:null;
-      if(menuWins){
-        aimTargets[i]={kind:'panel',hit:true,action:panel.action,distanceM:panel.distance};
-      }else if(organ){
-        aimTargets[i]={kind:'anatomy',hit:organ.hit,reason:organ.reason,
-          distanceM:organ.distanceM??null};
+      // XR-12: the *same* nearest-hit router handles hover, click and grip.
+      const {panel,organ,choice}=choosePointer(i);
+      const nextHover=choice.kind==='panel'?choice.action:null;
+      if(hoverPanels[i]!==nextHover){
+        if(nextHover)haptic(i,.09,16);
+        hoverPanels[i]=nextHover;hoverChanged=true;
       }
-      // If nothing is hit, use a short muted aiming ray, never a laser
-      // extending across the entire room or through the operating panel.
-      const distance=hit?(menuWins?panel.distance:organ.distanceM):1.10;
+      if(choice.kind==='panel')
+        aimTargets[i]={kind:'panel',hit:true,action:choice.action,distanceM:choice.distanceM};
+      else if(choice.kind==='anatomy')
+        aimTargets[i]={kind:'anatomy',hit:true,reason:organ.reason,distanceM:choice.distanceM};
+      else if(organ)
+        aimTargets[i]={kind:'none',hit:false,reason:organ.reason,distanceM:null};
+      // Pointer never extends through the foremost actual surface.
+      const distance=choice.kind==='none'?1.10:choice.distanceM;
       laser.scale.z=Math.max(.05,Math.min(3.5,distance));
-      laser.material.color.setHex(menuWins?0xeecb96:organ?.hit?0x80dfd8:0x7896a1);
-      laser.material.opacity=hit?.95:.26;
-      if(hit?.point){
-        tip.position.copy(hit.point);tip.visible=true;
-        tip.material.color.setHex(menuWins?0xeecb96:0x80dfd8);
+      laser.material.color.setHex(choice.kind==='panel'?0xeecb96:
+        choice.kind==='anatomy'?0x80dfd8:0x7896a1);
+      laser.material.opacity=choice.kind==='none'?.25:.95;
+      const point=choice.kind==='panel'?panel?.point:
+        choice.kind==='anatomy'?organ?.point:null;
+      if(point){
+        tip.position.copy(point);tip.visible=true;
+        tip.material.color.setHex(choice.kind==='panel'?0xeecb96:0x80dfd8);
       }
     }
     if(hoverChanged)paint();
