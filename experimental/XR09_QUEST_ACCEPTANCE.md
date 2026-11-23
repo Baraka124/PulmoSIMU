@@ -1,7 +1,7 @@
 # PulmoSIMU · XR-09 Quest 2 session-health and acceptance protocol
 
 **Branch:** `feature/mechanistic-lung-foundation`  
-**Status:** software implementation and automated checks; physical Quest 2 verification pending  
+**Status:** XR-10 controller fixes and automated checks; physical Quest 2 verification pending  
 **Canonical viewer:** original `index.html?xr=procedural&release=XR09-UNIFIED`  
 **No competing viewer and no change to patient anatomy or the R3 numerical solver.**
 
@@ -25,13 +25,13 @@ No raw 6DoF poses, 3D geometry, images, DICOM metadata, patient identifiers, IP 
 1. Open `https://pulmosimu-xr-preview.vercel.app/quest-short/` in **Meta Quest Browser**, on a charged Quest 2, with seated boundary and controllers paired.
 2. Launch **XR-09 · Immersive procedural laboratory**. Use the real **ENTER PROCEDURAL XR** control.
 3. Record whether the *original* lobar and branching airway surfaces appear stereoscopically at comfortable distance. Do not assume these procedural shapes are CT-calibrated.
-4. In ANATOMY, try distance-select, near-surface grip, one- and two-controller movement, and recenter. Attempts to grip empty space must not move anatomy.
+4. In ANATOMY, confirm the lung is placed approximately 1.05 m from the viewer. Aim the controller laser at the real lung surface; the target marker should appear when the ray hits. Hold **either trigger or grip** while moving/turning the controller. Confirm the lung actually translates and rotates, then stays put on release. A brief unmoved trigger tap summons the lung nearer. Also test a direct near-surface grip and simultaneous two-controller resizing. Empty-space rays must never grab the lung.
 5. If hand tracking is available, verify pinch, release, controller handoff, and recovery after briefly occluding a hand. The system should release stale hand grips rather than keep moving the organ.
 6. In BRONCHOSCOPY, advance/retract, steer with right grip, and verify the same original scope/branch/pathology scene. Verify the live endoscopic feed; a frozen/blank/unavailable monitor fails acceptance.
 7. Deliberately let a controller sleep or temporarily lose tracking in a safe seated situation. Confirm no uncontrolled scope motion or lasting object grab. Do not physically walk while testing.
 8. Complete a **10-minute** seated interaction including several mode switches. Visually assess stereo comfort, world stability, labels, scope feed, latency and heat.
 9. Exit XR. In the **same browser page**, choose **EXPORT XR SESSION REPORT**. Share the generated `pulmosimu-xr09-session-report.json` if available; the download is local and user initiated. The page also exposes `pulmoXRSessionReport()` for developer inspection.
-10. Attach a short human acceptance note: headset/browser version, input type, observed issues and whether each step passed. There is no automated substitute for this physical review.
+10. Inspect `interactionAttempts.acceptedRay`, `acceptedNear`, `rejected`, `trigger`, `grip`, and `movedFrames` in the exported JSON. **An accepted grab without moving frames is a failed interaction test.** Attach a short human acceptance note: headset/browser version, input type, observed issues and whether each step passed. There is no automated substitute for this physical review.
 
 ## Interpreting the JSON
 
