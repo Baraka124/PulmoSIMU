@@ -29,8 +29,8 @@ function install(ctx){
   const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
   // WebXR getController(index) is connection-order, NOT reliably left=0/right=1.
   const controllerSources=[null,null],laserLines=[null,null],laserTips=[null,null];
-  const aimTargets=[null,null],squeezeHeld=[false,false];
-  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0};
+  const aimTargets=[null,null],squeezeHeld=[false,false],hoverPanels=[null,null];
+  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0,menuActions:0};
   let lastAimTime=0,grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
@@ -194,9 +194,12 @@ function install(ctx){
   function positionPanels(){
     if(!viewerValid)return;
     if(worldMenu){
-      worldMenu.position.copy(head).addScaledVector(forward,1.18).addScaledVector(right,-.65);
-      worldMenu.position.y-=.04;
+      // Sit the interactive panel closer and slightly to the left of the model.
+      // This is spatial UI, not part of the lung assembly's transform.
+      worldMenu.position.copy(head).addScaledVector(forward,.94).addScaledVector(right,-.48);
+      worldMenu.position.y-=.02;
       worldMenu.lookAt(head);
+      worldMenu.updateWorldMatrix(true,false);
     }
     if(scopeScreen){
       scopeScreen.position.copy(head).addScaledVector(forward,1.34).addScaledVector(right,.74);
@@ -238,6 +241,10 @@ function install(ctx){
       grabFeedback='RIGHT GRIP / STEERING SOURCE SCOPE';return true;
     }
     if(!active||!placed||mode!=='anatomy'||grab[i])return false;
+    if(source==='controller'&&panelIntersection(rayFrom(i))){
+      grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
+      paint();return false;
+    }
     const grip=source==='hand'?handProxies[i]:trackedController(i);
     if(!grip)return false;
     // A near-hand contact is tested against original mesh triangles.
@@ -375,12 +382,17 @@ function install(ctx){
     ray.near=0;ray.far=4;
     return ray;
   }
-  function findPanelHit(r){
-    if(!worldMenu?.visible)return null;
-    const hit=r.intersectObject(worldMenu,false)[0];if(!hit?.uv)return null;
+  function panelIntersection(r){
+    if(!worldMenu?.visible||!r)return null;
+    worldMenu.updateWorldMatrix(true,false);
+    const hit=r.intersectObject(worldMenu,false)[0];
+    if(!hit?.uv||!Number.isFinite(hit.distance))return null;
     const x=hit.uv.x,y=1-hit.uv.y;
-    return actionHitbox.find(a=>x>=a.u&&x<=a.u+a.w&&y>=a.v&&y<=a.v+a.h)?.id||null;
+    const action=actionHitbox.find(a=>x>=a.u&&x<=a.u+a.w&&
+      y>=a.v&&y<=a.v+a.h)?.id||null;
+    return {action,distance:hit.distance,point:hit.point.clone(),x,y};
   }
+  function findPanelHit(r){return panelIntersection(r)?.action||null}
   function summon(){
     if(!viewerValid||mode!=='anatomy'||grab.some(Boolean))return;
     const bounds=sourceBounds();
@@ -413,9 +425,14 @@ function install(ctx){
   }
   function onTrigger(i){
     if(!active||!rayFrom(i))return;
-    const action=findPanelHit(ray);
-    const side=controllerSide[i]|| (i===0?'left':'right');
-    if(action){activate(action);return}
+    const panel=panelIntersection(ray);
+    const side=controllerSide[i]||controllerSources[i]?.handedness||'unknown';
+    if(panel){
+      // Never send a trigger through the interface into the organ behind it.
+      if(panel.action){attempts.menuActions++;activate(panel.action)}
+      else {grabFeedback='POINT AT A PANEL CONTROL';paint()}
+      return;
+    }
     if(mode==='anatomy'){
       // The SELECT trigger is an actual hold-to-manipulate action.
       // A short unmoved tap summons the same original mesh within reach.
@@ -501,7 +518,7 @@ function install(ctx){
   const panelCtx=panelCanvas.getContext('2d');
   const panelTex=new THREE.CanvasTexture(panelCanvas);
   panelTex.encoding=THREE.sRGBEncoding;
-  worldMenu=new THREE.Mesh(new THREE.PlaneGeometry(.7,.41),
+  worldMenu=new THREE.Mesh(new THREE.PlaneGeometry(.82,.48),
     new THREE.MeshBasicMaterial({map:panelTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));
   worldMenu.renderOrder=40;worldMenu.visible=false;scene.add(worldMenu);
   actionHitbox=[
@@ -552,10 +569,11 @@ function install(ctx){
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
+      const hovered=hoverPanels.includes(a.id);
       const available=a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient');
-      c.fillStyle=selected?'#345463':available?'#213641':'#1c2a32';
+      c.fillStyle=hovered?'#476774':selected?'#345463':available?'#213641':'#1c2a32';
       c.fillRect(x,y,width,height);
-      c.strokeStyle=selected?'#adcdd5':available?'#4b6673':'#314652';
+      c.strokeStyle=hovered?'#f1d3a5':selected?'#adcdd5':available?'#4b6673':'#314652';
       c.lineWidth=2;c.strokeRect(x,y,width,height);
       c.fillStyle=available?'#e5eef1':'#6f8791';
       c.font='600 27px system-ui';
