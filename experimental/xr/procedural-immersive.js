@@ -481,6 +481,18 @@ function install(ctx){
   const modes=['nav','biopsy','measure','annotate'];
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
+    if(action==='more'||action==='back'){
+      menuPage=action==='more'?'advanced':'primary';
+      actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);
+      paint();return;
+    }
+    if(action==='view'){
+      const modeNext=stage.snapshot().mode==='studio'?'focus':'studio';
+      stage.setMode(modeNext);
+      grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
+        'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
+      paint();return;
+    }
     if(action==='anatomy')setMode('anatomy');
     if(action==='procedure')setMode('procedure');
     if(action==='reset')frameGroup();
@@ -634,14 +646,27 @@ function install(ctx){
   worldMenu=new THREE.Mesh(new THREE.PlaneGeometry(.82,.48),
     new THREE.MeshBasicMaterial({map:panelTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));
   worldMenu.renderOrder=40;worldMenu.visible=false;scene.add(worldMenu);
-  actionHitbox=[
-    {id:'anatomy',label:'ANATOMY',u:.05,v:.54,w:.43,h:.12},
-    {id:'procedure',label:'BRONCHOSCOPY',u:.52,v:.54,w:.43,h:.12},
-    {id:'tool',label:'INSTRUMENT',u:.05,v:.69,w:.43,h:.12},
-    {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
-    {id:'scale',label:'SOURCE SCALE',u:.05,v:.84,w:.43,h:.12},
-    {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
-  ];
+  // Two focused pages, six generous targets each. The expert controls do
+  // not crowd the core anatomy view, and no original command is removed.
+  const panelLayouts={
+    primary:[
+      {id:'anatomy',label:'ANATOMY',u:.05,v:.54,w:.43,h:.12},
+      {id:'procedure',label:'BRONCHOSCOPY',u:.52,v:.54,w:.43,h:.12},
+      {id:'reset',label:'RECENTER',u:.05,v:.69,w:.43,h:.12},
+      {id:'view',label:'FOCUS VIEW',u:.52,v:.69,w:.43,h:.12},
+      {id:'more',label:'EXPERT TOOLS',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
+    ],
+    advanced:[
+      {id:'tool',label:'INSTRUMENT',u:.05,v:.54,w:.43,h:.12},
+      {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.12},
+      {id:'view',label:'FOCUS VIEW',u:.05,v:.69,w:.43,h:.12},
+      {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
+      {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
+    ]
+  };
+  actionHitbox=panelLayouts.primary;
   function paint(){
     const c=panelCtx,w=1024,h=600;
     const audit=getPatientAudit?.();
@@ -656,7 +681,8 @@ function install(ctx){
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
     c.fillText(('PULMOSIMU XR-12 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
-    c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
+    c.fillText(menuPage==='advanced'?'Research instruments':
+      mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
     c.fillText((mode==='procedure'
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
@@ -684,13 +710,15 @@ function install(ctx){
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
       const hovered=hoverPanels.includes(a.id);
       const available=a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient');
+      const label=a.id==='view'
+        ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):a.label;
       c.fillStyle=hovered?'#476774':selected?'#345463':available?'#213641':'#1c2a32';
       c.fillRect(x,y,width,height);
       c.strokeStyle=hovered?'#f1d3a5':selected?'#adcdd5':available?'#4b6673':'#314652';
       c.lineWidth=2;c.strokeRect(x,y,width,height);
       c.fillStyle=available?'#e5eef1':'#6f8791';
       c.font='600 27px system-ui';
-      c.fillText(a.label,x+23,y+height*.66);
+      c.fillText(label,x+23,y+height*.66);
     }
     panelTex.needsUpdate=true;
   }
@@ -921,6 +949,8 @@ function install(ctx){
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
+    menuPage='primary';actionHitbox=panelLayouts.primary;
+    stage.setMode('studio');qualityStatus='unassessed';
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
@@ -997,6 +1027,8 @@ function install(ctx){
       modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
       scaleMode,scaleClamps,workspaceClamps,
       finalGrabStatus:grabFeedback,
+      stagePresentation:stage.snapshot(),
+      xrFoveation:qualityStatus,
       controllerActions:{...attempts}
     };
     health.end();reportButton.style.display='block';
@@ -1028,6 +1060,8 @@ function install(ctx){
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
     roomShellVisible:Boolean(room.visible),
+    stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
+    panelPage:menuPage,
     worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
     hoverStatus:aimTargets.map(t=>t?{hit:t.hit,reason:t.reason,distanceM:t.distanceM}:null),
