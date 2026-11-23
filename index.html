@@ -2181,7 +2181,7 @@ var patientData = {
 };
 
 let meshMode='reference';
-let ctResearchHidden=null,ctResearchReturn=null;
+let ctResearchHidden=null,ctResearchReturn=null,ctLobeAtlas=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
@@ -2201,6 +2201,7 @@ function setViewMode(mode){
   }
   const returnState=ctResearchHidden&&mode!=='research'?ctResearchReturn:null;
   if(ctResearchHidden&&mode!=='research'){
+    closeCTTerritoryAtlas();
     ctResearchHidden.forEach((visible,object)=>{if(object)object.visible=visible});
     ctResearchHidden=null;ctResearchReturn=null;
   }
@@ -2994,6 +2995,7 @@ window.resetCTResearchView=()=>{
 };
 function _setResearchNeutralMaterial(enabled){
   if(patientData.sourceKind!=='ct-airspace-research'||!patientData.gltf)return false;
+  if(ctLobeAtlas)closeCTTerritoryAtlas();
   if(!patientData.researchMaterials)patientData.researchMaterials=new Map();
   patientData.gltf.traverse(child=>{
     if(!child.isMesh)return;
@@ -3017,6 +3019,45 @@ function _setResearchNeutralMaterial(enabled){
 }
 window.toggleCTResearchMaterial=()=>{
   if(meshMode==='research')_setResearchNeutralMaterial(!patientData.researchNeutral);
+};
+function closeCTTerritoryAtlas(){
+  if(ctLobeAtlas){ctLobeAtlas.dispose();ctLobeAtlas=null;}
+  document.body.classList.remove('ct-lobe-open');
+  const btn=document.getElementById('ct-lobe-toggle');
+  if(btn)btn.textContent='Lobe study';
+}
+window.toggleCTTerritoryAtlas=()=>{
+  if(meshMode!=='research'||!patientData.gltf||!patientData.sourceManifest)return;
+  if(ctLobeAtlas){closeCTTerritoryAtlas();_setResearchNeutralMaterial(true);
+    showToast('Original source surface restored','info');return;}
+  try{
+    _setResearchNeutralMaterial(false);
+    ctLobeAtlas=window.PulmoCTLobeTerritories.create(
+      THREE,patientData.gltf,mGrp,patientData.sourceManifest);
+    const summary=ctLobeAtlas.enable();
+    document.body.classList.add('ct-lobe-open');
+    document.getElementById('ct-lobe-toggle').textContent='Original surface';
+    showToast('Five-lobe atlas territories · '+summary.vertices+' source vertices','info');
+  }catch(error){
+    closeCTTerritoryAtlas();
+    showToast('Lobe workbench: '+String(error.message||error),'error');
+  }
+};
+window.updateCTTerritoryAtlas=()=>{
+  if(!ctLobeAtlas)return;
+  const read=(id)=>Number(document.getElementById(id)?.value||0);
+  const values={
+    rightMajor:read('ct-major-right'),rightMinor:read('ct-minor-right'),
+    leftMajor:read('ct-major-left'),
+    selected:document.getElementById('ct-lobe-focus')?.value||'all'
+  };
+  const summary=ctLobeAtlas.update(values);
+  for(const [control,out] of [
+    ['ct-major-right','ct-major-right-v'],
+    ['ct-minor-right','ct-minor-right-v'],
+    ['ct-major-left','ct-major-left-v']])
+    document.getElementById(out).textContent=read(control)+' mm';
+  return summary;
 };
 // ==================== END CAMERA AUTO-FOCUS ====================
 
@@ -3935,6 +3976,9 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={
       referenceMeshes.forEach(m=>{if(m)m.visible=false;});
     }
 
+    // Source-surface draft colours are disposed before a replacement
+    // study is mounted; no stale geometry or material remains.
+    if(ctLobeAtlas)closeCTTerritoryAtlas();
     // Remove previous patient GLB if reloading
     if (patientData.gltf) {
       mGrp.remove(patientData.gltf);
