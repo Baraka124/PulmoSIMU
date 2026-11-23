@@ -1,0 +1,49 @@
+{
+  "protocol": "PulmoSIMU-A2-source-geometry-v1",
+  "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
+  "method": "Triangle-area-weighted centroid side, original GLB scene transforms inverted through model_from_ras_mm and verified NIfTI sform",
+  "laterality_convention": "RAS anatomical left is X>0, right is X<0",
+  "results": [
+    {
+      "mesh_name": "NLST_CT_right_lung_airspace",
+      "stored_label": "right",
+      "surface_faces": 27498,
+      "watertight": true,
+      "area_fraction_patient_left": 0.8519357580932623,
+      "area_fraction_opposite_name": 0.8519357580932623,
+      "area_weighted_RAS_x_mm": 46.80655792628952,
+      "review_gate": "FAIL"
+    },
+    {
+      "mesh_name": "NLST_CT_left_lung_airspace",
+      "stored_label": "left",
+      "surface_faces": 22690,
+      "watertight": true,
+      "area_fraction_patient_right": 0.9895153290722436,
+      "area_fraction_opposite_name": 0.9895153290722436,
+      "area_weighted_RAS_x_mm": -56.3893571798635,
+      "review_gate": "FAIL"
+    }
+  ],
+  "reference_slices": [
+    35,
+    65,
+    95,
+    125
+  ],
+  "overall_gate": "FAIL_RESEARCH_SEGMENTATION_LATERALITY",
+  "source_CT_overlay_generated_locally": true,
+  "qa_image_binary_published": false,
+  "source_glb_renamed": false,
+  "automatic_clinical_relabelling": false,
+  "bronchoscopy_to_CT": "BLOCKED",
+  "further_requirements": [
+    "Independent expert-review of source CT anatomical sides and GLB surface labels",
+    "Check bilateral airspace boundaries throughout original source",
+    "Correct names only in a versioned audited transformation; never silently edit original GLB",
+    "Obtain validated airway centreline and lumen before CT-specific procedure",
+    "Physical Quest source rendering after correct anatomical QA"
+  ],
+  "research_only": true
+}
