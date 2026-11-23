@@ -232,32 +232,38 @@ try {
   assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
   console.log('PASS original procedural PNEUMO XR: authentic source anatomy, pathology, scope bridge and desktop compatibility');
  }finally{await proceduralXR.close()}
- // New uncached XR-04 entry must identify itself before entering an immersive session.
- const uniqueQuest=await browser.newPage({viewport:{width:1100,height:760}});
+ // Retired launcher routes must never open the competing XR-04/06 viewer.
+ const legacyEntry=await browser.newPage({viewport:{width:1100,height:760}});
  try{
-   await uniqueQuest.goto(host+'/quest4.html',{waitUntil:'domcontentloaded'});
-   assert.match(await uniqueQuest.title(),/XR-04/);
-   assert.match(await uniqueQuest.locator('h1').innerText(),/XR-04/);
-   assert.match(await uniqueQuest.locator('#launchCurrent').getAttribute('href'),/XR04-NEW-20261120-1/);
-   await uniqueQuest.locator('#launchCurrent').click();
-   await uniqueQuest.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('release')==='XR04-NEW-20261120-1');
-   await uniqueQuest.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
-   assert.match(await uniqueQuest.locator('.meta').innerText(),/XR-06/);
-   assert.equal(await uniqueQuest.evaluate(()=>window.pulmoXRDebug()?.version),'XR-06-ANATOMY-WORKBENCH');
-   console.log('PASS explicit XR-04 Quest entrance, unique URL and correct spatial laboratory identity');
- }finally{await uniqueQuest.close()}
- // The headset's short entry must land on the same integrated reference
- // viewer, retain valid region focus, and remain usable on desktop.
+   await legacyEntry.goto(host+'/quest4.html?focus=LLL',{waitUntil:'domcontentloaded'});
+   await legacyEntry.waitForURL(url=>url.pathname.endsWith('/index.html')&&
+     url.searchParams.get('xr')==='procedural'&&url.searchParams.get('focus')==='LLL',
+     {timeout:20000});
+   await legacyEntry.waitForFunction(()=>window.pulmoProceduralXRDebug?.()?.referenceFocus==='LLL',
+     null,{timeout:45000});
+   assert.equal(await legacyEntry.locator('#pulmo-procedural-xr').count(),1);
+   console.log('PASS retired XR04 launcher now routes into the original-engine XR09 workspace');
+ }finally{await legacyEntry.close()}
  const questEntry=await browser.newPage({viewport:{width:1050,height:760}});
  try{
-   await questEntry.goto(host+'/quest.html?focus=LLL',{waitUntil:'domcontentloaded'});
-   await questEntry.waitForURL(u=>u.pathname.endsWith('/experimental/vr.html')&&u.searchParams.get('focus')==='LLL',{timeout:15000});
-   await questEntry.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
-   assert.equal(await questEntry.locator('#selectedId').innerText(),'LLL');
-   await questEntry.locator('#resetView').click();
-   assert.equal(await questEntry.locator('#selectedId').innerText(),'LLL','Recenter must not discard selected reference lobe');
-   assert.equal(await questEntry.evaluate(()=>window.pulmoXRDebug()?.selected),'LLL');
-   console.log('PASS Quest short launch entry: direct viewer, canonical focus, recenter preserves integration');
+   await questEntry.goto(host+'/quest.html?focus=RUL',{waitUntil:'domcontentloaded'});
+   await questEntry.waitForURL(url=>url.pathname.endsWith('/index.html')&&url.searchParams.get('xr')==='procedural',
+     {timeout:20000});
+   await questEntry.waitForFunction(()=>window.pulmoProceduralXRDebug?.()?.referenceFocus==='RUL',
+     null,{timeout:45000});
+   const result=await questEntry.evaluate(()=>{
+     const T=window.THREE;
+     const globe=new T.Mesh(new T.SphereGeometry(1,16,12),
+       new T.MeshBasicMaterial({side:T.DoubleSide}));
+     const hit=window.PulmoXRSurface.contact(T,[globe],new T.Vector3(.98,0,0),{radius:.16});
+     const fakeBox=window.PulmoXRSurface.contact(T,[globe],new T.Vector3(.95,.95,.95),{radius:.16});
+     const far=window.PulmoXRSurface.contact(T,[globe],new T.Vector3(2,0,0),{radius:.16});
+     return {hit,fakeBox,far};
+   });
+   assert.equal(result.hit.hit,true,'Real mesh surface should be grabbable close to contact');
+   assert.equal(result.fakeBox.hit,false,'Empty volume inside a bounding box is not a physical surface');
+   assert.equal(result.far.hit,false,'Distant gestures cannot grab anatomy');
+   console.log('PASS canonical Quest entry and source mesh-triangle near contact');
  }finally{await questEntry.close()}
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
  studio.on('pageerror',error=>console.error('STUDIO PAGE ERROR',error.message));
@@ -285,28 +291,24 @@ try {
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('focusRegion')?.value==='LLL',null,{timeout:15000});
    assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'LLL');
    await studio.locator('#modeXR').click();
-   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Spatial anatomy laboratory');
-   await studio.frameLocator('#workspaceFrame').locator('#selectedId').waitFor({state:'visible',timeout:45000});
-   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('selectedId')?.textContent==='LLL',null,{timeout:15000});
-   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#selectedId').innerText(),'LLL','Mechanism -> XR focus is preserved');
+   assert.equal(await studio.locator('#workspaceTitle').innerText(),'Immersive procedural laboratory');
+   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')
+     ?.contentWindow?.pulmoProceduralXRDebug?.()?.referenceFocus==='LLL',null,{timeout:45000});
+   assert.ok((await studio.locator('#workspaceFrame').getAttribute('src')).includes('/index.html?xr=procedural'),
+     'Studio must embed the original anatomical engine rather than old schematic viewer');
    const questLink=await studio.locator('#launchXR').getAttribute('href');
-   assert.ok(questLink.includes('focus=LLL'),'Direct headset entry carries only canonical selected lobe');
-   await studio.frameLocator('#workspaceFrame').locator('#modeAirway').click();
-   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#modeAirway').getAttribute('aria-pressed'),'true');
-   await studio.frameLocator('#workspaceFrame').locator('#selectedId').evaluate((el)=>{
-     window.parent.postMessage({channel:'pulmosimu.reference-focus.v1',source:'original-procedural-SEGS-snapshot-r2',
-       type:'anatomical-focus',regionId:'RML',branchId:null,origin:'xr',revision:1},location.origin);
-   });
-   await studio.waitForFunction(()=>document.getElementById('workspaceContext')?.textContent?.includes('REFERENCE RML'),null,{timeout:15000});
+   assert.ok(questLink.includes('focus=LLL')&&questLink.includes('index.html'),
+     'Direct Quest entry carries only reference lobe context into original procedure');
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#pulmo-procedural-xr').count(),1);
+   // Do not claim that XR silently transfers new procedure or patient state.
    await studio.locator('#modeMechanisms').click();
    await studio.frameLocator('#workspaceFrame').locator('#focusRegion').waitFor({state:'visible',timeout:45000});
-   await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.contentDocument?.getElementById('focusRegion')?.value==='RML',null,{timeout:15000});
-   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'RML','XR -> Mechanism focus travels through Studio');
+   assert.equal(await studio.frameLocator('#workspaceFrame').locator('#focusRegion').inputValue(),'LLL');
    await studio.locator('#modeProcedure').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    assert.equal(await studio.locator('#modeProcedure').getAttribute('aria-pressed'),'true');
    assert.equal(await studio.locator('#workspaceFrame').getAttribute('src'),'./procedural-workspace.html');
-   console.log('PASS integrated Studio: procedural, mechanics and XR use one canonical reference-focus bridge');
+   console.log('PASS integrated Studio: original procedural XR and separate research mechanisms share canonical context only');
  } finally {await studio.close();}
  const procedural=await browser.newPage({viewport:{width:1440,height:900}});
  try{
