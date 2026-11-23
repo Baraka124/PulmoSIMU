@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PulmoSIMU A2 — versioned anatomical laterality relabelling.
+"""ARCHIVED / DISABLED — historical A2 relabelling with incorrect RAS sign.
 
 Source CT, original GLB and A1 study-manifest.json must match SHA-256.
 Corrects only the source GLB's misleading surface names using RAS x coordinates.
@@ -39,6 +39,7 @@ def nifti_affine(path):
 
 
 def run(source_path, mesh_path, manifest_path, output_path, qa_path):
+    raise RuntimeError("BLOCKED: this historical candidate swaps sides using an incorrect RAS convention. NIfTI RAS +X is patient RIGHT. Use a2_1_correct_nlst_airspace.py instead.")
     source_path, mesh_path = Path(source_path), Path(mesh_path)
     qa = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     if sha256(source_path) != qa["source_sha256"]:
