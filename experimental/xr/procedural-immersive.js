@@ -27,6 +27,24 @@ function install(ctx){
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
+  // Meta Quest Browser may expose fixed foveation on its XR base layer.
+  // Do not modify resolution every frame or claim proven display FPS.
+  function configureComfortRendering(){
+    const layer=rBro.xr.getSession()?.renderState?.baseLayer;
+    try{
+      if(layer&&'fixedFoveation' in layer){
+        layer.fixedFoveation=.35;
+        return 'fixed-foveation requested 0.35; headset performance unverified';
+      }
+      if(typeof rBro.xr.setFoveation==='function'){
+        rBro.xr.setFoveation(.35);
+        return 'renderer foveation requested 0.35; headset performance unverified';
+      }
+      return 'fixed-foveation unsupported; frame-buffer scale 0.78';
+    }catch(error){
+      return 'fixed-foveation unavailable; '+String(error?.name||'browser restriction').slice(0,45);
+    }
+  }
 
   const safe=(a,b,v)=>Math.max(a,Math.min(b,v));
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
@@ -679,7 +697,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-12 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU XR-13 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='advanced'?'Research instruments':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
@@ -904,7 +922,7 @@ function install(ctx){
     cursor:'pointer',borderRadius:'3px',display:'none'});
   global.document.body.appendChild(reportButton);
   const localSessionReport=()=>({
-    release:'XR-12 · Spatial Laboratory',
+    release:'XR-13 · Spatial Observatory',
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     lastInteractionResult:grabFeedback,
@@ -912,13 +930,13 @@ function install(ctx){
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
     scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
-    integration:'XR-12 controller routing on original procedural scene; unvalidated research build'
+    integration:'XR-13 context-first stage on original procedural engine; unvalidated reference anatomy'
   });
   reportButton.addEventListener('click',()=>{
     const blob=new Blob([JSON.stringify(localSessionReport(),null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download='pulmosimu-xr12-session-report.json';
+    a.href=url;a.download='pulmosimu-xr13-session-report.json';
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
@@ -946,6 +964,7 @@ function install(ctx){
   }
   rBro.xr.addEventListener('sessionstart',()=>{
     health.begin(rBro.xr.getSession()?.frameRate??null);
+    qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
