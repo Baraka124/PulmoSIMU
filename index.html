@@ -1322,8 +1322,10 @@ body.ct-source-mode #ext-view{width:100%;flex:1}
         <div><strong>CT-derived airspace · Research model</strong>
         <small id="ct-source-warning">Not clinically validated · No verified airway or pathology</small></div>
         <div class="source-actions">
+          <button type="button" onclick="resetCTResearchView()">Fit both lungs</button>
+          <button id="research-material-toggle" type="button" onclick="toggleCTResearchMaterial()">Original material</button>
+          <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">Inspect CT slices</a>
           <button type="button" onclick="triggerPatientLoad()">Change study</button>
-          <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">View original CT</a>
           <button type="button" onclick="setViewMode('reference')">Reference simulator</button>
         </div>
       </div>
@@ -2878,35 +2880,60 @@ window.jumpToPathology=jumpToPathology;
 
 // ==================== CAMERA AUTO-FOCUS ====================
 function _focusCameraOnGLB(gltfScene){
-  // Compute bounding box in world space
-  const box = new THREE.Box3().setFromObject(gltfScene);
-  if(box.isEmpty()) return;
-
-  const center = new THREE.Vector3();
-  const size   = new THREE.Vector3();
-  box.getCenter(center);
-  box.getSize(size);
-
-  // mGrp is controlled by ext — don't move it, move camera instead.
-  // Reset ext to neutral so the group sits at origin.
-  ext.idle = false;
-  ext.mx   = 0;
-  ext.my   = 0;
-  ext.rx   = -10;
-  ext.ry   = 0;
-  ext.sc   = 1;
-  applyExt();
-
-  // Now the group is at origin. Fit camera distance to bounding box.
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const fovRad = THREE.MathUtils.degToRad(camExt.fov);
-  const dist   = (maxDim / 2) / Math.tan(fovRad / 2) * 1.8;
-
-  // Center mesh vertically in view — offset camera Y by mesh center Y
-  camExt.position.set(center.x, center.y + maxDim * 0.15, center.z + dist);
-  camExt.lookAt(center.x, center.y, center.z);
-  camExt.updateProjectionMatrix();
+  if(!gltfScene)return false;
+  // Reset transforms BEFORE measuring the bounds. Measuring the old
+  // scaled/rotated model was why a CT lung could open tiny or off-center.
+  ext.idle=false;ext.mx=0;ext.my=0;ext.rx=0;ext.ry=0;ext.sc=1;
+  applyExt();mGrp.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(gltfScene);
+  if(box.isEmpty())return false;
+  const center=new THREE.Vector3(),size=new THREE.Vector3();
+  box.getCenter(center);box.getSize(size);
+  const fov=THREE.MathUtils.degToRad(camExt.fov);
+  const aspect=Math.max(.3,camExt.aspect||1);
+  // Fit BOTH original surfaces in the visible aspect ratio, including
+  // their actual depth, with controlled margin for natural orbiting.
+  const viewHeight=Math.max(size.y,size.x/aspect,.005);
+  const distance=(viewHeight*.5)/Math.tan(fov*.5)*1.44+size.z*.65;
+  camExt.up.set(0,1,0);
+  camExt.position.set(center.x,center.y+size.y*.03,center.z+distance);
+  camExt.near=Math.max(.001,distance/2500);
+  camExt.far=Math.max(80,distance+size.z+20);
+  camExt.lookAt(center);camExt.updateProjectionMatrix();
+  return true;
 }
+window.resetCTResearchView=()=>{
+  if(meshMode==='research'&&patientData.gltf){
+    _focusCameraOnGLB(patientData.gltf);
+    showToast('CT surface · full bilateral view restored','info');
+  }
+};
+function _setResearchNeutralMaterial(enabled){
+  if(patientData.sourceKind!=='ct-airspace-research'||!patientData.gltf)return false;
+  if(!patientData.researchMaterials)patientData.researchMaterials=new Map();
+  patientData.gltf.traverse(child=>{
+    if(!child.isMesh)return;
+    if(!patientData.researchMaterials.has(child)){
+      patientData.researchMaterials.set(child,child.material);
+    }
+    // Neutral technical inspection, NOT an approximation of living tissue
+    // and NOT a replacement for the source author's GLB materials.
+    if(enabled){
+      if(!child.userData.ctNeutralMaterial)
+        child.userData.ctNeutralMaterial=new THREE.MeshStandardMaterial({
+          color:0xb9b4aa,roughness:.91,metalness:0,side:THREE.DoubleSide
+        });
+      child.material=child.userData.ctNeutralMaterial;
+    }else child.material=patientData.researchMaterials.get(child);
+  });
+  patientData.researchNeutral=Boolean(enabled);
+  const btn=document.getElementById('research-material-toggle');
+  if(btn)btn.textContent=enabled?'Original material':'Neutral surface';
+  return true;
+}
+window.toggleCTResearchMaterial=()=>{
+  if(meshMode==='research')_setResearchNeutralMaterial(!patientData.researchNeutral);
+};
 // ==================== END CAMERA AUTO-FOCUS ====================
 
 // ==================== SCOPE SIZE + LUMEN READOUT ====================
