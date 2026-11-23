@@ -74,7 +74,7 @@
       1
     ]
   ],
-  "geometry_class": "A2_VERSIONED_RAS_LATERALITY_CANDIDATE_UNVALIDATED",
+  "geometry_class": "ARCHIVED_MISLABELLED_A2_CANDIDATE_DO_NOT_USE",
   "processing_method": "HU(-1010,-400), body enclosure, 2D largest hemithorax components, morphological smoothing; mesh decimation",
   "geometry_summary": {
     "original_right": {
@@ -102,7 +102,7 @@
       "volume_ratio": 0.9998859016980292
     }
   },
-  "validation": "RESEARCH_ONLY_UNVALIDATED_LATERALITY_CANDIDATE",
+  "validation": "INVALID_HISTORICAL_RAS_SIGN_INVERTED_RELABELLING",
   "quality_gates": {
     "image_header_and_file_hash_matching": "AVAILABLE_IN_A1_INSPECTOR",
     "airspace_boundary_versus_ct": "AWAITING_EXPERT_REVIEW",
@@ -112,8 +112,8 @@
     "pulmonary_vasculature": "NOT_AVAILABLE",
     "bronchoscope_to_ct_registration": "BLOCKED",
     "patient_specific_physics": "BLOCKED",
-    "laterality_labels": "CANDIDATE_CORRECTED_RAS_INDEPENDENT_REVIEW_PENDING",
-    "ct_linked_anatomy": "RESEARCH_DISPLAY_ONLY_NOT_APPROVED_FOR_PROCEDURAL_REGISTRATION",
+    "laterality_labels": "INVALID_RAS_SIGN_SWAP_DO_NOT_USE",
+    "ct_linked_anatomy": "BLOCKED_INVALID_CANDIDATE_LABELS",
     "cross_midline_source_contamination": "FLAGGED_14_8_PERCENT_SURFACE_AREA",
     "mask_accuracy": "NOT_INDEPENDENTLY_VALIDATED"
   },
@@ -124,13 +124,13 @@
     "Thresholding may omit consolidated/high-attenuation lung or include non-lung air",
     "Provisional right-surface cross-midline leakage flagged for review",
     "Watertightness and mesh decimation metrics are not evidence of anatomical fidelity",
-    "A2 QA demonstrates both GLB left/right surface names conflict with source NIfTI RAS laterality (85.2% and 99.0% wrong-side mesh area). Do not use for laterality-dependent workflows."
+    "The old A2 candidate label swap is invalid because the NIfTI RAS X convention was inverted."
   ],
   "public_research_metadata_allowed": true,
   "binary_objects_in_git": false,
   "data_distribution_note": "Public text metadata only. Candidate and original binary GLBs and CT are not GitHub Release assets as of this commit.",
   "anatomical_laterality_check": {
-    "status": "RAS_MAJORITY_RELABELED_NOT_CLINICALLY_REVIEWED",
+    "status": "HISTORICAL WRONG SIGN - NOT A VALID LATERALITY CORRECTION",
     "original_mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
     "candidate_mesh_sha256": "8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f",
     "clinical_gate": "BLOCKED",
@@ -139,9 +139,11 @@
   "original_mesh_file": "PulmoSIMU_NLST_CT_Lung_Quest_Research.glb",
   "original_mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
   "review_notes": [
-    "Renamed geometry in separate GLB, no altered vertices/faces; true source RAS x>0 is anatomical left",
-    "Candidate left lung has 14.8% triangle surface area across RAS x=0; requires expert segmentation review",
-    "Five-lobe, airway lumen, vascular separation and CT-driven bronchoscopy are blocked",
-    "Binary candidate GLB distributed separately, not stored in Git history"
-  ]
+    "Archived candidate was generated with RAS +X incorrectly interpreted as patient LEFT; real RAS +X is patient RIGHT.",
+    "Candidate labels were swapped unjustifiably and this candidate is INVALID for research side labels.",
+    "Historical mesh overlaps by 16.33 mL; A2.1 conservative masks are a separate new candidate, not a relabel of this GLB.",
+    "No validated airway or five lobes; no CT-linked procedure."
+  ],
+  "superseded_by": "a2_1_observed_qa.json",
+  "distribution_authorized": false
 }
