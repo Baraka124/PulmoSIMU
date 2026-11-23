@@ -25,7 +25,7 @@ test('XR13 expert menu preserves original actions while primary menu stays compa
     assert.ok(xr.includes('id:'+name),'Required spatial menu action '+name);
   }
   for(const token of ['actionHitbox=panelLayouts.primary',
-    "menuPage=action==='more'?'advanced':'primary'",
+    "action==='precision'?'precision':'primary'",
     "stage.setMode(modeNext)", "menuPage==='advanced'?'Research instruments'",
     "panelPage:menuPage"]){
     assert.ok(xr.includes(token),'Missing contextual scene/UI contract '+token);
