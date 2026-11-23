@@ -17,6 +17,9 @@ function install(ctx){
     throw Error('XR-09 local session health runtime missing');
   if(!global.PulmoXRRemoteTarget?.pick)
     throw Error('XR-10 triangle-backed remote aiming runtime missing');
+  if(!global.PulmoXRInteractionMath?.clampScale)
+    throw Error('XR-11 world-space manipulation limits missing');
+  const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
@@ -42,6 +45,32 @@ function install(ctx){
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
+  let boundsCache=null,limitsApplied=0,scaleClamps=0,workspaceClamps=0;
+  const modelExtent=()=>Math.max(.0001,boundsCache?.size?.x||0,
+    boundsCache?.size?.y||0,boundsCache?.size?.z||0);
+  const focusWorld=()=>boundsCache?.center
+    ?boundsCache.center.clone().multiplyScalar(mGrp.scale.x)
+      .applyQuaternion(mGrp.quaternion).add(mGrp.position)
+    :mGrp.position.clone();
+  function constrainSizeAndFocus(){
+    if(!boundsCache)return;
+    const desiredScale=mGrp.scale.x;
+    const actual=limits.clampScale(Math.max(.0001,desiredScale),modelExtent());
+    if(Math.abs(actual-desiredScale)>1e-6){
+      const center=focusWorld();
+      mGrp.scale.setScalar(actual);
+      mGrp.position.copy(center).sub(boundsCache.center.clone()
+        .multiplyScalar(actual).applyQuaternion(mGrp.quaternion));
+      scaleClamps++;limitsApplied++;
+    }
+    const focus=focusWorld();
+    const range=limits.clampFocus(focus.toArray(),head.toArray());
+    if(range.clamped){
+      mGrp.position.add(new THREE.Vector3(...range.center).sub(focus));
+      workspaceClamps++;limitsApplied++;
+    }
+    mGrp.updateMatrixWorld(true);
+  }
   const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
   const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
   const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:trackedController(i);
@@ -117,14 +146,15 @@ function install(ctx){
     if(!viewerValid)return false;
     summonGeneration++;summonTween=null;
     release(0);release(1);
-    const bounds=sourceBounds();
-    const scale=safe(.1,1.2,Math.min(width/bounds.size.x,.65/bounds.size.y));
+    const bounds=sourceBounds();boundsCache=bounds;
+    const scale=limits.clampScale(Math.min(width/Math.max(.0001,bounds.size.x),
+      .65/Math.max(.0001,bounds.size.y)),modelExtent());
     const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.1,0));
     mGrp.quaternion.identity();
     mGrp.scale.setScalar(scale);scaleMode='comfort';
     mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale));
     mGrp.updateMatrixWorld(true);placed=true;
-    positionPanels();
+    constrainSizeAndFocus();positionPanels();
     return true;
   }
   function setSourceScale(){
@@ -134,14 +164,21 @@ function install(ctx){
       return false;
     const sourceScale=audit.sceneUnitMetres;
     if(!Number.isFinite(sourceScale)||sourceScale<.005||sourceScale>2)return false;
-    const local=sourceBounds().center;
+    const bounds=sourceBounds();boundsCache=bounds;
+    // A deliberate source-scale request must not produce a room-filling organ.
+    const visibleWidth=sourceScale*modelExtent();
+    if(visibleWidth>limits.CONFIG.maximumSpanM||visibleWidth<limits.CONFIG.minimumSpanM){
+      showToast('Physical source scale outside comfortable view; retaining bounded size','warn');
+      return false;
+    }
+    const local=bounds.center;
     const currentCenter=local.clone().multiplyScalar(mGrp.scale.x)
       .applyQuaternion(mGrp.quaternion).add(mGrp.position);
     mGrp.scale.setScalar(sourceScale);
     mGrp.position.copy(currentCenter)
       .sub(local.clone().multiplyScalar(sourceScale).applyQuaternion(mGrp.quaternion));
     scaleMode='source-derived';
-    mGrp.updateMatrixWorld(true);
+    constrainSizeAndFocus();
     return true;
   }
   function clearanceState(){
@@ -248,9 +285,11 @@ function install(ctx){
       effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
       const a=effectiveGrip(0).getWorldPosition(new THREE.Vector3()),b=effectiveGrip(1).getWorldPosition(new THREE.Vector3());
       const initial=gesture.b.clone().sub(gesture.a),current=b.clone().sub(a);
-      if(initial.length()<.07||current.length()<.07)return;
+      const sizing=limits.scaleFromHands(gesture.scale,initial.length(),
+        current.length(),modelExtent());
+      if(!sizing.valid)return;
       const rotation=new THREE.Quaternion().setFromUnitVectors(initial.normalize(),current.normalize());
-      const scaling=safe(.18,1.65,gesture.scale*current.length()/gesture.b.distanceTo(gesture.a));
+      const scaling=sizing.scale;
       const offset=gesture.position.clone().sub(gesture.center).applyQuaternion(rotation).multiplyScalar(scaling/gesture.scale);
       mGrp.position.copy(a.add(b).multiplyScalar(.5)).add(offset);
       mGrp.quaternion.copy(rotation).multiply(gesture.quat);
@@ -261,16 +300,12 @@ function install(ctx){
       const matrix=new THREE.Matrix4().multiplyMatrices(effectiveGrip(i).matrixWorld,grab[i].relative);
       matrix.decompose(mGrp.position,mGrp.quaternion,mGrp.scale);
     }
+    // Clamp the visible organ, not its arbitrary scene pivot. This prevents
+    // giant scales and allows the grip to move farther within a safe workspace.
+    constrainSizeAndFocus();
     if(mGrp.position.distanceToSquared(previousPosition)>.000004||
        mGrp.quaternion.angleTo(previousOrientation)>.004)
       attempts.movedFrames++;
-    // Keep the assembly from passing into the user's head.
-    const distance=mGrp.position.distanceTo(head);
-    if(distance<.38){
-      const offset=mGrp.position.clone().sub(head);
-      if(offset.length()<.001)offset.copy(forward);
-      mGrp.position.copy(head).add(offset.normalize().multiplyScalar(.38));
-    }
   }
   function updateTrackedHands(frame){
     const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
