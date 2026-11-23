@@ -5,7 +5,7 @@ import {createFocus,readFocus} from '../shared/reference-focus.js';
 test('Every workspace uses a canonical single Studio route and trusted focus origin',()=>{
  assert.deepEqual(Object.keys(WORKSPACES),['procedure','mechanisms','xr']);
  assert.deepEqual(Object.values(WORKSPACES).map(w=>w.origin),['procedural','mechanistic','xr']);
- assert.equal(WORKSPACES.xr.path,'./experimental/vr.html');
+ assert.equal(WORKSPACES.xr.path,'./index.html?xr=procedural&release=XR09-UNIFIED');
  const msg=createFocus({regionId:'LLL',origin:'xr',revision:4});
  assert.deepEqual(readFocus(msg),msg);
 });
