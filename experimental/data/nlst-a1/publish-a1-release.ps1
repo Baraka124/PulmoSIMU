@@ -22,6 +22,8 @@ $expectedNifti = '5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b130
 $expectedMesh = '5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $manifest = Join-Path $here 'study-manifest.json'
+$a2report = Join-Path $here 'a2-laterality-qa.json'
+if(-not (Test-Path -LiteralPath $a2report -PathType Leaf)) { throw 'Missing mandatory A2 laterality QA report.' }
 if(-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
   throw "Missing local study-manifest.json. Download the folder from the feature branch first."
 }
@@ -49,6 +51,9 @@ $confirmation = Read-Host "Type PUBLISH-NLST-A1 to confirm you verified license 
 if($confirmation -cne 'PUBLISH-NLST-A1'){throw 'No public upload performed.'}
 $notes = @'
 PRELIMINARY RESEARCH DATA — NOT A CLINICALLY VALIDATED LUNG MODEL
+CRITICAL A2 QA FAILURE: source mesh LEFT/RIGHT names are reversed relative to
+NIfTI RAS anatomy. See a2-laterality-qa.json. Do not connect this GLB to
+patient-specific bronchoscopic navigation until independently corrected.
 
 Source: National Lung Screening Trial (NLST), The Cancer Imaging Archive.
 DOI: https://doi.org/10.7937/TCIA.HMQ8-J677
@@ -67,7 +72,7 @@ try {
   if($LASTEXITCODE -eq 0){
     throw "Release $tag already exists. Refusing to overwrite verified study assets; review the existing release first."
   }
-  & gh release create $tag $source $mesh $manifest --repo $repo --target $target --title 'PulmoSIMU A1 — NLST CT research geometry (unvalidated)' --notes-file $notesPath --prerelease --latest=false
+  & gh release create $tag $source $mesh $manifest $a2report --repo $repo --target $target --title 'PulmoSIMU A1 — NLST CT research geometry (unvalidated)' --notes-file $notesPath --prerelease --latest=false
   if($LASTEXITCODE -ne 0){throw 'GitHub release upload failed; inspect draft release/assets before retrying.'}
   & gh release view $tag --repo $repo --json url,assets
   if($LASTEXITCODE -ne 0){throw 'Unable to verify public release assets.'}
