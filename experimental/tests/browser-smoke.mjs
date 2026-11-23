@@ -474,6 +474,14 @@ try {
    assert.equal(await source.locator('#clip-toggle').isDisabled(),true,
      'No source manifest and locally matched NIfTI/GLB means no 3D registration');
    assert.equal(await source.locator('#cross-3d').isDisabled(),true);
+   for(const control of ['#section-plane','#surface-opacity','#source-gates','#structure-qa-file'])
+     assert.equal(await source.locator(control).count(),1,
+       'Missing A3.1-A4 source inspector '+control);
+   assert.equal(await source.locator('#section-plane').isDisabled(),true);
+   assert.equal(await source.locator('#surface-opacity').isDisabled(),true);
+   const clinicalGate=await source.locator('body').evaluate(()=>
+     window.PulmoSourceAnatomyGate?.assess({}).CTLinkedBronchoscopyAllowed);
+   assert.equal(clinicalGate,false,'CT procedures require independent source airway review');
    await studio.locator('#modeProcedure').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
    console.log('PASS A1 CT anatomy: source-only import, locked unverified registration, original procedure preserved');
