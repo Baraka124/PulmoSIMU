@@ -355,8 +355,28 @@ for(const p of ['axial','coronal','sagittal'])$('mpr-'+p).addEventListener('clic
 $('slice-axial').addEventListener('input',e=>{if(!state.volume)return;state.cross[2]=Number(e.target.value);renderSlices()});
 $('window-preset').addEventListener('change',e=>{state.window=e.target.value;renderSlices()});
 $('clip-toggle').addEventListener('change',()=>applyClipping());
+$('section-plane').addEventListener('change',()=>applyClipping());
+$('surface-opacity').addEventListener('input',()=>applySurfaceOpacity());
 $('cross-3d').addEventListener('change',()=>updateMarker());
 $('structure-select').addEventListener('change',updateStructureVisibility);
+$('structure-qa-file').addEventListener('change',async ev=>{
+  const file=ev.target.files?.[0];
+  ev.target.value='';
+  if(!file)return;
+  try{
+    const data=JSON.parse(await file.text());
+    if(!data?.groups||!data?.CT_SHA256||!data?.structure_findings)
+      throw Error('Expected A3.2–A3.4 source-structure QA JSON');
+    if(state.qa&&data.CT_SHA256!==state.qa.source_sha256)
+      throw Error('Structure-QA CT SHA-256 does not match this source manifest');
+    if(data.clinical_segmentation_approval!=='PENDING_INDEPENDENT_REVIEW')
+      throw Error('Unknown research structure-QA review status');
+    state.structureQA=data;updateResearchGates();
+    setMessage('Source masks QA loaded locally; CT-specific bronchoscopy remains gated.','note');
+  }catch(err){state.structureQA=null;updateResearchGates();
+    setMessage('Source structure QA rejected: '+String(err.message||err),'error');
+  }
+});
 $('reset-view').addEventListener('click',viewReset);
 $('source-files').addEventListener('dragover',e=>{e.preventDefault();$('source-files').classList.add('dropping')});
 $('source-files').addEventListener('dragleave',()=>$('source-files').classList.remove('dropping'));
