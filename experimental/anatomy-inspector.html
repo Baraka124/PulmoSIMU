@@ -17,7 +17,7 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 @media(max-width:640px){header{padding:0 16px;height:60px}main{padding:19px 16px}.intro{display:block}.sourcebar{gap:11px}.sourcebar .caption{width:100%}.push{margin-left:0}.fileinput .filename{max-width:150px}.stage{height:45vh;min-height:280px}.inspector{grid-template-columns:1fr 1fr;padding:15px}.mpr{grid-template-columns:1fr}.mpr-pane canvas{height:230px}.viewerbar{align-items:start}.slicecontrol{gap:7px}.headright{font-size:9px}}
 </style>
 </head><body>
-<header><div class="brand">Pulmo<span>SIMU</span> <span style="font-weight:300;color:#698795"> / Source Anatomy</span></div><div class="headright">A1 / CT-DERIVED RESEARCH · UNVALIDATED</div></header>
+<header><div class="brand">Pulmo<span>SIMU</span> <span style="font-weight:300;color:#698795"> / Source Anatomy</span></div><div class="headright">A1–A2 / CT SOURCE QA · UNVALIDATED</div></header>
 <main>
   <div class="intro"><div><p class="eyebrow">Computational pulmonary anatomy</p><h1>Study the anatomical source.</h1><p class="subtitle">Compare CT-derived lung surfaces with the original image. All selected files stay in this browser session; no study is uploaded.</p></div><button id="offline-help" type="button">How to load a study</button></div>
   <section id="source-files" class="sourcebar" aria-label="Load source imaging files">
@@ -34,10 +34,10 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
       <div><div class="minor">Source status</div><div class="nameval" id="source-state">No manifest loaded</div><div class="muted" id="mesh-count">No surface</div><div class="muted" id="mesh-faces">—</div></div>
       <div><div class="minor">CT volume</div><div class="nameval" id="source-shape">—</div><div class="muted" id="source-spacing">—</div><div class="muted" id="ct-state">No volume loaded</div></div>
       <div><div class="minor">Source alignment</div><div class="nameval" id="registration" data-state="pending">Awaiting NIfTI + manifest</div><div class="muted">Header matching does not establish segmentation accuracy.</div></div>
-      <div class="control division"><label class="minor" for="structure-select">Source surfaces</label><select id="structure-select" disabled><option value="both">Both lung surfaces</option><option value="right">Right source surface</option><option value="left">Left source surface</option></select></div>
+      <div class="control division"><label class="minor" for="structure-select">Source surfaces</label><select id="structure-select" disabled><option value="both">Both lung surfaces</option><option value="right">Mesh named RIGHT (unverified)</option><option value="left">Mesh named LEFT (unverified)</option></select></div>
       <div class="control"><label class="toggle"><input type="checkbox" id="cross-3d" disabled> SHA-256 verified source crosshair in 3D</label><label class="toggle"><input type="checkbox" id="clip-toggle" disabled> Section through source surface (axial)</label></div>
       <div><div class="minor">Estimated airspace volume</div><div class="nameval" id="volume-stats">No source QA loaded</div><div class="muted">Approximate HU-derived connected airspace; not measured whole-lung tissue.</div></div>
-      <div class="warning">SOURCE RESEARCH ONLY. No verified lobar fissures, vessels, patient-specific bronchial routes, airway-wall collision or clinical diagnosis.<div id="qa-details" style="white-space:pre-line;margin-top:8px;color:#9fbbc2"></div></div>
+      <div class="warning">SOURCE RESEARCH ONLY. The known A1 GLB fails A2 right/left laterality QA. A matched CT hash does NOT validate anatomical side labels, lobar fissures, vessels, patient-specific bronchial routes, or clinical diagnosis.<div id="qa-details" style="white-space:pre-line;margin-top:8px;color:#9fbbc2"></div></div>
     </aside>
   </section>
   <div class="viewerbar"><h2>Multiplanar CT inspection</h2><div class="slicecontrol"><span id="slice-readout">No image loaded</span><label for="slice-axial">Slice</label><input id="slice-axial" type="range" min="0" max="149" value="75"><select id="window-preset" aria-label="CT window"><option value="lung">Lung window</option><option value="mediastinum">Mediastinal window</option><option value="bone">Bone window</option></select></div></div>
