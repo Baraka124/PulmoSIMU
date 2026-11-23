@@ -21,6 +21,8 @@ function install(ctx){
     throw Error('XR-11 world-space manipulation limits missing');
   if(!global.PulmoXRSpatialTarget?.choose)
     throw Error('XR-12 deterministic menu/anatomy input router missing');
+  if(!global.PulmoXRStagePresence?.create)
+    throw Error('XR-13 spatial architecture runtime missing');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
@@ -44,6 +46,7 @@ function install(ctx){
   let saved=null,scopeSteering=null,endedXRGeometry=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
+  let menuPage='primary',qualityStatus='unassessed';
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
@@ -585,14 +588,28 @@ function install(ctx){
   // Fixed when the session starts: viewer head motion creates genuine parallax
   // and presence. No fake lung geometry, HUD skyboxes or computer-room overlay.
   const room=new THREE.Group();room.visible=false;scene.add(room);
-  const chamber=new THREE.Mesh(
-    new THREE.SphereGeometry(8,32,16),
-    new THREE.MeshBasicMaterial({color:0x0a1218,side:THREE.BackSide,
+  // Quiet, static vertical luminance gradient for architectural room depth.
+  // Vertex colours are one mesh and one draw call; no blur, bloom or sky HDR.
+  const chamberGeometry=new THREE.SphereGeometry(8,32,16);
+  const heights=chamberGeometry.attributes.position,tones=[];
+  const floorTone=new THREE.Color(0x070e14),horizonTone=new THREE.Color(0x182630);
+  const ceilingTone=new THREE.Color(0x090f16);
+  for(let i=0;i<heights.count;i++){
+    const height=heights.getY(i);
+    const tone=height<0
+      ?floorTone.clone().lerp(horizonTone,Math.min(1,Math.max(0,(height+4)/4)))
+      :horizonTone.clone().lerp(ceilingTone,Math.min(1,height/6));
+    tones.push(tone.r,tone.g,tone.b);
+  }
+  chamberGeometry.setAttribute('color',new THREE.Float32BufferAttribute(tones,3));
+  const chamber=new THREE.Mesh(chamberGeometry,
+    new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,
       depthWrite:false,fog:false}));
   chamber.position.y=1.22;
   chamber.renderOrder=-100;room.add(chamber);
   const floor=new THREE.Mesh(new THREE.CircleGeometry(3.8,64),
-    new THREE.MeshStandardMaterial({color:0x14242e,roughness:1,metalness:0}));
+    new THREE.MeshStandardMaterial({color:0x14242e,roughness:1,metalness:0,
+      transparent:true,opacity:1}));
   floor.rotation.x=-Math.PI/2;room.add(floor);
   const grid=new THREE.GridHelper(7.2,20,0x4e6671,0x263843);
   grid.material.transparent=true;grid.material.opacity=.24;
@@ -608,6 +625,7 @@ function install(ctx){
     new THREE.MeshStandardMaterial({color:0x253742,metalness:.16,roughness:.86,
       transparent:true,opacity:.45}));
   plinth.position.set(0,.03,0);room.add(plinth);
+  const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth});
   // Plinth only indicates working region, never anatomical scale or a patient metric.
   const panelCanvas=document.createElement('canvas');panelCanvas.width=1024;panelCanvas.height=600;
   const panelCtx=panelCanvas.getContext('2d');
