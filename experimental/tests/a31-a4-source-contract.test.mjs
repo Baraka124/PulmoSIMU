@@ -10,6 +10,8 @@ const script=readFileSync(new URL('../anatomy/a31_disjoint_airspace.py',import.m
 const gateSource=readFileSync(new URL('../anatomy/a4-source-gate.js',import.meta.url),'utf8');
 const inspector=readFileSync(new URL('../anatomy/inspector-app.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../anatomy-inspector.html',import.meta.url),'utf8');
+const xr=readFileSync(new URL('../xr/procedural-immersive.js',import.meta.url),'utf8');
+const main=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
 function gate(args){const window={};runInNewContext(gateSource,{window});
  return window.PulmoSourceAnatomyGate.assess(args)}
 test('A3.1 research binary and original CT have separate SHA-256 identities',()=>{
@@ -61,4 +63,12 @@ test('Source inspector exposes source-only opacity, component isolation, MPR cli
     "if(choice.startsWith('mesh:'))","const axis={sagittal:0,coronal:1,axial:2}",
     "state.structureQA=data","updateResearchGates()"])assert.ok(inspector.includes(value),value);
  assert.ok(!inspector.includes('scene.add(new THREE.CatmullRomCurve3'),'No invented bronchi');
+});
+
+test('A4 prevents the original authored bronchoscope from being misrepresented as CT registered',()=>{
+ assert.ok(main.includes('a4-source-gate.js?v=A4-CT-PROCEDURE-GATE'));
+ assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()==='patient')"));
+ assert.ok(xr.includes('CT-SPECIFIC BRONCHOSCOPY BLOCKED / NO REGISTERED AIRWAY'));
+ assert.ok(xr.includes("A4SourceProcedureStatus:getMeshMode()==='patient'"));
+ assert.ok(xr.includes("(a.id!=='procedure'||role==='reference')"));
 });
