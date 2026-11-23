@@ -721,7 +721,7 @@ function install(ctx){
       {id:'reset',label:'RECENTER',u:.05,v:.69,w:.43,h:.12},
       {id:'view',label:'FOCUS VIEW',u:.52,v:.69,w:.43,h:.12},
       {id:'more',label:'EXPERT TOOLS',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     advanced:[
       {id:'tool',label:'INSTRUMENT',u:.05,v:.54,w:.43,h:.12},
@@ -729,7 +729,7 @@ function install(ctx){
       {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.69,w:.43,h:.12},
       {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ]
   };
   actionHitbox=panelLayouts.primary;
@@ -745,7 +745,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-13 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='advanced'?'Research instruments':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
@@ -889,7 +889,10 @@ function install(ctx){
     const menuWasVisible=worldMenu.visible,roomWasVisible=room.visible;
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
+    const originalBg=scene.background;
     try{
+      // The endoscopic feed needs an opaque background even over passthrough.
+      if(xrPresentation==='ar')scene.background=new THREE.Color(0x04080f);
       scopeScreen.visible=false;worldMenu.visible=false;room.visible=false;
       if(guidePlane)guidePlane.visible=false;
       // Three.js replaces auxiliary cameras while XR rendering is enabled.
@@ -928,6 +931,7 @@ function install(ctx){
         }
       }
       camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
+      scene.background=originalBg;
       worldMenu.visible=menuWasVisible;
       if(guidePlane)guidePlane.visible=guideWasVisible;
       room.visible=roomWasVisible;
@@ -1048,21 +1052,24 @@ function install(ctx){
     cursor:'pointer',borderRadius:'3px',display:'none'});
   global.document.body.appendChild(reportButton);
   const localSessionReport=()=>({
-    release:'XR-13 · Spatial Observatory',
+    release:'XR-14 · Guided Procedure / Mixed Reality Preview',
     session:health.snapshot(),
     interactionAttempts:{...attempts},
+    proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
+      actions:guideActions,lastSourceState:guideLastState},
+    sessionType:xrPresentation==='ar'?'mixed-reality-passthrough-preview':'immersive-vr',
     lastInteractionResult:grabFeedback,
     xrGeometryAtExit:endedXRGeometry,
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
     scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
-    integration:'XR-13 context-first stage on original procedural engine; unvalidated reference anatomy'
+    integration:'XR-14 source-guided reference bronchoscopy and passthrough preview; no CT registration or real-world occlusion'
   });
   reportButton.addEventListener('click',()=>{
     const blob=new Blob([JSON.stringify(localSessionReport(),null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download='pulmosimu-xr13-session-report.json';
+    a.href=url;a.download='pulmosimu-xr14-session-report.json';
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
@@ -1208,6 +1215,8 @@ function install(ctx){
       finalGrabStatus:grabFeedback,
       stagePresentation:stage.snapshot(),
       xrFoveation:qualityStatus,
+      sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
+      procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
       controllerActions:{...attempts}
     };
     health.end();reportButton.style.display='block';
