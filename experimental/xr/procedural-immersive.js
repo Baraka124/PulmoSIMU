@@ -646,16 +646,18 @@ function install(ctx){
   grid.position.y=.003;room.add(grid);
   const ringMaterial=new THREE.MeshBasicMaterial({
     color:0x51727f,transparent:true,opacity:.19,depthWrite:false});
+  const spatialRings=[];
   for(const radius of [1.3,2.3,3.4]){
     const ring=new THREE.Mesh(new THREE.RingGeometry(radius,radius+.006,64),
       ringMaterial);
     ring.rotation.x=-Math.PI/2;ring.position.y=.012;room.add(ring);
+    spatialRings.push(ring);
   }
   const plinth=new THREE.Mesh(new THREE.CylinderGeometry(.72,.78,.055,64),
     new THREE.MeshStandardMaterial({color:0x253742,metalness:.16,roughness:.86,
       transparent:true,opacity:.45}));
   plinth.position.set(0,.03,0);room.add(plinth);
-  const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth});
+  const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth,rings:spatialRings});
   // Plinth only indicates working region, never anatomical scale or a patient metric.
   const panelCanvas=document.createElement('canvas');panelCanvas.width=1024;panelCanvas.height=600;
   const panelCtx=panelCanvas.getContext('2d');
