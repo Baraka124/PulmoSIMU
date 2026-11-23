@@ -23,6 +23,8 @@ function install(ctx){
     throw Error('XR-12 deterministic menu/anatomy input router missing');
   if(!global.PulmoXRStagePresence?.create)
     throw Error('XR-13 spatial architecture runtime missing');
+  if(!global.PulmoXRProcedureGuide?.describe)
+    throw Error('XR-14 airway guidance runtime missing');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
@@ -65,6 +67,10 @@ function install(ctx){
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
   let menuPage='primary',qualityStatus='unassessed';
+  let guidePlane=null,guideTex=null,guideCtx=null,guideHitboxes=[];
+  let guideVisible=true,guideStep=0,guideLastState=null,guideActions=0;
+  let xrPresentation='vr',backgroundBeforeXR=null,fogBeforeXR=null;
+  let clearBeforeXR=null,clearAlphaBeforeXR=1,arButton=null;
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
@@ -141,6 +147,7 @@ function install(ctx){
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
     if(scopeScreen)scopeScreen.visible=next==='procedure';
+    if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy')scope.velocity=0;
     paint();
   }
@@ -244,6 +251,14 @@ function install(ctx){
     if(scopeScreen){
       scopeScreen.position.copy(head).addScaledVector(forward,1.34).addScaledVector(right,.74);
       scopeScreen.position.y-=.1;scopeScreen.lookAt(head);
+    }
+    if(guidePlane){
+      // Compact but readable guidance immediately below the live scope feed.
+      // It never overlays the anatomical target or becomes head-locked.
+      guidePlane.position.copy(head).addScaledVector(forward,1.22)
+        .addScaledVector(right,.74);
+      guidePlane.position.y-=.56;guidePlane.lookAt(head);
+      guidePlane.updateWorldMatrix(true,false);
     }
   }
   let lastContact=null;
@@ -424,14 +439,23 @@ function install(ctx){
     return ray;
   }
   function panelIntersection(r){
-    if(!worldMenu?.visible||!r)return null;
-    worldMenu.updateWorldMatrix(true,false);
-    const hit=r.intersectObject(worldMenu,false)[0];
-    if(!hit?.uv||!Number.isFinite(hit.distance))return null;
-    const x=hit.uv.x,y=1-hit.uv.y;
-    const action=actionHitbox.find(a=>x>=a.u&&x<=a.u+a.w&&
-      y>=a.v&&y<=a.v+a.h)?.id||null;
-    return {action,distance:hit.distance,point:hit.point.clone(),x,y};
+    if(!r)return null;
+    const candidates=[];
+    for(const panel of [
+      {object:worldMenu,actions:actionHitbox,role:'menu'},
+      {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'}
+    ]){
+      if(!panel.object?.visible)continue;
+      panel.object.updateWorldMatrix(true,false);
+      const hit=r.intersectObject(panel.object,false)[0];
+      if(!hit?.uv||!Number.isFinite(hit.distance))continue;
+      const x=hit.uv.x,y=1-hit.uv.y;
+      const item=panel.actions.find(a=>x>=a.u&&x<=a.u+a.w&&
+        y>=a.v&&y<=a.v+a.h);
+      candidates.push({action:item&&!item.disabled?item.id:null,
+        distance:hit.distance,point:hit.point.clone(),x,y,role:panel.role});
+    }
+    return candidates.sort((a,b)=>a.distance-b.distance)[0]||null;
   }
   function choosePointer(i){
     const raycast=rayFrom(i);
@@ -518,6 +542,28 @@ function install(ctx){
       if(!setSourceScale())showToast('Source scale requires co-framed CT metadata (not synthetic)','warn');
     }
     if(action==='tool')setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
+    if(action==='guide'){
+      guideVisible=!guideVisible;
+      if(guidePlane)guidePlane.visible=mode==='procedure'&&guideVisible;
+    }
+    if(action==='guide-hide'){guideVisible=false;if(guidePlane)guidePlane.visible=false}
+    if(action==='guide-next')guideStep=Math.min(4,guideStep+1);
+    if(action==='guide-prev')guideStep=Math.max(0,guideStep-1);
+    if(action==='guide-tool'){
+      setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
+      guideActions++;
+    }
+    if(action==='guide-branch0'||action==='guide-branch1'){
+      const index=action==='guide-branch0'?0:1;
+      const current=global.PulmoXRProcedureGuide.describe({
+        segmentId:scope.segId,segment:SEG_MAP[scope.segId],segments:SEG_MAP,
+        position:scope.t,atBranch:scope.atBranch,clinicalMode:getClinMode(),
+        clearance:clearanceState(),monitorStatus,guideStep});
+      if(current.branches[index]?.enabled){
+        enterBranch(current.branches[index].index);
+        guideActions++;
+      }
+    }
     if(action==='exit')rBro.xr.getSession()?.end().catch(()=>{});
     paint();
   }
@@ -680,7 +726,7 @@ function install(ctx){
     advanced:[
       {id:'tool',label:'INSTRUMENT',u:.05,v:.54,w:.43,h:.12},
       {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.12},
-      {id:'view',label:'FOCUS VIEW',u:.05,v:.69,w:.43,h:.12},
+      {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.69,w:.43,h:.12},
       {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT VR',u:.52,v:.84,w:.43,h:.12}
@@ -741,6 +787,7 @@ function install(ctx){
       c.fillText(label,x+23,y+height*.66);
     }
     panelTex.needsUpdate=true;
+    paintGuide();
   }
   // Live bronchoscopy is rendered from the ORIGINAL camScope directly
   // into a render target owned by the SAME VR WebGL context. No canvas
