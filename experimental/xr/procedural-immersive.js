@@ -272,7 +272,10 @@ function install(ctx){
     if(session&&space&&frame?.getJointPose){
       for(const source of session.inputSources){
         if(!source.hand)continue;
-        const i=source.handedness==='left'?0:source.handedness==='right'?1:-1;
+        // The same WebXR input source owns its grip and hand poses.
+        const mapped=controllerSources.indexOf(source);
+        const i=mapped>=0?mapped:
+          source.handedness==='left'?0:source.handedness==='right'?1:-1;
         if(i<0)continue;
         found[i]=true;
         const index=source.hand.get('index-finger-tip'),thumb=source.hand.get('thumb-tip');
@@ -672,6 +675,8 @@ function install(ctx){
   global.document.body.appendChild(reportButton);
   const localSessionReport=()=>({
     session:health.snapshot(),
+    interactionAttempts:{...attempts},
+    lastInteractionResult:grabFeedback,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
     integration:'XR-09 original procedural scene; unvalidated research build'
   });
@@ -737,6 +742,8 @@ function install(ctx){
         viewerValid=false;scope.velocity=0;release(0);release(1);
         handSeen.fill(false);handPinched.fill(false);
         contactMarkers.forEach(marker=>marker.visible=false);
+        laserLines.forEach(line=>{if(line)line.visible=false});
+        laserTips.forEach(tip=>{if(tip)tip.visible=false});
         return;
       }
       if(!placed){
@@ -791,6 +798,8 @@ function install(ctx){
     summonGeneration++;summonTween=null;gesture=null;scopeSteering=null;
     laserLines.forEach(line=>{if(line)line.visible=false});
     laserTips.forEach(tip=>{if(tip)tip.visible=false});
+    controllerSources.fill(null);controllerSide.fill(null);
+    squeezeHeld.fill(false);aimTargets.fill(null);
     placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
