@@ -1,0 +1,147 @@
+{
+  "dataset_title": "PulmoSIMU A1 preliminary bilateral lung airspace research baseline",
+  "origin_dataset": "National Lung Screening Trial (NLST) — The Cancer Imaging Archive",
+  "origin_doi": "https://doi.org/10.7937/TCIA.HMQ8-J677",
+  "origin_license": "CC BY 4.0 (TCIA public NLST radiology CT images)",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "processing_notice": "Derived NIfTI and GLB are transformations and preliminary segmentations; study-specific correspondence to an individual TCIA series has not been independently established.",
+  "source": "NLST_Chest_CT_150_Slices_R21(1).nii",
+  "source_type": "NIfTI-1 3D CT",
+  "source_shape_vox": [
+    512,
+    512,
+    150
+  ],
+  "spacing_mm": [
+    0.5429688096046448,
+    0.5429688096046448,
+    2
+  ],
+  "sform_RAS_mm": [
+    [
+      -0.5429688096046448,
+      0,
+      0,
+      138.728515625
+    ],
+    [
+      0,
+      -0.5429688096046448,
+      0,
+      260.728515625
+    ],
+    [
+      0,
+      0,
+      2,
+      -549.4000244140625
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "HU_stored_slope": 1,
+  "HU_stored_intercept": -1024,
+  "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "mesh_file": "PulmoSIMU_A2_Candidate_RAS_Laterality.glb",
+  "mesh_sha256": "8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f",
+  "model_from_ras_mm": [
+    [
+      0.001,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0.001,
+      0.39
+    ],
+    [
+      0,
+      -0.001,
+      0,
+      0.122
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "geometry_class": "A2_VERSIONED_RAS_LATERALITY_CANDIDATE_UNVALIDATED",
+  "processing_method": "HU(-1010,-400), body enclosure, 2D largest hemithorax components, morphological smoothing; mesh decimation",
+  "geometry_summary": {
+    "original_right": {
+      "vertices": 101848,
+      "faces": 203692,
+      "estimated_airspace_volume_l": 1.779,
+      "watertight": true
+    },
+    "original_left": {
+      "vertices": 84044,
+      "faces": 168084,
+      "estimated_airspace_volume_l": 1.474,
+      "watertight": true
+    },
+    "quest_mesh_left": {
+      "faces": 22690,
+      "vertices": 11347,
+      "watertight": true,
+      "volume_ratio": 0.9998655796462478
+    },
+    "quest_mesh_right": {
+      "faces": 27498,
+      "vertices": 13751,
+      "watertight": true,
+      "volume_ratio": 0.9998859016980292
+    }
+  },
+  "validation": "RESEARCH_ONLY_UNVALIDATED_LATERALITY_CANDIDATE",
+  "quality_gates": {
+    "image_header_and_file_hash_matching": "AVAILABLE_IN_A1_INSPECTOR",
+    "airspace_boundary_versus_ct": "AWAITING_EXPERT_REVIEW",
+    "right_lung_mask_leakage": "FLAGGED_FOR_REVIEW",
+    "lobar_boundaries": "NOT_AVAILABLE",
+    "airway_lumen": "NOT_AVAILABLE",
+    "pulmonary_vasculature": "NOT_AVAILABLE",
+    "bronchoscope_to_ct_registration": "BLOCKED",
+    "patient_specific_physics": "BLOCKED",
+    "laterality_labels": "CANDIDATE_CORRECTED_RAS_INDEPENDENT_REVIEW_PENDING",
+    "ct_linked_anatomy": "RESEARCH_DISPLAY_ONLY_NOT_APPROVED_FOR_PROCEDURAL_REGISTRATION",
+    "cross_midline_source_contamination": "FLAGGED_14_8_PERCENT_SURFACE_AREA",
+    "mask_accuracy": "NOT_INDEPENDENTLY_VALIDATED"
+  },
+  "limitations": [
+    "2 mm through-plane slice spacing",
+    "No clinician-reviewed fissures or five-lobe segmentation",
+    "No segmented bronchial lumen or pulmonary vascular tree",
+    "Thresholding may omit consolidated/high-attenuation lung or include non-lung air",
+    "Provisional right-surface cross-midline leakage flagged for review",
+    "Watertightness and mesh decimation metrics are not evidence of anatomical fidelity",
+    "A2 QA demonstrates both GLB left/right surface names conflict with source NIfTI RAS laterality (85.2% and 99.0% wrong-side mesh area). Do not use for laterality-dependent workflows."
+  ],
+  "public_research_metadata_allowed": true,
+  "binary_objects_in_git": false,
+  "data_distribution_note": "Public text metadata only. Candidate and original binary GLBs and CT are not GitHub Release assets as of this commit.",
+  "anatomical_laterality_check": {
+    "status": "RAS_MAJORITY_RELABELED_NOT_CLINICALLY_REVIEWED",
+    "original_mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
+    "candidate_mesh_sha256": "8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f",
+    "clinical_gate": "BLOCKED",
+    "candidate_report": "a2-candidate-qa.json"
+  },
+  "original_mesh_file": "PulmoSIMU_NLST_CT_Lung_Quest_Research.glb",
+  "original_mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
+  "review_notes": [
+    "Renamed geometry in separate GLB, no altered vertices/faces; true source RAS x>0 is anatomical left",
+    "Candidate left lung has 14.8% triangle surface area across RAS x=0; requires expert segmentation review",
+    "Five-lobe, airway lumen, vascular separation and CT-driven bronchoscopy are blocked",
+    "Binary candidate GLB distributed separately, not stored in Git history"
+  ]
+}
