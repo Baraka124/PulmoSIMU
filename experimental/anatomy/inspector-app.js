@@ -16,18 +16,31 @@ function setMessage(text,kind='note'){
 function short(n){return Number(n).toFixed(2)}
 function escapeHtml(text){return String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const fileLabels=['glb','nii','json'];
+// Known A1 research mesh has failed source-RAS anatomical laterality QA.
+// This fingerprint also catches the older private manifest which predates A2.
+const A2_FLAGGED_GLBSHA='5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f';
+function a2LateralityConflict(){
+  return state.meshSha===A2_FLAGGED_GLBSHA ||
+    state.qa?.mesh_sha256===A2_FLAGGED_GLBSHA ||
+    state.qa?.quality_gates?.laterality_labels==='FAIL_A2_SOURCE_RAS_CONFLICT';
+}
+const a2Warning='A2 QUALITY GATE FAILED: the original GLB RIGHT and LEFT labels conflict with source NIfTI RAS laterality (85.2% and 99.0% opposite-side mesh area). Source-image review required. These are mesh names, NOT verified anatomical sides. Bronchoscope and clinical coupling remain blocked.';
 function applyQa(){
-  $('source-state').textContent=state.qa?String(state.qa.validation||'UNVALIDATED').replaceAll('_',' '):'No manifest loaded';
+  $('source-state').textContent=a2LateralityConflict()
+    ?'A2 LATERALITY FAIL · UNVALIDATED'
+    :state.qa?String(state.qa.validation||'UNVALIDATED').replaceAll('_',' '):'No manifest loaded';
   if(state.qa){
     $('source-shape').textContent=(state.qa.source_shape_vox||[]).join(' × ')||'—';
     $('source-spacing').textContent=(state.qa.spacing_mm||[]).map(x=>Number(x).toFixed(3)).join(' / ')+' mm';
     $('volume-stats').textContent=Object.entries(state.qa.structures||{}).map(([side,s])=>
       side+' '+(s.airspace_volume_l_approx||'—')+' L').join(' · ')||'No volume summary';
-    $('qa-details').textContent=(state.qa.research_flags||state.qa.known_limitations||[]).join('\n• ');
+    $('qa-details').textContent=(a2LateralityConflict()?[a2Warning]:[])
+      .concat(state.qa.research_flags||state.qa.known_limitations||[]).join('\n• ');
   }else{
     $('source-shape').textContent='—';$('source-spacing').textContent='—';
     $('volume-stats').textContent='No source QA loaded';
-    $('qa-details').textContent='No segmentation review or source registration has been established.';
+    $('qa-details').textContent=a2LateralityConflict()?a2Warning:
+      'No segmentation review or source registration has been established.';
   }
   validate();
 }
@@ -38,7 +51,9 @@ function validate(){
   const aligned=Boolean(status?.valid&&ctHashOK&&meshHashOK&&state.qa?.model_from_ras_mm&&state.model);
   $('registration').textContent=!status?'Awaiting NIfTI + manifest':!status.valid?'Mismatch · '+status.reason:
     !ctHashOK?'CT SHA-256 not verified':!meshHashOK?'GLB SHA-256 not verified':
-    'Exact study files and header matched · tissue segmentation UNVALIDATED';
+    a2LateralityConflict()
+      ?'File hashes matched · A2 LATERALITY FAIL · tissue segmentation UNVALIDATED'
+      :'Exact study files and header matched · tissue segmentation UNVALIDATED';
   $('registration').dataset.state=aligned?'valid':status?'error':'pending';
   const enabled=aligned;
   $('clip-toggle').disabled=!enabled;
