@@ -7,6 +7,7 @@ import {REGIONS} from './reference-focus.js';
 export const WORKSPACES=Object.freeze({
  procedure:Object.freeze({path:'./procedural-workspace.html',origin:'procedural'}),
  mechanisms:Object.freeze({path:'./experimental/lab.html',origin:'mechanistic'}),
+ source:Object.freeze({path:'./experimental/anatomy-inspector.html',origin:'source-local'}),
  xr:Object.freeze({path:'./index.html?xr=procedural&release=XR09-UNIFIED',origin:'xr'})
 });
 const regionSet=new Set(REGIONS);
@@ -15,8 +16,10 @@ export function safeWorkspace(v){return Object.hasOwn(WORKSPACES,v)?v:null}
 /** Parse launch state: invalid values are ignored, never interpreted as data. */
 export function readWorkspaceLaunch(query=''){
  const params=new URLSearchParams(String(query).replace(/^\?/,'')); 
- return Object.freeze({mode:safeWorkspace(params.get('mode'))||'procedure',
-  regionId:safeReferenceRegion(params.get('focus'))});
+ const mode=safeWorkspace(params.get('mode'))||'procedure';
+ return Object.freeze({mode,
+  // A source NIfTI/GLB study must never receive synthetic reference-lobe context.
+  regionId:mode==='source'?null:safeReferenceRegion(params.get('focus'))});
 }
 /** Make a same-origin relative URL with only well-formed canonical focus. */
 export function workspaceLaunch(path,{mode=null,regionId=null}={}){
