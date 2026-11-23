@@ -13,7 +13,7 @@ test('unified official Quest/Studio routes point only to original procedural Web
  assert.ok(studio.includes("src:'./index.html?xr=procedural&release=XR09-UNIFIED'"));
  assert.ok(studio.includes("new URL('./index.html?xr=procedural&release=XR09-UNIFIED'"));
  assert.ok(!studio.includes("src:'./experimental/vr.html'"));
- assert.ok(gateway.includes('XR-14 · Immersive Procedure Laboratory'));
+ assert.ok(gateway.includes('Anatomy, in space.')&&gateway.includes('Virtual laboratory'));
  assert.ok(gateway.includes('hold trigger or grip'));
  assert.ok(gateway.includes('XR-14')||gateway.includes('XR-14 · Immersive'));
  assert.ok(gateway.includes('release=XR09-UNIFIED'));
