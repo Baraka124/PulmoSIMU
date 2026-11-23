@@ -47,7 +47,7 @@ h2{font-size:16px;font-weight:570;margin:0 0 10px}p{margin:7px 0;color:var(--mut
 <main>
 <header><div class="brand">PulmoSIMU <small>MECHANISTIC LUNG LAB · EXPERIMENTAL</small></div><div style="font-size:11px;color:var(--muted)">EXPERIMENTAL · NOT CLINICALLY VALIDATED</div></header>
 <aside class="left">
-<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Numerical reference · no organ mesh</option><option value="ct" disabled>CT-derived airway · local pair required</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to numerical laboratory</button>
+<section><div class="eyebrow">Anatomical source</div><select id="anatomyMode"><option value="reference">Numerical reference · no organ mesh</option><option value="ct" disabled>CT-derived airway · local pair required</option><option value="surface" disabled>Source atlas · supplied mesh</option></select><label for="ctMetaFile">CT pipeline metadata · JSON</label><input type="file" id="ctMetaFile" accept=".json,application/json" aria-label="CT pipeline metadata JSON"><label for="ctMeshFile">Matching segmented airway · GLB</label><input type="file" id="ctMeshFile" accept=".glb,model/gltf-binary" aria-label="CT airway GLB"><button class="wide" id="loadCt">Load matched CT geometry</button><button class="wide" id="restoreReference">Return to numerical laboratory</button>
 <div class="eyebrow" style="margin-top:20px">Licensed surface atlas</div>
 <label for="surfaceManifest">Structure manifest · JSON</label><input type="file" id="surfaceManifest" accept=".json,application/json">
 <label for="surfaceMesh">Associated anatomical surfaces · GLB</label><input type="file" id="surfaceMesh" accept=".glb,model/gltf-binary">
@@ -168,7 +168,6 @@ camera.position.set(0,.25,9);scene.add(new THREE.HemisphereLight(0xe9f7ff,0x2c38
 const lamp=new THREE.DirectionalLight(0xffffff,2.2);lamp.position.set(-2,4,6);scene.add(lamp);
 const rim=new THREE.DirectionalLight(0x91bed4,1.5);rim.position.set(3,1,-4);scene.add(rim);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.minDistance=4;controls.maxDistance=15;controls.target.set(0,.12,0);
-const group=new THREE.Group();scene.add(group);
 // CT data is rendered in a separate scene group, never combined spatially
 // with the original reference lung / lobe overlays.
 const ctGroup=new THREE.Group();ctGroup.visible=false;scene.add(ctGroup);
@@ -190,15 +189,19 @@ function updateSurfaceVisibility(){
  $('surfaceVessels').textContent=showSurfaceVessels?'Hide vessels':'Show vessels';
 }
 function syncGeometrySource(){
- group.visible=!ctMode&&!surfaceMode;
+ const hasSource=ctMode||surfaceMode;
+ $('anatomicalStage').classList.toggle('source-mode',hasSource);
+ $('referenceObservatory').hidden=hasSource;
+ $('lungCanvas').hidden=!hasSource;
+ $('resetCamera').hidden=!hasSource;
  ctGroup.visible=ctMode&&!surfaceMode;
  surfaceGroup.visible=surfaceMode&&!ctMode;
  $('ctInspection').hidden=!ctMode;
  $('surfaceInspection').hidden=!surfaceMode;
  $('anatomicalAtlas').hidden=ctMode||surfaceMode;
- $('anatomyMode').value=ctMode?'ct':'reference';
+ $('anatomyMode').value=surfaceMode?'surface':ctMode?'ct':'reference';
  $('anatomyProvenance').textContent=surfaceMode?'EXTERNAL SURFACE ATLAS · UNVALIDATED':
-  ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'PROCEDURAL REFERENCE · NOT CT-DERIVED';
+  ctMode?'CT AIRWAY SEGMENTATION · UNVALIDATED':'NUMERICAL REFERENCE · NO ANATOMICAL SURFACE';
  if(ctMode||surfaceMode)$('networkStatus').textContent='Reference numerical model — NOT computed from displayed geometry';
 }
 function frameGroup(target){
@@ -217,55 +220,21 @@ function disposeCt(){
 }
 function syncAnatomyMode(){syncGeometrySource()}
 
-const lobes=[
-{id:'RUL',pos:[1.0,1.1,0],scale:[.78,1.10,.75],rotation:-.20},
-{id:'RML',pos:[.98,.04,.38],scale:[.72,.65,.60],rotation:-.16},
-{id:'RLL',pos:[1.08,-1.03,-.08],scale:[.85,1.05,.77],rotation:.08},
-{id:'LUL',pos:[-1.02,.82,0],scale:[.82,1.30,.76],rotation:.13},
-{id:'LLL',pos:[-1.10,-.95,-.10],scale:[.88,1.17,.82],rotation:-.10}
-];
-const meshes={};
-for(const l of lobes){const g=new THREE.SphereGeometry(1,48,32),m=new THREE.MeshPhysicalMaterial({color:0xae7578,roughness:.55,metalness:0,transparent:true,opacity:.84,clearcoat:.18,depthWrite:false,side:THREE.DoubleSide});
-const mesh=new THREE.Mesh(g,m);mesh.position.set(...l.pos);mesh.scale.set(...l.scale);mesh.rotation.z=l.rotation;mesh.userData.region=l.id;group.add(mesh);meshes[l.id]=mesh;
-const edge=new THREE.LineSegments(new THREE.EdgesGeometry(g,34),new THREE.LineBasicMaterial({color:0x9fc2ce,transparent:true,opacity:.08}));mesh.add(edge);
-}
-// R2: source airway topology is imported unchanged from PulmoSIMU's original SEGS.
-const airwayGroup=new THREE.Group();group.add(airwayGroup);
-const airwayMat=new THREE.MeshStandardMaterial({color:0xcad4d6,roughness:.46,metalness:.03,transparent:true,opacity:.90});
-let airwayGraph=null,airwaysVisible=true,isolation=false;
+// No invented lobe ellipsoids, fictitious 3D bronchial surfaces, or
+// disease-painted organ meshes in this numerical laboratory.
+let airwayGraph=null,isolation=false;
 async function loadAirways(){
  try{
   airwayGraph=await fetchReferenceAirwayGraph();
-  const materialMap=new Map();
-  for(const node of airwayGraph.nodes){
-   const pts=node.points.map(p=>new THREE.Vector3(p[0]*1.55,p[1]*1.55,p[2]*1.55));
-   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',.5);
-   const lengthSamples=Math.max(24,pts.length*8);
-   // Taper from proximal to distal cross-sectional radius along segment.
-   const frames=curve.computeFrenetFrames(lengthSamples,false);
-   const vertices=[],normals=[],triangles=[];
-   const sides=12;
-   for(let i=0;i<=lengthSamples;i++){
-    const t=i/lengthSamples,point=curve.getPoint(t);
-    const rad=(node.radiusStart*(1-t)+node.radiusEnd*t)*1.55;
-    for(let j=0;j<=sides;j++){
-     const angle=j/sides*Math.PI*2;
-     const normal=frames.normals[i].clone().multiplyScalar(Math.cos(angle)).addScaledVector(frames.binormals[i],Math.sin(angle));
-     const pos=point.clone().addScaledVector(normal,rad);
-     vertices.push(pos.x,pos.y,pos.z);normals.push(normal.x,normal.y,normal.z);
-     if(i<lengthSamples&&j<sides){const a=i*(sides+1)+j,b=a+sides+1;triangles.push(a,b,a+1,b,b+1,a+1)}
-    }
-   }
-   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-   geo.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geo.setIndex(triangles);
-   const mesh=new THREE.Mesh(geo,airwayMat.clone());mesh.userData.airwayId=node.id;
-   mesh.userData.region=airwayGraph.regionOf(node.id);airwayGroup.add(mesh);materialMap.set(node.id,mesh);
-  }
-  $('regionNote').textContent='Original PulmoSIMU airway hierarchy loaded · '+airwayGraph.nodes.length+' branches';
+  $('regionNote').textContent='R3 reference network · '+airwayGraph.nodes.length+' computational branches';
   draw();
- }catch(err){$('regionNote').textContent='Reference airway model unavailable: '+err.message;$('networkStatus').textContent='Network unavailable';}
+ }catch(error){
+  $('regionNote').textContent='Numerical network unavailable: '+error.message;
+  $('networkStatus').textContent='Network unavailable';
+ }
 }
 validateAtlas();
+syncGeometrySource();
 loadAirways();
 $('anatomyMode').addEventListener('change',()=>{if($('anatomyMode').value==='reference'&&ctMode)$('restoreReference').click()});
 $('surfaceLobes').onclick=()=>{showSurfaceLobes=!showSurfaceLobes;updateSurfaceVisibility()};
@@ -330,7 +299,7 @@ $('loadSurfaceAtlas').onclick=async()=>{
  }
 };
 $('restoreReference').onclick=()=>{
- disposeCt();disposeSurface();syncAnatomyMode();$('ctStatus').textContent='Reference model active. CT geometry cleared from memory.';
+ disposeCt();disposeSurface();syncAnatomyMode();$('ctStatus').textContent='Numerical reference active. Imported geometry cleared from memory.';
  camera.near=.1;camera.far=100;camera.updateProjectionMatrix();camera.position.set(0,.25,9);controls.target.set(0,.12,0);controls.update();draw();
 };
 $('loadCt').onclick=async()=>{
