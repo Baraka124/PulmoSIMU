@@ -372,8 +372,11 @@ function install(ctx){
     const action=findPanelHit(ray);
     const side=controllerSide[i]|| (i===0?'left':'right');
     if(action){activate(action);return}
-    if(mode==='anatomy')pickFromScene(ray);
-    else if(side==='right'){
+    if(mode==='anatomy'){
+      // The SELECT trigger is an actual hold-to-manipulate action.
+      // A short unmoved tap summons the same original mesh within reach.
+      startGrab(i,'controller','trigger');
+    }else if(side==='right'){
       if(scope.atBranch){enterBranch(Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1))}
       else fireAction();
     }else if(scope.atBranch)enterBranch(0);
@@ -396,27 +399,42 @@ function install(ctx){
     let leftControllerAvailable=false;
     for(const src of session.inputSources){
       if(!src.gamepad)continue;
-      const i=src.handedness==='left'?0:src.handedness==='right'?1:-1;
+      const i=controllerSources.indexOf(src);
       if(i<0)continue;
-      if(i===0)leftControllerAvailable=true;
+      // Input-source array slots are connection order, NOT left/right.
+      const side=src.handedness||controllerSide[i];
+      if(side==='left')leftControllerAvailable=true;
       const buttons=src.gamepad.buttons||[];
       const edge=idx=>{const pressed=!!buttons[idx]?.pressed,prior=!!mapButtons[i][idx];mapButtons[i][idx]=pressed;return pressed&&!prior};
+      // Quest Touch xr-standard: trigger[0], grip[1]. Polling backs up
+      // WebXR select/squeeze events, but cannot bypass triangle targeting.
+      if(buttons[0]){
+        if(edge(0)&&!grab[i])onTrigger(i);
+        if(!buttons[0].pressed&&grab[i]?.input==='trigger')release(i,'controller','trigger');
+      }
+      if(buttons[1]){
+        const pressed=!!buttons[1].pressed;
+        if(pressed&&!squeezeHeld[i]&&!grab[i]&&!scopeSteering)
+          startGrab(i,'controller','grip');
+        if(!pressed&&squeezeHeld[i])release(i,'controller','grip');
+        squeezeHeld[i]=pressed;
+      }
       const axes=Array.from(src.gamepad.axes||[]);
       const n=axes.length>=4?2:0;
       const x=Math.abs(axes[n]||0)<.13?0:axes[n],y=Math.abs(axes[n+1]||0)<.13?0:axes[n+1];
-      if(i===1&&edge(4))setMode(mode==='anatomy'?'procedure':'anatomy');
-      if(i===0&&edge(4))frameGroup();
+      if(side==='right'&&edge(4))setMode(mode==='anatomy'?'procedure':'anatomy');
+      if(side==='left'&&edge(4))frameGroup();
       if(mode!=='procedure')continue;
-      if(i===0){
+      if(side==='left'){
         if(y)scope.velocity=-y*CFG.scopeSpd/900;
         if(x)scope.roll+=x*.03;
-      }else{
+      }else if(side==='right'){
         if(!scopeSteering){
           scope.deflH=safe(-1,1,scope.deflH*.82+x*.18);
           scope.deflV=safe(-1,1,scope.deflV*.82-y*.18);
         }
       }
-      if(i===1&&edge(5))activate('tool');
+      if(side==='right'&&edge(5))activate('tool');
     }
     // A vanished controller must not leave the original scope advancing.
     if(mode==='procedure'&&!leftControllerAvailable)scope.velocity=0;
@@ -462,7 +480,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText('PULMOSIMU  /  XR-09 UNIFIED ENGINE',48,64);
+    c.fillText(('PULMOSIMU XR-10 / '+(active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
@@ -472,7 +490,7 @@ function install(ctx){
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
-       :'TRIGGER: SUMMON · NEAR GRIP: HOLD · BOTH: RESIZE',48,236);
+       :'AIM LASER · HOLD TRIGGER/GRIP TO MOVE · TWO GRIPS TO RESIZE',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
     c.fillText(source,48,274);
     c.fillStyle='#d8e1e4';c.font='22px system-ui';
