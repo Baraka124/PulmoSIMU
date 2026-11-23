@@ -60,7 +60,7 @@ function assess({manifest=null,ctSha=null,meshSha=null,structureQA=null,
     researchAnatomyInspectionAllowed:allSource,
     researchStageStatus:Object.freeze(status.map(x=>Object.freeze(x))),
     masksPresent:required.filter(x=>structureQA?.structure_findings?.[x]?.status===
-      'SOURCE_COFRAMED_RESEARCH_MASK_UNREVIEWED'),
+      'SOURCE_COFAMED_RESEARCH_MASK_UNREVIEWED'),
     clinicalAnatomyValidated:false,
     CTLinkedBronchoscopyAllowed:a4Candidate,
     CTLinkedBronchoscopyStatus:a4Candidate?
