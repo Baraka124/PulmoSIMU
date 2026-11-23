@@ -27,7 +27,7 @@ function install(ctx){
   // WebXR getController(index) is connection-order, NOT reliably left=0/right=1.
   const controllerSources=[null,null],laserLines=[null,null],laserTips=[null,null];
   const aimTargets=[null,null],squeezeHeld=[false,false];
-  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0};
+  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0};
   let lastAimTime=0,grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
@@ -241,6 +241,7 @@ function install(ctx){
   function updateGrab(){
     if(!grab[0]&&!grab[1]||mode!=='anatomy')return;
     mGrp.parent?.updateMatrixWorld(true);
+    const previousPosition=mGrp.position.clone(),previousOrientation=mGrp.quaternion.clone();
     if(grab[0]&&grab[1]&&gesture){
       effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
       const a=effectiveGrip(0).getWorldPosition(new THREE.Vector3()),b=effectiveGrip(1).getWorldPosition(new THREE.Vector3());
@@ -258,6 +259,9 @@ function install(ctx){
       const matrix=new THREE.Matrix4().multiplyMatrices(effectiveGrip(i).matrixWorld,grab[i].relative);
       matrix.decompose(mGrp.position,mGrp.quaternion,mGrp.scale);
     }
+    if(mGrp.position.distanceToSquared(previousPosition)>.000004||
+       mGrp.quaternion.angleTo(previousOrientation)>.004)
+      attempts.movedFrames++;
     // Keep the assembly from passing into the user's head.
     const distance=mGrp.position.distanceTo(head);
     if(distance<.38){
