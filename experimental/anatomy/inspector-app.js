@@ -5,7 +5,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const state={volume:null,qa:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],
+const state={volume:null,qa:null,structureQA:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
   window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0};
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
@@ -32,6 +32,17 @@ function a2CandidateReviewPending(){
    state.qa?.quality_gates?.laterality_labels==='CANDIDATE_CORRECTED_RAS_INDEPENDENT_REVIEW_PENDING';
 }
 const a2CandidateWarning='A2 VERSIONED CANDIDATE: mesh node names follow NIfTI RAS laterality but segmentation is NOT independently validated. CT-voxel QA found 16.3 mL overlap between candidate lungs; 14.8% of left-mesh surface AREA (1.06% of left-mesh voxel VOLUME) crosses RAS midline. Five lobes, vessels, airway lumen, clinical coupling and patient-specific bronchoscopy remain BLOCKED.';
+function updateResearchGates(){
+  if(!window.PulmoSourceAnatomyGate?.assess)return;
+  const status=window.PulmoSourceAnatomyGate.assess({
+    manifest:state.qa,ctSha:state.ctSha,meshSha:state.meshSha,
+    structureQA:state.structureQA
+  });
+  $('source-gates').textContent=status.researchStageStatus.map(s=>
+    s.id+' / '+s.name+' — '+s.status.replaceAll('_',' ')
+  ).join('\n')+
+  '\nClinical anatomy validated: NO · CT-specific bronchoscopy: '+status.CTLinkedBronchoscopyStatus;
+}
 function applyQa(){
   $('source-state').textContent=a2LateralityConflict()
     ?'A2 LATERALITY FAIL · UNVALIDATED'
@@ -52,7 +63,7 @@ function applyQa(){
       a2CandidateReviewPending()?a2CandidateWarning:
       'No segmentation review or source registration has been established.';
   }
-  validate();
+  validate();updateResearchGates();
 }
 function validate(){
   const status=state.volume&&state.qa?window.PulmoNiftiSource.matchQA(state.volume,state.qa):null;
@@ -71,8 +82,9 @@ function validate(){
   const enabled=aligned;
   $('clip-toggle').disabled=!enabled;
   $('cross-3d').disabled=!enabled;
+  $('section-plane').disabled=!enabled;
   if(!enabled){state.clip=false;$('clip-toggle').checked=false;}
-  updateMarker();applyClipping();
+  updateMarker();applyClipping();updateResearchGates();
 }
 let scene=null,renderer=null,camera=null,orbit=null,modelGroup=null,marker=null,
   scenePlane=null,workLight=null,originalMaterials=[];
