@@ -7,7 +7,7 @@ import {REGIONS} from './reference-focus.js';
 export const WORKSPACES=Object.freeze({
  procedure:Object.freeze({path:'./procedural-workspace.html',origin:'procedural'}),
  mechanisms:Object.freeze({path:'./experimental/lab.html',origin:'mechanistic'}),
- xr:Object.freeze({path:'./experimental/vr.html',origin:'xr'})
+ xr:Object.freeze({path:'./index.html?xr=procedural&release=XR09-UNIFIED',origin:'xr'})
 });
 const regionSet=new Set(REGIONS);
 export function safeReferenceRegion(v){return regionSet.has(v)?v:null}
