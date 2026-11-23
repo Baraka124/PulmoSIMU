@@ -196,7 +196,7 @@ function install(ctx){
     if(worldMenu){
       // Sit the interactive panel closer and slightly to the left of the model.
       // This is spatial UI, not part of the lung assembly's transform.
-      worldMenu.position.copy(head).addScaledVector(forward,.94).addScaledVector(right,-.48);
+      worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.69);
       worldMenu.position.y-=.02;
       worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
