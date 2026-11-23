@@ -30,7 +30,7 @@ test('XR13 expert menu preserves original actions while primary menu stays compa
     "panelPage:menuPage"]){
     assert.ok(xr.includes(token),'Missing contextual scene/UI contract '+token);
   }
-  assert.ok(launcher.includes('XR-14 · Immersive Procedure Laboratory'));
+  assert.ok(launcher.includes('Virtual laboratory')&&launcher.includes('Mixed reality'));
   assert.ok(launcher.includes('EXPERT TOOLS'));
   assert.ok(launcher.includes('FOCUS VIEW'));
 });
