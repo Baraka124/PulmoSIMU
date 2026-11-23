@@ -290,6 +290,38 @@ try {
    assert.equal(result.hit.hit,true,'Real mesh surface should be grabbable close to contact');
    assert.equal(result.fakeBox.hit,false,'Empty volume inside a bounding box is not a physical surface');
    assert.equal(result.far.hit,false,'Distant gestures cannot grab anatomy');
+   const remote=await questEntry.evaluate(()=>{
+     const T=window.THREE;
+     const root=new T.Group();
+     const sphere=new T.Mesh(new T.SphereGeometry(1,32,16),
+       new T.MeshBasicMaterial({side:T.DoubleSide}));
+     sphere.position.set(0,0,-1.5);root.add(sphere);
+     const pointer=new T.Group();pointer.position.set(0,0,0);
+     const front=window.PulmoXRRemoteTarget.pick(T,pointer,[root]);
+     pointer.position.set(.95,.95,0);
+     const emptyCorner=window.PulmoXRRemoteTarget.pick(T,pointer,[root]);
+     pointer.position.set(0,0,0);pointer.rotation.y=Math.PI;
+     const lookingAway=window.PulmoXRRemoteTarget.pick(T,pointer,[root]);
+     pointer.rotation.y=0;
+     const tooFar=window.PulmoXRRemoteTarget.pick(T,pointer,[root],{maxDistance:.30});
+     const noSource=window.PulmoXRRemoteTarget.pick(T,pointer,[]);
+     return {
+       front:{hit:front.hit,reason:front.reason,distance:front.distanceM,
+         pointZ:front.point?.z},
+       emptyCorner:{hit:emptyCorner.hit,reason:emptyCorner.reason},
+       lookingAway:{hit:lookingAway.hit,reason:lookingAway.reason},
+       tooFar:{hit:tooFar.hit,reason:tooFar.reason},
+       noSource:{hit:noSource.hit,reason:noSource.reason}
+     };
+   });
+   assert.equal(remote.front.hit,true,'Quest remote trigger/grip must select actual source triangle 1.5m away');
+   assert.equal(remote.front.reason,'triangle-ray');
+   assert.ok(remote.front.distance>.3&&remote.front.distance<1);
+   assert.equal(remote.emptyCorner.hit,false,'Ray through an empty bounding-box corner cannot grab');
+   assert.equal(remote.lookingAway.hit,false,'Pointing away never moves anatomy');
+   assert.equal(remote.tooFar.hit,false,'Bounded distant selection must honour reach limit');
+   assert.equal(remote.noSource.hit,false,'No anatomy source means no grab');
+   console.log('PASS XR10 remote triangle selection with real Three.js geometry');
    console.log('PASS canonical Quest entry and source mesh-triangle near contact');
  }finally{await questEntry.close()}
  const studio=await browser.newPage({viewport:{width:1440,height:900}});
