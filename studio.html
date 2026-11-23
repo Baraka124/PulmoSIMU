@@ -24,7 +24,8 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <div class="brand"><strong>PulmoSIMU</strong><p>Respiratory Systems Laboratory</p></div>
 <div class="eyebrow">Work environment</div>
 <button type="button" class="mode" id="modeProcedure" aria-pressed="true"><strong>Procedural simulation</strong><small>Virtual bronchoscopy, navigation and surgical planning</small></button>
-<button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional numerical models, disease hypotheses and source inspection</small></button>
+<button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional numerical models and physiological hypotheses</small></button>
+<button type="button" class="mode" id="modeSource" aria-pressed="false"><strong>CT anatomical source</strong><small>Local NIfTI · original meshes · multiplanar review</small></button>
 <button type="button" class="mode" id="modeXR" aria-pressed="false"><strong>Immersive procedural XR</strong><small>Original anatomical scene, registered imaging and bronchoscopy</small></button>
 <a href="./index.html?xr=procedural&amp;release=XR09-UNIFIED" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open original-engine XR in new tab ↗</a>
 <div class="foot">Experimental research platform.<p>Procedural and immersive XR workspaces use the original application scene. Research focus transfers only as reference-region context, never as patient data, treatment state, or instrument commands. Physics and imported imaging require independent validation.</p>Not clinically validated.</div>
@@ -36,6 +37,7 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 const modes={
  procedure:{src:'./procedural-workspace.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
  mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Quantitative physiology · disease hypotheses · intervention experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Source-only 3D; regional charts are calculations, not fabricated lung anatomy. No patient-specific treatment prediction.'},
+ source:{src:'./experimental/anatomy-inspector.html',title:'CT anatomical source inspector',subtitle:'Original NIfTI · derived GLB · independently checked spatial metadata',context:'SOURCE RESEARCH / UNVALIDATED',note:'All CT and GLB files are loaded locally. No bronchoscopic instrument registration or validated lung segmentation is implied.'},
  xr:{src:'./index.html?xr=procedural&release=XR09-UNIFIED',title:'Immersive procedural laboratory',subtitle:'Original PulmoSIMU geometry · tracked interaction · bronchoscopy',context:'ORIGINAL SOURCE / XR RESEARCH',note:'Same original procedural scene. To enter immersive VR in Quest, use the direct top-level XR link. Source calibration is not clinical validation.'}
 };
 let current='procedure';
@@ -44,6 +46,7 @@ function activate(which){
  current=which;const m=modes[which];
  document.getElementById('modeProcedure').setAttribute('aria-pressed',String(which==='procedure'));
  document.getElementById('modeMechanisms').setAttribute('aria-pressed',String(which==='mechanisms'));
+ document.getElementById('modeSource').setAttribute('aria-pressed',String(which==='source'));
  document.getElementById('modeXR').setAttribute('aria-pressed',String(which==='xr'));
  document.getElementById('workspaceTitle').textContent=m.title;
  document.getElementById('workspaceSubtitle').textContent=m.subtitle;
@@ -60,6 +63,7 @@ function activate(which){
 }
 document.getElementById('modeProcedure').addEventListener('click',()=>activate('procedure'));
 document.getElementById('modeMechanisms').addEventListener('click',()=>activate('mechanisms'));
+document.getElementById('modeSource').addEventListener('click',()=>activate('source'));
 document.getElementById('modeXR').addEventListener('click',()=>activate('xr'));
 </script>
 <script type="module">
