@@ -201,6 +201,21 @@ try {
   await proceduralXR.waitForFunction(()=>typeof window.pulmoProceduralXRDebug==='function',null,{timeout:45000});
   const status=await proceduralXR.evaluate(()=>window.pulmoProceduralXRDebug());
   assert.equal(status.source,'original-pneumovr-scene');
+  await proceduralXR.waitForFunction(()=>window.PulmoXRReferencePhysicsStatus==='reference-ready',
+    null,{timeout:30000});
+  const solver=await proceduralXR.evaluate(()=>{
+    const engine=window.PulmoXRReferencePhysics;
+    if(!engine)return null;
+    const sample=engine.step(.08);
+    return {sample,after:engine.read()};
+  });
+  assert.equal(solver?.sample?.validation?.solver,'R3 linear RC network');
+  assert.equal(solver?.sample?.validation?.clinicalValidated,false);
+  assert.equal(solver?.sample?.validation?.meshMotionCoupled,false);
+  assert.equal(solver?.after?.airwayCount,18);
+  assert.ok(Number.isFinite(solver?.after?.pressurePa),
+    'Original scene can run the same SI-unit R3 reference physics without a second solver');
+
   assert.equal(status.mode,'anatomy');
   assert.ok(status.originalAnatomyMeshes>=15,'Original lobed lungs and bronchial anatomy, not the five schematic fallback lobes');
   assert.ok(status.originalSegments>=15,'Original procedural bronchial tree is connected');
