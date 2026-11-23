@@ -9,7 +9,7 @@ test('XR-09 runtime is browser-valid classic JavaScript compatible with original
  assert.equal(r.status,0,r.stderr);
  assert.match(source,/global\.PulmoImmersiveXR=\{install\}/);
  assert.match(original,/three@0\.128\.0/);
- assert.match(original,/procedural-immersive\.js\?v=XR13-SPATIAL-STAGE/);
+ assert.match(original,/procedural-immersive\.js\?v=XR14-PROCEDURE-MR/);
 });
 test('only original clinical scene, geometry and procedural state drive headset experience',()=>{
  for(const k of ['scene, rBro, rExt, camScope, mGrp','scope, CFG, SEGS, SEG_MAP, pathCurves','patientData','proceduralMeshes','referenceMeshes','pathoMeshes','fireAction,enterBranch','setClinMode,getClinMode','getAnatomyMeshes'])
