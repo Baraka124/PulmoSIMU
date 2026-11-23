@@ -260,14 +260,10 @@ function install(ctx){
       grabFeedback='RIGHT GRIP / STEERING SOURCE SCOPE';return true;
     }
     if(!active||!placed||mode!=='anatomy'||grab[i])return false;
-    if(source==='controller'){
-      const panel=panelIntersection(rayFrom(i));
-      const organ=panel?global.PulmoXRRemoteTarget.pick(
-        THREE,hands[i],surfaceTarget(),{maxDistance:3.5}):null;
-      if(panel&&(!organ?.hit||panel.distance<=organ.distanceM)){
-        grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
-        paint();return false;
-      }
+    const chosen=source==='controller'?choosePointer(i):null;
+    if(chosen?.choice.kind==='panel'){
+      grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
+      paint();return false;
     }
     const grip=source==='hand'?handProxies[i]:trackedController(i);
     if(!grip)return false;
@@ -276,8 +272,7 @@ function install(ctx){
     // If the anatomy is beyond arm's reach, pointing + holding either
     // trigger or grip also acquires the ORIGINAL mesh via triangle raycast.
     const remote=source==='controller'&&!near.hit
-      ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
-      :null;
+      ?chosen.organ:null;
     if(!near.hit&&!remote?.hit){
       attempts.rejected++;
       grabFeedback=remote?.reason==='no-anatomy-source'
@@ -296,6 +291,7 @@ function install(ctx){
     grab[i]={relative:new THREE.Matrix4(),input,method,startedAt:performance.now(),
       startPosition:mGrp.position.clone(),startQuaternion:mGrp.quaternion.clone()};
     capture(i);
+    if(source==='controller')haptic(i,.31,48);
     grabFeedback='HOLD '+input.toUpperCase()+' / MOVE CONTROLLER / '+method.toUpperCase();
     if(grab[0]&&grab[1]){
       effectiveGrip(0).updateWorldMatrix(true,false);
@@ -416,6 +412,16 @@ function install(ctx){
       y>=a.v&&y<=a.v+a.h)?.id||null;
     return {action,distance:hit.distance,point:hit.point.clone(),x,y};
   }
+  function choosePointer(i){
+    const raycast=rayFrom(i);
+    if(!raycast)return {panel:null,organ:null,choice:{kind:'none'}};
+    const panel=panelIntersection(raycast);
+    const organ=mode==='anatomy'
+      ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
+      :null;
+    const choice=global.PulmoXRSpatialTarget.choose({panel,anatomy:organ,mode});
+    return {panel,organ,choice};
+  }
   function findPanelHit(r){return panelIntersection(r)?.action||null}
   function summon(){
     if(!viewerValid||mode!=='anatomy'||grab.some(Boolean))return;
@@ -449,15 +455,15 @@ function install(ctx){
   }
   function onTrigger(i){
     if(!active||!rayFrom(i))return;
-    const panel=panelIntersection(ray);
-    const sourceHit=panel&&mode==='anatomy'
-      ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
-      :null;
+    const chosen=choosePointer(i);
     const side=controllerSide[i]||controllerSources[i]?.handedness||'unknown';
-    if(panel&&(!sourceHit?.hit||panel.distance<=sourceHit.distanceM)){
-      // Never send a trigger through the interface into the organ behind it.
-      if(panel.action){attempts.menuActions++;activate(panel.action)}
-      else {grabFeedback='POINT AT A PANEL CONTROL';paint()}
+    if(chosen.choice.kind==='panel'){
+      // The same nearest-hit decision is used by hover, grip and select.
+      if(chosen.choice.action){
+        attempts.menuActions++;
+        haptic(i,.23,40);
+        activate(chosen.choice.action);
+      }else{grabFeedback='POINT AT A PANEL CONTROL';paint()}
       return;
     }
     if(mode==='anatomy'){
