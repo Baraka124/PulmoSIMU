@@ -244,6 +244,27 @@ try {
   assert.equal(coframe.status,'coframed','Browser classic-script CT registration contract available');
   assert.equal(coframe.sceneUnitMetres,.25);
   assert.equal(coframe.modelToPatientRegistrationValidated,false);
+  const researchBridge=await proceduralXR.evaluate(()=>{
+    const bridge=window.PulmoCTResearchBridge;
+    if(!bridge)return null;
+    const sha='5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087';
+    const sample={geometry_class:'PRELIMINARY_CT_DERIVED_AIRSPACE_MASK',
+      source_sha256:sha,mesh_sha256:sha,model_from_ras_mm:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};
+    return {
+      validResearch:bridge.isResearchManifest(sample),
+      validA2:bridge.isResearchManifest({...sample,
+        geometry_class:'A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW'}),
+      rejectsAirway:bridge.isResearchManifest({...sample,segments:[{id:0}]}),
+      sourceControls:!!document.getElementById('ct-source-desk'),
+      sourceInitiallyHidden:!document.body.classList.contains('ct-source-mode')
+    };
+  });
+  assert.equal(researchBridge?.validResearch,true);
+  assert.equal(researchBridge?.validA2,true);
+  assert.equal(researchBridge?.rejectsAirway,false);
+  assert.equal(researchBridge?.sourceControls,true);
+  assert.equal(researchBridge?.sourceInitiallyHidden,true);
+  console.log('PASS CT research scene is separate from patient airway metadata and reference procedure');
   const originalCount=status.originalSegments;
   await proceduralXR.evaluate(()=>{
     window._applyPatientMeta({version:'pneumovr-1.1',
