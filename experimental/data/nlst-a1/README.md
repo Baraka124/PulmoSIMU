@@ -22,6 +22,16 @@ TCIA lists the public NLST radiology CT images under **Creative Commons Attribut
 
 The NIfTI header identifies TCIA NLST and its voxel calibration / RAS transform. We have not independently re-established the NIfTI's exact original TCIA DICOM series ID, nor completed an independent de-identification audit of the original dataset lineage. **Redistribute only if the specific scan belongs to the CC BY 4.0 public NLST collection and does not contain identifying metadata.** The author of any transformation must identify its changes, avoid implying endorsement by TCIA, and retain the citation.
 
+## A2 versioned candidate and CT voxel review
+
+A non-destructive **candidate GLB** has been generated with source-RAS `left`/`right` *node names* corrected. The candidate mesh **has not been committed as a GitHub binary**; its verified digest is `8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f`. It preserves all 50,188 original triangles and vertex positions. The original CT/GLB files remain unchanged.
+
+The candidate's source manifest and research QA live here: `a2-candidate-manifest.json`, `a2-candidate-qa.json`, `a2-candidate-voxel-qa.json`. Reproduction scripts in `experimental/anatomy/a2_ras_relabel.py` and `experimental/anatomy/a2_ct_surface_voxel_qa.py` require local imaging and optional NumPy/Trimesh/VTK tools.
+
+**Residual errors:** 14.8% of the candidate patient-left surface **area** crosses the RAS midline, though this is only 1.06% of candidate patient-left voxelized **volume**. A separate CT-voxel stencil found **16.33 mL overlapping bilateral masks**. These are unreviewed airspace segmentations, not five lobes or actual pulmonary airways. Do not connect them to CT-specific bronchoscopy or patient-specific physics.
+
+See [A2 release and scientific acceptance gates](../../A2_SOURCE_ANATOMY_RELEASE_AND_ACCEPTANCE.md). The publication helper `publish-a2-release.ps1` requires exact-file hashes, local GitHub CLI authentication and explicit confirmation of this case's TCIA provenance, licensing and de-identification before public upload.
+
 ## A2 finding — anatomical laterality QA FAILURE
 
 The source-image/GLB cross-sectional review has now exposed a **critical laterality-name conflict**. In the original GLB's physical RAS coordinate frame, the geometry named `right_lung_airspace` has **85.2%** of its triangle surface area in patient-left RAS X-positive coordinates. The surface named `left_lung_airspace` has **99.0%** of its surface area in patient-right RAS X-negative coordinates.
