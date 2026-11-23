@@ -1,27 +1,15 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#152229"><title>PulmoSIMU | Quest 2 entrance</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#152229;color:#e5ecee;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;display:grid;place-items:center;min-height:100dvh}
-main{max-width:560px;padding:40px 32px;text-align:center}
-strong{letter-spacing:-.04em;font-size:28px;font-weight:630}
-h1{font-size:clamp(28px,5vw,43px);line-height:1.15;font-weight:540;letter-spacing:-.055em;margin:35px 0 15px}
-p{color:#b8c9ce;font-size:14px;line-height:1.8}
-a{display:inline-block;margin:25px 0 0;background:#c3dce2;color:#152229;padding:13px 21px;border-radius:5px;font-size:14px;font-weight:650;text-decoration:none}
-a:focus-visible{outline:3px solid white;outline-offset:3px}
-small{display:block;color:#92aab4;font-size:11px;margin-top:35px}
-</style>
+<meta http-equiv="refresh" content="0;url=./index.html?xr=procedural%26release=XR09-UNIFIED">
+<title>PulmoSIMU — Unified XR entry</title>
+<style>body{margin:0;background:#13232c;color:#e4eef1;min-height:100dvh;display:grid;place-items:center;text-align:center;font:16px/1.7 system-ui}main{padding:30px}a{color:#e5f0f2;font-weight:650}</style>
 <script>
-const url=new URL('./experimental/vr.html',location.href);
+const url=new URL('./index.html',location.href);
+url.searchParams.set('xr','procedural');url.searchParams.set('release','XR09-UNIFIED');
 const focus=new URLSearchParams(location.search).get('focus');
 if(['RUL','RML','RLL','LUL','LLL'].includes(focus))url.searchParams.set('focus',focus);
-url.searchParams.set('release','XR04-COMFORT'); // bust cached viewer URL on Quest
-// An immediate same-origin redirect offers one memorable headset entry.
-// No automatic immersive-vr request: user activation is mandatory.
 location.replace(url.toString());
-</script></head><body><main>
-<strong>PulmoSIMU</strong><h1>Enter the respiratory spatial laboratory.</h1>
-<p>A comfortable, stationary immersive anatomy reference for Meta Quest 2. Follow the on-headset first-use guide before manipulating the model.</p>
-<a href="./experimental/vr.html">Open immersive anatomy</a>
-<small>Reference model only · Anatomical scale unvalidated · Not a clinical device</small>
-</main></body></html>
+</script></head>
+<body><main><h1>PulmoSIMU · Unified Immersive XR</h1><p>The former Quest prototype entrance is retired.</p>
+<a id="launchCurrent" href="./index.html?xr=procedural&amp;release=XR09-UNIFIED">Open the original-engine spatial laboratory</a>
+<p>Research-only reference · Clinical validation pending</p></main></body></html>
