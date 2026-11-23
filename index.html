@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
+<script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
 <script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
 <script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
 <script src="./experimental/xr/session-health.js?v=XR09-PROFILE"></script>
@@ -1192,6 +1193,32 @@ body.ct-source-mode #ext-label{
  color:#a1b9c5
 }
 body.ct-source-mode #ext-view{width:100%;flex:1}
+#ct-lobe-panel{display:none}
+body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
+ display:block;position:absolute;right:22px;top:117px;z-index:65;
+ width:282px;max-height:calc(100% - 156px);overflow-y:auto;
+ background:rgba(14,24,32,.96);border:1px solid #405767;border-radius:4px;
+ padding:17px 19px;color:#dce7ea;font:12px/1.55 system-ui,sans-serif;
+ box-shadow:0 7px 32px rgba(0,0,0,.19);
+}
+#ct-lobe-panel .atlas-title{font-weight:600;font-size:14px;letter-spacing:-.025em}
+#ct-lobe-panel .atlas-sub{font-size:11px;color:#91a8b5;margin:5px 0 15px}
+#ct-lobe-panel label{display:flex;justify-content:space-between;gap:10px;
+ align-items:center;color:#cadce2;font-size:11px;margin:14px 0 6px}
+#ct-lobe-panel input[type=range]{width:100%;accent-color:#a5c5cf;height:3px;cursor:pointer}
+#ct-lobe-panel select{width:100%;padding:10px;background:#192b35;color:#d7e6eb;
+ border:1px solid #4c6875;border-radius:3px;font:12px system-ui}
+#ct-lobe-panel .atlas-legend{display:grid;grid-template-columns:1fr 1fr;gap:5px 9px;
+ font-size:10px;color:#a7bec7;margin-top:12px}
+#ct-lobe-panel .atlas-legend span{display:flex;align-items:center;gap:6px}
+#ct-lobe-panel .atlas-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+#ct-lobe-panel .atlas-foot{border-top:1px solid #344b58;padding-top:10px;margin-top:14px;
+ font-size:10px;color:#8da9b6}
+@media(max-width:680px){
+ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
+   left:12px;right:12px;top:180px;width:auto;max-height:38vh
+ }
+}
 @media(max-width:680px){
  body.ct-source-mode #ct-source-desk{top:12px;left:12px;
  width:calc(100% - 24px);display:block}
@@ -1324,11 +1351,37 @@ body.ct-source-mode #ext-view{width:100%;flex:1}
         <div class="source-actions">
           <button type="button" onclick="resetCTResearchView()">Fit both lungs</button>
           <button id="research-material-toggle" type="button" onclick="toggleCTResearchMaterial()">Original material</button>
+          <button id="ct-lobe-toggle" type="button" onclick="toggleCTTerritoryAtlas()">Lobe study</button>
           <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">Inspect CT slices</a>
           <button type="button" onclick="triggerPatientLoad()">Change study</button>
           <button type="button" onclick="setViewMode('reference')">Reference simulator</button>
         </div>
       </div>
+      <aside id="ct-lobe-panel" aria-label="Editable five-lobe territory study">
+        <div class="atlas-title">Five-lobe study</div>
+        <p class="atlas-sub">Adjust source-space fissure hypotheses on the actual CT surface. Anatomical geometry remains intact.</p>
+        <label for="ct-lobe-focus">Territory <span>inspect individually</span></label>
+        <select id="ct-lobe-focus" onchange="updateCTTerritoryAtlas()">
+          <option value="all">All five territories</option>
+          <option value="RUL">Right upper</option><option value="RML">Right middle</option>
+          <option value="RLL">Right lower</option><option value="LUL">Left upper</option>
+          <option value="LLL">Left lower</option>
+        </select>
+        <label for="ct-major-right">Right oblique <output id="ct-major-right-v">0 mm</output></label>
+        <input id="ct-major-right" type="range" min="-35" max="35" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <label for="ct-minor-right">Right horizontal <output id="ct-minor-right-v">0 mm</output></label>
+        <input id="ct-minor-right" type="range" min="-30" max="30" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <label for="ct-major-left">Left oblique <output id="ct-major-left-v">0 mm</output></label>
+        <input id="ct-major-left" type="range" min="-35" max="35" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <div class="atlas-legend">
+          <span><i class="atlas-dot" style="background:#AFC0C4"></i> R upper</span>
+          <span><i class="atlas-dot" style="background:#CCB495"></i> R middle</span>
+          <span><i class="atlas-dot" style="background:#829CA9"></i> R lower</span>
+          <span><i class="atlas-dot" style="background:#C8A9A7"></i> L upper</span>
+          <span><i class="atlas-dot" style="background:#A4AF9D"></i> L lower</span>
+        </div>
+        <div class="atlas-foot">Atlas-seeded territory proposal · Fissure points pending CT review</div>
+      </aside>
       <svg id="scope-svg">
         <defs>
           <radialGradient id="sg" cx="50%" cy="50%" r="50%">
