@@ -326,6 +326,20 @@ try {
    assert.equal(remote.lookingAway.hit,false,'Pointing away never moves anatomy');
    assert.equal(remote.tooFar.hit,false,'Bounded distant selection must honour reach limit');
    assert.equal(remote.noSource.hit,false,'No anatomy source means no grab');
+   const backface=await questEntry.evaluate(()=>{
+     const T=window.THREE,mat=new T.MeshBasicMaterial({side:T.BackSide});
+     const mesh=new T.Mesh(new T.SphereGeometry(.35,24,12),mat);
+     mesh.position.set(0,0,-1.1);
+     const p=new T.Group();
+     const front=window.PulmoXRRemoteTarget.pick(T,p,[mesh],{maxDistance:2});
+     const state=mat.side;
+     return {hit:front.hit,distance:front.distanceM,sideRestored:state===T.BackSide};
+   });
+   assert.equal(backface.hit,true,'Outward-facing and reversed imported triangles both selectable');
+   assert.ok(backface.distance>.70&&backface.distance<.80,
+      'Ray terminates at NEAREST source triangle instead of far lung wall: '+JSON.stringify(backface));
+   assert.equal(backface.sideRestored,true,'Source-authored material side is never modified');
+   console.log('PASS XR11 front/back ray targeting and source material preservation');
    console.log('PASS XR10 remote triangle selection with real Three.js geometry');
    console.log('PASS canonical Quest entry and source mesh-triangle near contact');
  }finally{await questEntry.close()}
