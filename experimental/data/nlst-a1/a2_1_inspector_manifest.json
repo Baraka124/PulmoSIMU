@@ -1,0 +1,109 @@
+{
+  "source": "NLST_Chest_CT_150_Slices_R21(1).nii",
+  "source_type": "NIfTI-1 3D CT",
+  "source_shape_vox": [
+    512,
+    512,
+    150
+  ],
+  "sform_RAS_mm": [
+    [
+      -0.5429688096046448,
+      0,
+      0,
+      138.728515625
+    ],
+    [
+      0,
+      -0.5429688096046448,
+      0,
+      260.728515625
+    ],
+    [
+      0,
+      0,
+      2,
+      -549.4000244140625
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "spacing_mm": [
+    0.5429688096046448,
+    0.5429688096046448,
+    2
+  ],
+  "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "mesh_file": "PulmoSIMU_A2_1_NLST_Corrected_Airspace_Research.glb",
+  "mesh_sha256": "621edae920712df12760d4d13cade7066c7dd969533094914171986767b70ae2",
+  "model_from_ras_mm": [
+    [
+      0.001,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0.001,
+      0.39
+    ],
+    [
+      0,
+      -0.001,
+      0,
+      0.122
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "HU_stored_intercept": -1024,
+  "HU_stored_slope": 1,
+  "validation": "RESEARCH_ONLY_UNVALIDATED",
+  "geometry_class": "A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW",
+  "structures": {
+    "right": {
+      "airspace_volume_l_approx": 1.75629,
+      "triangles": 233268,
+      "watertight": true
+    },
+    "left": {
+      "airspace_volume_l_approx": 1.46991,
+      "triangles": 203536,
+      "watertight": true
+    }
+  },
+  "quality_gates": {
+    "source_integrity": "PASS",
+    "RAS_positive_x": "PATIENT_RIGHT",
+    "conservative_partition": "ZERO_CROSS_HEMISPHERE_MASK_VOXELS_BY_CONSTRUCTION",
+    "segmentation_accuracy": "INDEPENDENT_REVIEW_PENDING",
+    "source_mesh": "TOPOLOGY_PASS_WATERTIGHT",
+    "Quest_export": "BLOCKED_436804_SOURCE_TRIANGLES",
+    "lobar_boundaries": "NOT_SEGMENTED",
+    "bronchial_lumen": "NOT_SEGMENTED",
+    "ct_linked_bronchoscopy": "BLOCKED",
+    "patient_specific_physics": "BLOCKED"
+  },
+  "research_flags": [
+    "Conservative midline partition removes older contralateral component but can cut juxtamediastinal true airspace.",
+    "Only two source-derived airspace regions; high-density parenchyma, vessels, fissures and airway lumens are not reconstructed.",
+    "Watertight mesh is not proof of clinical segmentation accuracy.",
+    "Original 2mm slice spacing imposes through-plane resolution limits.",
+    "Do not automatically replace procedural reference lung or navigate bronchoscopy inside this surface.",
+    "Exact study CT and GLB file digests are required to unlock registration in the source inspector."
+  ],
+  "processing_method": "HU(-1015,-400), 2D torso enclosure, seeded 6-connected 3D component, explicit NIfTI RAS hemisphere partition, subvoxel smoothing, closed largest isosurface; no topology-breaking decimation",
+  "study_origin": "NLST CT / TCIA header; original DICOM series ID and provenance not independently confirmed",
+  "public_binary_available": false,
+  "qa_report": "a2_1_observed_qa.json"
+}
