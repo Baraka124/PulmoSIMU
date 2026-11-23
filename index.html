@@ -2128,7 +2128,7 @@ var patientData = {
 };
 
 let meshMode='reference';
-let ctResearchHidden=null;
+let ctResearchHidden=null,ctResearchReturn=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
@@ -2137,10 +2137,19 @@ function setViewMode(mode){
   if(mode==='research'&&(!patientData.gltf||patientData.sourceKind!=='ct-airspace-research')){
     showToast('No verified CT research surface has been loaded','warn');return;
   }
+  const enteringResearch=mode==='research'&&!ctResearchHidden;
+  if(enteringResearch){
+    ctResearchReturn={
+      position:camExt.position.clone(),quaternion:camExt.quaternion.clone(),
+      near:camExt.near,far:camExt.far,
+      previousView:viewMode,
+      extState:{mx:ext.mx,my:ext.my,rx:ext.rx,ry:ext.ry,sc:ext.sc,idle:ext.idle}
+    };
+  }
+  const returnState=ctResearchHidden&&mode!=='research'?ctResearchReturn:null;
   if(ctResearchHidden&&mode!=='research'){
-    // Restore the exact authored model state when leaving research inspection.
     ctResearchHidden.forEach((visible,object)=>{if(object)object.visible=visible});
-    ctResearchHidden=null;
+    ctResearchHidden=null;ctResearchReturn=null;
   }
   meshMode=mode;
   const research=mode==='research';
@@ -2186,6 +2195,15 @@ function setViewMode(mode){
   }else{
     const label=document.getElementById('ext-label');
     if(label)label.textContent='BILATERAL LUNG · EXTERNAL VIEW · CLICK TELEPORT · DRAG ROTATE · SCROLL ZOOM';
+    if(returnState){
+      camExt.position.copy(returnState.position);
+      camExt.quaternion.copy(returnState.quaternion);
+      camExt.near=returnState.near;camExt.far=returnState.far;
+      camExt.updateProjectionMatrix();
+      Object.assign(ext,returnState.extState);
+      applyExt();
+      setView(returnState.previousView);
+    }
   }
   showToast({reference:'Reference simulation',patient:'Patient pipeline mesh',
     research:'CT-derived airspace surface · research only',empty:'Empty canvas'}[mode],'info');
@@ -3816,7 +3834,7 @@ function triggerPatientLoad() {
           setViewMode('research');
           _focusCameraOnGLB(patientData.gltf);
           _updateLoaderBanner(true);
-        });
+        },{deferFocus:true});
       }else{
         if(!Array.isArray(meta?.segments)||!meta?.version){
           throw Error('Unsupported JSON: use a CT source manifest or matching airway pipeline sidecar');
@@ -3834,7 +3852,7 @@ function triggerPatientLoad() {
 window.triggerPatientLoad = triggerPatientLoad;
 
 // ── Load GLTF from ArrayBuffer ────────────────────────────────────
-function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
+function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={}) {
   const loader = new THREE.GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
 
@@ -3882,8 +3900,9 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
     patientData.loaded = true;
     patientData.patientId = filename.replace(/[.][^.]+$/, '');
 
-    // Auto-focus external camera onto loaded mesh
-    _focusCameraOnGLB(gltf.scene);
+    // The research loader captures the original camera BEFORE fitting,
+    // so returning to reference simulation restores its previous framing.
+    if(!deferFocus)_focusCameraOnGLB(gltf.scene);
     // Boost scene lighting for patient mesh visibility
     kL.intensity = 5.5;
     fillL.intensity = 2.2;
