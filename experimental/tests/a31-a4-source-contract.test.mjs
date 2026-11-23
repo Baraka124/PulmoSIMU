@@ -72,3 +72,27 @@ test('A4 prevents the original authored bronchoscope from being misrepresented a
  assert.ok(xr.includes("A4SourceProcedureStatus:getMeshMode()==='patient'"));
  assert.ok(xr.includes("(a.id!=='procedure'||role==='reference')"));
 });
+
+test('A4 forbids patient-linked procedure even when untrusted browser review metadata claims approval',()=>{
+ const groups={
+  'A3.2 - lobes':{complete:true},'A3.3 - bronchial lumen':{complete:true},
+  'A3.4 - vessels':{complete:true}
+ };
+ const fakeQA={CT_SHA256:a31.source_sha256,
+  A31_labelmap_SHA256:a31.source_labelmap_sha256,
+  groups,lobar_topology_gate:'NONOVERLAPPING_UNREVIEWED'};
+ const review={status:'APPROVED_FOR_RESEARCH_PROCEDURE',reviewer:'Example Clinician',
+   source_sha256:a31.source_sha256,mesh_sha256:a31.mesh_sha256,
+   signed_report_sha256:'f'.repeat(64)};
+ const result=gate({
+  manifest:a31,ctSha:a31.source_sha256,meshSha:a31.mesh_sha256,structureQA:fakeQA,
+  clinicianReview:review,
+  sourceAirway:{centrelineCoframed:true,topologyReviewed:true,lumenWallValidated:true,
+   ct_source_sha256:a31.source_sha256},
+  instrument:{sourceDimensionReviewed:true,calibratedDiameterMm:3,collisionModelReviewed:true}
+ });
+ assert.equal(result.researchProcedureCandidateEligible,true);
+ assert.equal(result.CTLinkedBronchoscopyAllowed,false,
+  'User-provided strings cannot prove independent clinical review or hardware acceptance');
+ assert.equal(result.clinicalAnatomyValidated,false);
+});
