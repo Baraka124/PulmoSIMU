@@ -1,7 +1,18 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101820">
-<title>PulmoSIMU XR | Spatial anatomy laboratory</title>
+<title>PulmoSIMU XR · Archived historical experiment</title>
+<script>
+// XR-06 is archived source only, not a supported anatomical/Quest product.
+// Existing bookmarks resolve to the canonical original-engine XR. Legacy
+// experiments require deliberate ?archive=1 and remain nonclinical fixtures.
+if(new URLSearchParams(location.search).get('archive')!=='1'){
+ const canonical=new URL('../index.html',location.href);
+ canonical.searchParams.set('xr','procedural');
+ canonical.searchParams.set('release','XR09-UNIFIED');
+ location.replace(canonical.toString());
+}
+</script>
 <style>
 :root{color-scheme:dark;--bg:#101820;--ink:#e9eef0;--muted:#9eadb5;--line:#354752;--accent:#b0d9de}
 *{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
