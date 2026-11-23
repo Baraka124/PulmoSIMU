@@ -628,30 +628,38 @@ function install(ctx){
   }
   function applyAnalogAnatomy(side,x,y,dt){
     if(mode!=='anatomy'||!placed||!boundsCache||grab.some(Boolean))return;
-    const center=focusWorld();
+    const center=pivotMode==='center'?focusWorld():mGrp.position.clone();
     let modified=false;
     if(side==='right'){
       // Right stick: yaw around the visible anatomy centre and move along
       // the viewer's depth axis. It does not move the camera or the user.
       if(Math.abs(x)>.02){
+        if(!analogChangedAt)beginViewChange();
+        const axes={yaw:new THREE.Vector3(0,1,0),
+          pitch:new THREE.Vector3(1,0,0),roll:new THREE.Vector3(0,0,1)};
         mGrp.quaternion.premultiply(
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-x*dt*1.35));
+          new THREE.Quaternion().setFromAxisAngle(axes[axisMode],-x*dt*1.35));
         modified=true;
       }
-      mGrp.position.copy(center).sub(boundsCache.center.clone()
+      if(pivotMode==='center')mGrp.position.copy(center).sub(boundsCache.center.clone()
         .multiplyScalar(mGrp.scale.x).applyQuaternion(mGrp.quaternion));
       if(Math.abs(y)>.02){
+        if(!analogChangedAt)beginViewChange();
         mGrp.position.addScaledVector(forward,-y*dt*.76);
         modified=true;
       }
     }else if(side==='left'&&Math.abs(y)>.02){
+      if(!analogChangedAt)beginViewChange();
       const next=limits.clampScale(mGrp.scale.x*Math.exp(-y*dt*.92),modelExtent());
       mGrp.scale.setScalar(next);
-      mGrp.position.copy(center).sub(boundsCache.center.clone()
+      if(pivotMode==='center')mGrp.position.copy(center).sub(boundsCache.center.clone()
         .multiplyScalar(next).applyQuaternion(mGrp.quaternion));
       modified=true;
     }
-    if(modified){constrainSizeAndFocus();attempts.thumbstickFrames++}
+    if(modified){
+      constrainSizeAndFocus();attempts.thumbstickFrames++;
+      analogChangedAt=performance.now();
+    }
   }
   function poll(dt){
     const session=rBro.xr.getSession();if(!session)return;
@@ -1190,6 +1198,7 @@ function install(ctx){
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
+    viewHistory.clear();analogChangedAt=0;pivotMode='center';axisMode='yaw';
     menuPage='primary';actionHitbox=panelLayouts.primary;
     stage.setMode('studio');
     physicsSnapshot=null;physicsError=null;
@@ -1234,7 +1243,10 @@ function install(ctx){
         frameGroup();
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
-      poll(dt);updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();updatePointerAim(time);
+      poll(dt);
+      if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
+        finishViewChange();
+      updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();updatePointerAim(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -1275,7 +1287,8 @@ function install(ctx){
       xrFoveation:qualityStatus,
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
-      controllerActions:{...attempts}
+      controllerActions:{...attempts},
+      viewHistory:viewHistory.status(),pivotMode,axisMode
     };
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
@@ -1315,6 +1328,7 @@ function install(ctx){
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,procedureGuideVisible:Boolean(guidePlane?.visible),
+    viewHistory:viewHistory.status(),pivotMode,axisMode,
     panelPage:menuPage,
     worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
