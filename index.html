@@ -2120,40 +2120,73 @@ var patientData = {
   meta:     null,
   loaded:   false,
   patientId: null,
+  sourceKind: null,
+  sourceManifest: null,
+  sourceIntegrity: null,
 };
 
 let meshMode='reference';
+let ctResearchHidden=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
+  // The NIfTI-derived lung shell is not the procedural bronchial tree.
+  if(mode==='patient'&&patientData.sourceKind==='ct-airspace-research')mode='research';
+  if(mode==='research'&&(!patientData.gltf||patientData.sourceKind!=='ct-airspace-research')){
+    showToast('No verified CT research surface has been loaded','warn');return;
+  }
+  if(ctResearchHidden&&mode!=='research'){
+    // Restore the exact authored model state when leaving research inspection.
+    ctResearchHidden.forEach((visible,object)=>{if(object)object.visible=visible});
+    ctResearchHidden=null;
+  }
   meshMode=mode;
-
-  // Adjust ambient light intensity — scene default is tuned dark for procedural shaders.
-  // Boost it when showing patient mesh so the GLB is properly visible.
-  if(typeof ambientLight!=='undefined'){
-    ambientLight.intensity = (mode==='reference') ? 1.0 : (mode==='patient') ? 0.6 : 0.1;
+  const research=mode==='research';
+  document.body.classList.toggle('ct-source-mode',research);
+  if(typeof ambientLight!=='undefined')
+    ambientLight.intensity=mode==='reference'?1.0:research?1.25:mode==='patient'?.6:.1;
+  if(research){
+    // Keep only the loaded CT-derived source object in the model assembly.
+    // Reference heart/bronchi, lesions, anatomical decorations and tools
+    // cannot silently appear to be measured patient structures.
+    if(!ctResearchHidden){
+      ctResearchHidden=new Map();
+      mGrp.children.forEach(child=>{
+        if(child===patientData.gltf)return;
+        ctResearchHidden.set(child,child.visible);child.visible=false;
+      });
+    }
+    if(patientData.gltf)patientData.gltf.visible=true;
+    const status=window.PulmoCTResearchBridge?.describe(patientData.sourceManifest);
+    const node=document.getElementById('ct-source-warning');
+    if(node)node.textContent=(status?.warning||'NOT VALIDATED')+
+      ' · No CT-registered airway, lesion, or procedure';
+  }else{
+    const showProc=mode==='reference';
+    proceduralMeshes.forEach(m=>m.visible=showProc);
+    referenceMeshes.forEach(m=>{if(m)m.visible=showProc;});
+    if(patientData.gltf)patientData.gltf.visible=mode==='patient';
+    // A research airspace GLB cannot be used as a pathology source.
+    const patientGraph=mode==='patient'&&Boolean(patientData.meta?.segments?.length);
+    Object.values(pathoMeshes).forEach(p=>{if(p.mesh)p.mesh.visible=patientGraph});
   }
 
-  // Toggle buttons
   ['ref','pat','empty'].forEach(k=>{
-    const b=document.getElementById('vt-'+k);
-    if(b)b.classList.remove('vt-on');
+    document.getElementById('vt-'+k)?.classList.remove('vt-on');
   });
-  const activeId={reference:'vt-ref',patient:'vt-pat',empty:'vt-empty'}[mode];
-  const ab=document.getElementById(activeId);if(ab)ab.classList.add('vt-on');
+  const activeId={reference:'vt-ref',patient:'vt-pat',research:'vt-pat',empty:'vt-empty'}[mode];
+  document.getElementById(activeId)?.classList.add('vt-on');
 
-  // Show/hide procedural geometry
-  const showProc=(mode==='reference');
-  proceduralMeshes.forEach(m=>m.visible=showProc);
-  referenceMeshes.forEach(m=>{if(m)m.visible=showProc;});
-
-  // Show/hide patient GLB
-  if(patientData&&patientData.gltf) patientData.gltf.visible=(mode==='patient');
-
-  // Pathology meshes follow patient mode
-  Object.values(pathoMeshes).forEach(p=>{if(p.mesh)p.mesh.visible=(mode==='patient');});
-
-  showToast({reference:'Reference anatomy',patient:'Patient mesh',empty:'Empty canvas'}[mode],'info');
+  if(research){
+    setView('overview');
+    const label=document.getElementById('ext-label');
+    if(label)label.textContent='CT RESEARCH SURFACE · UNVALIDATED · DRAG ROTATE · SCROLL ZOOM';
+  }else{
+    const label=document.getElementById('ext-label');
+    if(label)label.textContent='BILATERAL LUNG · EXTERNAL VIEW · CLICK TELEPORT · DRAG ROTATE · SCROLL ZOOM';
+  }
+  showToast({reference:'Reference simulation',patient:'Patient pipeline mesh',
+    research:'CT-derived airspace surface · research only',empty:'Empty canvas'}[mode],'info');
 }
 window.setViewMode=setViewMode;
 
@@ -3672,13 +3705,13 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   THREE, scene, rBro, rExt, camScope, mGrp,
   vrCam:new THREE.PerspectiveCamera(76,1,.01,30),
   scope, CFG, SEGS, SEG_MAP, pathCurves, patientData,
-  getMeshMode:()=>meshMode,
+  getMeshMode:()=>meshMode==='research'?'patient':meshMode,
   getReferenceFocus:()=>meshMode==='reference'?window.pulmoActiveReferenceRegion:null,
   getPatientAudit:()=>patientData.xrAudit||null,
   getMmPerSceneUnit:()=>mmPerUnit,
   getScopeDiameterMm:()=>scopeDiamMm,
   getAnatomyMeshes:()=>{
-    if(meshMode==='patient'&&patientData.gltf)return [patientData.gltf];
+    if((meshMode==='patient'||meshMode==='research')&&patientData.gltf)return [patientData.gltf];
     if(meshMode!=='reference')return [];
     return [...proceduralMeshes,...referenceMeshes,
       ...Object.values(pathoMeshes).map(p=>p.mesh)];
