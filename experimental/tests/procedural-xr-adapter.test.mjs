@@ -98,3 +98,25 @@ test('CT-derived geometry retains authored material instead of artificial vessel
  assert.ok(!original.includes('const PATIENT_F='),'No shader-generated vessel or cartilage patterns on loaded CT surface');
  assert.ok(!original.includes('child.material = patientMat;'),'Original mesh materials are never replaced by fabricated mucosal paint');
 });
+
+test('XR-10 controller grabbing targets original mesh triangles at a distance',()=>{
+ const targeting=readFileSync(new URL('../xr/remote-target.js',import.meta.url),'utf8');
+ const syntax=spawnSync(process.execPath,['--check'],{input:targeting,encoding:'utf8'});
+ assert.equal(syntax.status,0,syntax.stderr||'Ray target runtime syntax invalid');
+ assert.ok(original.includes('remote-target.js?v=XR10-'));
+ assert.ok(source.includes('global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget()'));
+ assert.ok(source.includes("startGrab(i,'controller','trigger')"));
+ assert.ok(source.includes("startGrab(i,'controller','grip')"));
+ assert.ok(source.includes("release(i,'controller','trigger')"));
+ assert.ok(source.includes("release(i,'controller','grip')"));
+ assert.ok(source.includes('controllerSources.indexOf(src)'),
+   'Do not use left or right handedness as physical getController index');
+ assert.ok(source.includes('controllerSources[i]=event.data||null'));
+ assert.ok(source.includes('updatePointerAim(time)'));
+ assert.ok(source.includes('updateSummon()'));
+ assert.ok(!source.includes('requestAnimationFrame(update)'),
+   'Summon animation must run in headset XR animation loop, not throttled page RAF');
+ assert.ok(targeting.includes('caster.intersectObjects(allowed,true)'));
+ assert.ok(targeting.includes('h.object?.isMesh'),
+   'Distant grabs must use source triangle intersections, not bounding boxes');
+});
