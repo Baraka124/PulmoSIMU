@@ -167,6 +167,7 @@ function install(ctx){
   };
   function setMode(next){
     if(!['anatomy','procedure'].includes(next))return;
+    if(mode==='anatomy'&&next!=='anatomy')finishViewChange();
     summonGeneration++;
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
@@ -219,6 +220,7 @@ function install(ctx){
     if(placed){finishViewChange();beginViewChange();}
     summonGeneration++;summonTween=null;
     release(0);release(1);
+    if(placed){finishViewChange();beginViewChange();}
     const bounds=sourceBounds();boundsCache=bounds;
     const scale=limits.clampScale(Math.min(width/Math.max(.0001,bounds.size.x),
       .65/Math.max(.0001,bounds.size.y)),modelExtent());
@@ -552,8 +554,9 @@ function install(ctx){
   const modes=['nav','biopsy','measure','annotate'];
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
-    if(action==='more'||action==='back'){
-      menuPage=action==='more'?'advanced':'primary';
+    if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){
+      menuPage=action==='more'||action==='back-expert'?'advanced':
+        action==='precision'?'precision':'primary';
       actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);
       paint();return;
     }
@@ -563,6 +566,19 @@ function install(ctx){
       grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
+    }
+    if(action==='undo'||action==='redo'){
+      if(!stepViewHistory(action))grabFeedback='NO '+action.toUpperCase()+' VIEW AVAILABLE';
+      paint();return;
+    }
+    if(action==='pivot'){
+      pivotMode=pivotMode==='center'?'origin':'center';
+      grabFeedback='VIEW ROTATION PIVOT / '+pivotMode.toUpperCase();paint();return;
+    }
+    if(action==='axis'){
+      const axisList=['yaw','pitch','roll'];
+      axisMode=axisList[(axisList.indexOf(axisMode)+1)%axisList.length];
+      grabFeedback='VIEW ROTATION AXIS / '+axisMode.toUpperCase();paint();return;
     }
     if(action==='anatomy')setMode('anatomy');
     if(action==='procedure')setMode('procedure');
@@ -756,8 +772,16 @@ function install(ctx){
       {id:'tool',label:'INSTRUMENT',u:.05,v:.54,w:.43,h:.12},
       {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.12},
       {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.69,w:.43,h:.12},
-      {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
+      {id:'precision',label:'VIEW CONTROLS',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
+    precision:[
+      {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
+      {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
+      {id:'pivot',label:'PIVOT CENTER',u:.05,v:.69,w:.43,h:.12},
+      {id:'axis',label:'AXIS YAW',u:.52,v:.69,w:.43,h:.12},
+      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ]
   };
@@ -776,7 +800,8 @@ function install(ctx){
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
     c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
-    c.fillText(menuPage==='advanced'?'Research instruments':
+    c.fillText(menuPage==='precision'?'Precision anatomy controls':
+      menuPage==='advanced'?'Research instruments':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
     c.fillText((mode==='procedure'
@@ -804,9 +829,13 @@ function install(ctx){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
       const hovered=hoverPanels.includes(a.id);
-      const available=a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient');
+      const available=(a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient')) &&
+        (a.id!=='undo'||viewHistory.status().undo>0) &&
+        (a.id!=='redo'||viewHistory.status().redo>0);
       const label=a.id==='view'
-        ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):a.label;
+        ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
+        a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
+        a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
       c.fillStyle=hovered?'#476774':selected?'#345463':available?'#213641':'#1c2a32';
       c.fillRect(x,y,width,height);
       c.strokeStyle=hovered?'#f1d3a5':selected?'#adcdd5':available?'#4b6673':'#314652';
