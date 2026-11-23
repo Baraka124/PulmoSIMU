@@ -21,7 +21,7 @@ test('Public data catalog does not silently claim a CT upload or validated bronc
  assert.ok(manifest.quality_gates.bronchoscope_to_ct_registration==='BLOCKED');
  assert.ok(manifest.quality_gates.right_lung_mask_leakage==='FLAGGED_FOR_REVIEW');
  const readme=readFileSync(new URL('../data/nlst-a1/README.md',import.meta.url),'utf8');
- assert.ok(readme.includes('Not attached to GitHub yet'));
+ assert.ok(readme.includes('Not committed or distributed'));
  assert.ok(readme.includes('CC BY 4.0'));
  assert.ok(readme.includes('75 MiB'));
  const publisher=readFileSync(new URL('../data/nlst-a1/publish-a1-release.ps1',import.meta.url),'utf8');
