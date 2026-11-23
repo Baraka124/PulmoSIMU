@@ -806,6 +806,80 @@ function install(ctx){
     new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   scopeScreen=monitorRoot;scopeScreen.visible=false;scene.add(scopeScreen);
+  // A dedicated, world-space, interactive procedure window. Its content
+  // originates only from SEG_MAP, the real scope state, and the selected
+  // original instrument. No overlay on the primary endoscope pixels.
+  const guideCanvas=document.createElement('canvas');
+  guideCanvas.width=1024;guideCanvas.height=680;
+  guideCtx=guideCanvas.getContext('2d');
+  guideTex=new THREE.CanvasTexture(guideCanvas);guideTex.encoding=THREE.sRGBEncoding;
+  guidePlane=new THREE.Mesh(new THREE.PlaneGeometry(.82,.545),
+    new THREE.MeshBasicMaterial({map:guideTex,transparent:true,
+      side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+  guidePlane.renderOrder=41;guidePlane.visible=false;
+  guidePlane.name='xr14-original-procedure-guide';scene.add(guidePlane);
+  const guideStages=['ORIENT','NAVIGATE','CHOOSE','INSTRUMENT','REVIEW'];
+  function paintGuide(){
+    if(!guideCtx||!guideTex)return;
+    const state=global.PulmoXRProcedureGuide.describe({
+      segmentId:scope.segId,segment:SEG_MAP[scope.segId],segments:SEG_MAP,
+      position:scope.t,atBranch:scope.atBranch,clinicalMode:getClinMode(),
+      clearance:clearanceState(),monitorStatus,guideStep
+    });
+    guideLastState=state;
+    const c=guideCtx,w=guideCanvas.width,h=guideCanvas.height;
+    c.clearRect(0,0,w,h);
+    c.fillStyle='#112028';c.fillRect(0,0,w,h);
+    c.fillStyle='#6a9eab';c.fillRect(0,0,w,6);
+    c.textAlign='left';
+    c.fillStyle='#a9c3cc';c.font='600 23px system-ui';
+    c.fillText('PULMOSIMU  /  PROCEDURE GUIDE',42,50);
+    c.textAlign='right';c.fillStyle='#bad1da';
+    c.fillText('STEP '+(guideStep+1)+'/5  ·  '+guideStages[guideStep],w-42,50);
+    c.textAlign='left';c.fillStyle='#f0f5f7';
+    c.font='550 42px system-ui';c.fillText(state.heading,42,116);
+    c.font='550 31px system-ui';
+    c.fillText(state.location.slice(0,51),42,165);
+    c.fillStyle='#9cb7c2';c.font='26px system-ui';
+    c.fillText('GEN '+(state.generation??'—')+
+      '    SEGMENT '+scope.segId+'    PATH '+state.progressPercent+'%',42,213);
+    c.fillStyle='#304651';c.fillRect(42,236,w-84,8);
+    c.fillStyle='#a4d3d9';c.fillRect(42,236,(w-84)*state.progressPercent/100,8);
+    c.fillStyle='#dce8eb';c.font='600 26px system-ui';
+    c.fillText(state.tool+'   /   '+state.monitor,42,289);
+    c.fillStyle='#aebfc7';c.font='24px system-ui';
+    c.fillText(state.instruction.slice(0,73),42,337);
+    c.fillStyle=state.clearance.includes('BLOCKING')?'#e8b99d':'#93adba';
+    c.font='23px system-ui';
+    c.fillText(state.clearance.slice(0,73),42,378);
+    const branches=[
+      {id:'guide-branch0',label:state.branches[0]?.label||'NO SOURCE BRANCH',
+        disabled:!state.branches[0]?.enabled,u:.04,v:.60,w:.44,h:.14},
+      {id:'guide-branch1',label:state.branches[1]?.label||'NO SOURCE BRANCH',
+        disabled:!state.branches[1]?.enabled,u:.52,v:.60,w:.44,h:.14}
+    ];
+    guideHitboxes=[
+      ...branches,
+      {id:'guide-prev',label:'PREVIOUS',disabled:guideStep===0,u:.04,v:.79,w:.20,h:.11},
+      {id:'guide-next',label:'NEXT STEP',disabled:guideStep===4,u:.27,v:.79,w:.20,h:.11},
+      {id:'guide-tool',label:'TOOL MODE',disabled:false,u:.50,v:.79,w:.21,h:.11},
+      {id:'guide-hide',label:'HIDE',disabled:false,u:.74,v:.79,w:.22,h:.11}
+    ];
+    for(const a of guideHitboxes){
+      const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
+      const hovered=hoverPanels.includes(a.id);
+      c.fillStyle=a.disabled?'#17252e':hovered?'#436b76':'#223843';
+      c.fillRect(x,y,width,height);
+      c.strokeStyle=hovered?'#e4cba5':a.disabled?'#273740':'#4b6975';
+      c.lineWidth=2;c.strokeRect(x,y,width,height);
+      c.fillStyle=a.disabled?'#647d88':'#e6f0f3';
+      c.font='600 23px system-ui';
+      c.fillText(a.label.slice(0,25),x+18,y+height*.65);
+    }
+    c.fillStyle='#839da7';c.font='19px system-ui';
+    c.fillText(state.provenance,42,652);
+    guideTex.needsUpdate=true;
+  }
   function captureFeed(now){
     if(mode!=='procedure'||now-lastFeed<90||monitorStatus==='unavailable')return;
     lastFeed=now;
@@ -813,9 +887,11 @@ function install(ctx){
     const previousXR=rBro.xr.enabled;
     const previousAspect=camScope.aspect;
     const menuWasVisible=worldMenu.visible,roomWasVisible=room.visible;
+    const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     try{
       scopeScreen.visible=false;worldMenu.visible=false;room.visible=false;
+      if(guidePlane)guidePlane.visible=false;
       // Three.js replaces auxiliary cameras while XR rendering is enabled.
       // Disable only for the offscreen pass, then restore in finally.
       rBro.xr.enabled=false;
@@ -853,6 +929,7 @@ function install(ctx){
       }
       camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
       worldMenu.visible=menuWasVisible;
+      if(guidePlane)guidePlane.visible=guideWasVisible;
       room.visible=roomWasVisible;
       scopeScreen.visible=monitorWasVisible;
     }
