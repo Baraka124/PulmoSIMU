@@ -62,9 +62,13 @@ function assess({manifest=null,ctSha=null,meshSha=null,structureQA=null,
     masksPresent:required.filter(x=>structureQA?.structure_findings?.[x]?.status===
       'SOURCE_COFAMED_RESEARCH_MASK_UNREVIEWED'),
     clinicalAnatomyValidated:false,
-    CTLinkedBronchoscopyAllowed:a4Candidate,
+    researchProcedureCandidateEligible:a4Candidate,
+    // Browser-provided manifests/review metadata cannot independently
+    // authenticate a clinical sign-off or prove Quest device validation.
+    // Enable in a future reviewed source-linked engine, never this build.
+    CTLinkedBronchoscopyAllowed:false,
     CTLinkedBronchoscopyStatus:a4Candidate?
-      'RESEARCH_CANDIDATE_REQUIRES_QUEST_AND_CLINICAL_REVIEW':'BLOCKED',
+      'RESEARCH_CANDIDATE_ONLY_REQUIRES_ENGINE_AND_DEVICE_VALIDATION':'BLOCKED',
     proceduralReferenceAvailableSeparately:true,
     noInferredFissuresVesselsOrAirways:true});
 }
