@@ -42,5 +42,5 @@ test('XR13 foveation is optional and reported as a request, not validated frames
   assert.match(xr,/qualityStatus=configureComfortRendering\(\)/);
   assert.match(xr,/stagePresentation:stage\.snapshot\(\)/);
   assert.ok(main.includes('stage-presence.js?v=XR13-ARCHITECTURE'));
-  assert.ok(main.includes('procedural-immersive.js?v=XR14-PROCEDURE-MR'));
+  assert.ok(main.includes('procedural-immersive.js?v=XR15-VIEW-CONTROLS'));
 });
