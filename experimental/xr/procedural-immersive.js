@@ -19,6 +19,9 @@ function install(ctx){
   const safe=(a,b,v)=>Math.max(a,Math.min(b,v));
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
   const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
+  const handProxies=[new THREE.Group(),new THREE.Group()];
+  const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
+  const contactMarkers=[];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
   let scaleMode='comfort',lastPanelUpdate=0;
   let saved=null,scopeSteering=null;
@@ -28,18 +31,20 @@ function install(ctx){
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
   const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
-  const release=i=>{
-    grab[i]=null;
-    if(scopeSteering?.i===i)scopeSteering=null;
+  const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:grips[i];
+  const release=(i,source=null)=>{
+    if(source&&grabSource[i]&&grabSource[i]!==source)return;
+    grab[i]=null;grabSource[i]=null;
+    if(scopeSteering?.i===i&&(!source||source==='controller'))scopeSteering=null;
     if(grab[0]&&!grab[1])capture(0);
     if(grab[1]&&!grab[0])capture(1);
     gesture=null;
   };
-  const currentGrip=i=>grips[i];
   function setMode(next){
     if(!['anatomy','procedure'].includes(next))return;
     summonGeneration++;
-    mode=next;grab[0]=grab[1]=null;gesture=null;scopeSteering=null;
+    mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
+    gesture=null;scopeSteering=null;
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(next==='anatomy')scope.velocity=0;
     paint();
@@ -134,8 +139,8 @@ function install(ctx){
     }
   }
   let lastContact=null;
-  function surfaceContact(i){
-    const controller=grips[i];
+  function surfaceContact(i,source='controller'){
+    const controller=source==='hand'?handProxies[i]:grips[i];
     if(!controller||!global.PulmoXRSurface)return {hit:false,reason:'tracker-unavailable'};
     controller.updateMatrixWorld(true);
     const point=controller.getWorldPosition(new THREE.Vector3());
@@ -152,26 +157,28 @@ function install(ctx){
     }
   }
   function capture(i){
-    if(!grips[i]||!grab[i])return;
-    grips[i].updateMatrixWorld(true);mGrp.updateMatrixWorld(true);
-    grab[i].relative.copy(grips[i].matrixWorld).invert().multiply(mGrp.matrixWorld);
+    const grip=effectiveGrip(i);
+    if(!grip||!grab[i])return;
+    grip.updateMatrixWorld(true);mGrp.updateMatrixWorld(true);
+    grab[i].relative.copy(grip.matrixWorld).invert().multiply(mGrp.matrixWorld);
   }
-  function startGrab(i){
-    if(mode==='procedure'&&active&&controllerSide[i]==='right'){
+  function startGrab(i,source='controller'){
+    if(source==='controller'&&mode==='procedure'&&active&&controllerSide[i]==='right'){
       const g=grips[i];if(!g)return false;
       g.updateMatrixWorld(true);
       scopeSteering={i,origin:g.getWorldQuaternion(new THREE.Quaternion()),
         deflH:scope.deflH,deflV:scope.deflV};
       return true;
     }
-    if(!active||!placed||mode!=='anatomy'||grab[i]||!surfaceContact(i).hit)return false;
-    const grip=grips[i];if(!grip)return false;
+    if(!active||!placed||mode!=='anatomy'||grab[i]||!surfaceContact(i,source).hit)return false;
+    const grip=source==='hand'?handProxies[i]:grips[i];if(!grip)return false;
     summonGeneration++;
+    grabSource[i]=source;
     grab[i]={relative:new THREE.Matrix4()};capture(i);
     if(grab[0]&&grab[1]){
-      grips[0].updateMatrixWorld(true);grips[1].updateMatrixWorld(true);
-      const a=grips[0].getWorldPosition(new THREE.Vector3());
-      const b=grips[1].getWorldPosition(new THREE.Vector3());
+      effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
+      const a=effectiveGrip(0).getWorldPosition(new THREE.Vector3());
+      const b=effectiveGrip(1).getWorldPosition(new THREE.Vector3());
       gesture={a:a.clone(),b:b.clone(),center:a.clone().add(b).multiplyScalar(.5),
         position:mGrp.position.clone(),quat:mGrp.quaternion.clone(),scale:mGrp.scale.x};
     }else gesture=null;
@@ -181,8 +188,8 @@ function install(ctx){
     if(!grab[0]&&!grab[1]||mode!=='anatomy')return;
     mGrp.parent?.updateMatrixWorld(true);
     if(grab[0]&&grab[1]&&gesture){
-      grips[0].updateMatrixWorld(true);grips[1].updateMatrixWorld(true);
-      const a=grips[0].getWorldPosition(new THREE.Vector3()),b=grips[1].getWorldPosition(new THREE.Vector3());
+      effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
+      const a=effectiveGrip(0).getWorldPosition(new THREE.Vector3()),b=effectiveGrip(1).getWorldPosition(new THREE.Vector3());
       const initial=gesture.b.clone().sub(gesture.a),current=b.clone().sub(a);
       if(initial.length()<.07||current.length()<.07)return;
       const rotation=new THREE.Quaternion().setFromUnitVectors(initial.normalize(),current.normalize());
@@ -193,8 +200,8 @@ function install(ctx){
       mGrp.scale.setScalar(scaling);
     }else{
       const i=grab[0]?0:1;
-      grips[i].updateMatrixWorld(true);
-      const matrix=new THREE.Matrix4().multiplyMatrices(grips[i].matrixWorld,grab[i].relative);
+      effectiveGrip(i).updateMatrixWorld(true);
+      const matrix=new THREE.Matrix4().multiplyMatrices(effectiveGrip(i).matrixWorld,grab[i].relative);
       matrix.decompose(mGrp.position,mGrp.quaternion,mGrp.scale);
     }
     // Keep the assembly from passing into the user's head.
@@ -203,6 +210,48 @@ function install(ctx){
       const offset=mGrp.position.clone().sub(head);
       if(offset.length()<.001)offset.copy(forward);
       mGrp.position.copy(head).add(offset.normalize().multiplyScalar(.38));
+    }
+  }
+  function updateTrackedHands(frame){
+    const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
+    const found=[false,false],valid=[false,false];
+    if(session&&space&&frame?.getJointPose){
+      for(const source of session.inputSources){
+        if(!source.hand)continue;
+        const i=source.handedness==='left'?0:source.handedness==='right'?1:-1;
+        if(i<0)continue;
+        found[i]=true;
+        const index=source.hand.get('index-finger-tip'),thumb=source.hand.get('thumb-tip');
+        if(!index||!thumb)continue;
+        const p=frame.getJointPose(index,space),q=frame.getJointPose(thumb,space);
+        if(!p?.transform?.position||!q?.transform?.position)continue;
+        const a=p.transform.position,b=q.transform.position;
+        const pA=new THREE.Vector3(a.x,a.y,a.z),pB=new THREE.Vector3(b.x,b.y,b.z);
+        const proxy=handProxies[i];
+        proxy.position.copy(pA).add(pB).multiplyScalar(.5);
+        const wrist=source.hand.get('wrist');
+        const w=wrist?frame.getJointPose(wrist,space):null;
+        if(w?.transform?.orientation){
+          const o=w.transform.orientation;
+          proxy.quaternion.set(o.x,o.y,o.z,o.w).normalize();
+        }else proxy.quaternion.identity();
+        proxy.updateMatrixWorld(true);valid[i]=true;
+        handSeen[i]=true;
+        if(contactMarkers[i]){
+          contactMarkers[i].position.copy(proxy.position);
+          contactMarkers[i].visible=mode==='anatomy';
+        }
+        const pinchDistance=pA.distanceTo(pB);
+        const pressed=handPinched[i]?pinchDistance<.055:pinchDistance<=.026;
+        if(pressed&&!handPinched[i]&&mode==='anatomy')startGrab(i,'hand');
+        else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
+        handPinched[i]=pressed;
+      }
+    }
+    for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
+      handSeen[i]=false;handPinched[i]=false;
+      if(contactMarkers[i])contactMarkers[i].visible=false;
+      if(grabSource[i]==='hand')release(i,'hand');
     }
   }
   function updateSteering(){
@@ -456,6 +505,12 @@ function install(ctx){
     }
   }
   for(let i=0;i<2;i++){
+    scene.add(handProxies[i]);
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(.009,8,6),
+      new THREE.MeshBasicMaterial({color:0xc0dce0,transparent:true,opacity:.76,depthTest:false}));
+    marker.visible=false;marker.renderOrder=36;scene.add(marker);contactMarkers.push(marker);
+  }
+  for(let i=0;i<2;i++){
     const controller=rBro.xr.getController(i),grip=rBro.xr.getControllerGrip(i);
     hands[i]=controller;grips[i]=grip;scene.add(controller,grip);
     const line=new THREE.Line(
@@ -463,10 +518,14 @@ function install(ctx){
       new THREE.LineBasicMaterial({color:i?0xb6d1d9:0x789ba9,transparent:true,opacity:.45}));
     line.scale.z=1.9;controller.add(line);
     controller.addEventListener('connected',event=>{controllerSide[i]=event.data?.handedness||null});
-    controller.addEventListener('selectstart',()=>onTrigger(i));
-    controller.addEventListener('squeezestart',()=>startGrab(i));
-    controller.addEventListener('squeezeend',()=>release(i));
-    controller.addEventListener('disconnected',()=>release(i));
+    controller.addEventListener('selectstart',event=>{
+      // A tracked-hand selectstart is the same physical pinch handled by
+      // XRJointPose. Never treat it as an unrelated distance-ray click.
+      if(!event.data?.hand)onTrigger(i);
+    });
+    controller.addEventListener('squeezestart',()=>startGrab(i,'controller'));
+    controller.addEventListener('squeezeend',()=>release(i,'controller'));
+    controller.addEventListener('disconnected',()=>release(i,'controller'));
   }
   // Event buttons and actual headset session lifecycle
   button=document.createElement('button');
@@ -500,6 +559,8 @@ function install(ctx){
   rBro.xr.addEventListener('sessionstart',()=>{
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';
+    handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
+    contactMarkers.forEach(m=>m.visible=false);
     monitorStatus='not-started';monitorError=null;monitorFrames=0;
     monitorImage.visible=false;
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
@@ -518,7 +579,7 @@ function install(ctx){
         frameGroup();
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
-      poll(dt);updateGrab();updateSteering();
+      poll(dt);updateTrackedHands(frame);updateGrab();updateSteering();
       // Advance the ORIGINAL medical procedure engine on XR time, not
       // tab requestAnimationFrame, which can be throttled in a headset.
       if(mode==='procedure'&&Math.abs(scope.velocity)>.0001){
@@ -542,6 +603,8 @@ function install(ctx){
       mGrp.scale.copy(saved.scale);setExtIdle(saved.extIdle);
     }
     for(let i=0;i<2;i++)grab[i]=null;
+    grabSource.fill(null);handSeen.fill(false);handPinched.fill(false);
+    contactMarkers.forEach(m=>m.visible=false);
     summonGeneration++;gesture=null;scopeSteering=null;placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
@@ -552,6 +615,7 @@ function install(ctx){
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     contact:lastContact,
+    handTracking:handSeen.slice(),grabSources:grabSource.slice(),
     referenceFocus:getReferenceFocus?.()||null,
     sourceAudit:getPatientAudit?.()||null,
     scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
