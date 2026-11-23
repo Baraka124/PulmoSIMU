@@ -10,7 +10,7 @@ test('XR-11 caps anatomical world-space span regardless of original model units'
  const m=math();
  assert.equal(m.clampScale(100,8),m.CONFIG.maximumSpanM/8);
  assert.equal(m.clampScale(.0001,8),m.CONFIG.minimumSpanM/8);
- assert.equal(m.clampScale(1.0,.5),m.CONFIG.maximumSpanM/.5);
+ assert.equal(m.clampScale(1.0,.5),1.0);
  for(const extent of [.08,.5,1.0,3,12,150]){
    for(const raw of [.0001,.4,1,1.65,9,100]){
      const span=extent*m.clampScale(raw,extent);
