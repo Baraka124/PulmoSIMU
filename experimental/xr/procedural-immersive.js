@@ -15,6 +15,8 @@ function install(ctx){
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
   if(!global.PulmoXRSessionHealth?.createSessionHealth)
     throw Error('XR-09 local session health runtime missing');
+  if(!global.PulmoXRRemoteTarget?.pick)
+    throw Error('XR-10 triangle-backed remote aiming runtime missing');
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
@@ -22,6 +24,12 @@ function install(ctx){
   const safe=(a,b,v)=>Math.max(a,Math.min(b,v));
   const vec=(a)=>new THREE.Vector3(a[0],a[1],a[2]);
   const hands=[null,null],grips=[null,null],grab=[null,null],controllerSide=[null,null];
+  // WebXR getController(index) is connection-order, NOT reliably left=0/right=1.
+  const controllerSources=[null,null],laserLines=[null,null],laserTips=[null,null];
+  const aimTargets=[null,null],squeezeHeld=[false,false];
+  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0};
+  let lastAimTime=0,grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
+  let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
   const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
   const contactMarkers=[];
@@ -35,10 +43,23 @@ function install(ctx){
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
   const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
-  const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:grips[i];
-  const release=(i,source=null)=>{
+  const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
+  const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:trackedController(i);
+  const release=(i,source=null,input=null)=>{
     if(source&&grabSource[i]&&grabSource[i]!==source)return;
+    if(input&&grab[i]&&grab[i].input!==input)return;
+    const endedGrab=grab[i];
     grab[i]=null;grabSource[i]=null;
+    if(endedGrab){
+      grabFeedback='RELEASED '+(endedGrab.method||'ANATOMY');
+      // A short trigger TAP on the actual surface summons the lung
+      // within reach, while a HOLD translates/rotates it at a distance.
+      if(source==='controller'&&input==='trigger'&&mode==='anatomy'&&
+        performance.now()-endedGrab.startedAt<400&&
+        mGrp.position.distanceTo(endedGrab.startPosition)<.025 &&
+        mGrp.quaternion.angleTo(endedGrab.startQuaternion)<.045)
+        summon();
+    }
     if(scopeSteering?.i===i&&(!source||source==='controller'))scopeSteering=null;
     if(grab[0]&&!grab[1])capture(0);
     if(grab[1]&&!grab[0])capture(1);
@@ -48,7 +69,8 @@ function install(ctx){
     if(!['anatomy','procedure'].includes(next))return;
     summonGeneration++;
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
-    gesture=null;scopeSteering=null;
+    gesture=null;scopeSteering=null;summonTween=null;
+    grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(next==='anatomy')scope.velocity=0;
     paint();
