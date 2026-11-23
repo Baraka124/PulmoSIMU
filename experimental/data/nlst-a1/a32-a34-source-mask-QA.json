@@ -1,0 +1,78 @@
+{
+  "protocol": "PulmoSIMU-A3.2-to-A3.4-source-mask-QA-v1",
+  "CT_SHA256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "A31_labelmap_SHA256": "beeefc34c198c3ebc665f0729b440055fc17fe02366aeb9d0cc518abd1cf61fd",
+  "source_dimensions_kji": [
+    150,
+    512,
+    512
+  ],
+  "structure_findings": {
+    "RUL": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "RML": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "RLL": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "LUL": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "LLL": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "airway_lumen": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "pulmonary_artery": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    },
+    "pulmonary_vein": {
+      "status": "MISSING_SOURCE_SEGMENTATION",
+      "source_file": null
+    }
+  },
+  "groups": {
+    "A3.2 - lobes": {
+      "complete": false,
+      "status": "MISSING_SOURCE_MASKS",
+      "required_masks": [
+        "RUL",
+        "RML",
+        "RLL",
+        "LUL",
+        "LLL"
+      ]
+    },
+    "A3.3 - bronchial lumen": {
+      "complete": false,
+      "status": "MISSING_SOURCE_MASKS",
+      "required_masks": [
+        "airway_lumen"
+      ]
+    },
+    "A3.4 - vessels": {
+      "complete": false,
+      "status": "MISSING_SOURCE_MASKS",
+      "required_masks": [
+        "pulmonary_artery",
+        "pulmonary_vein"
+      ]
+    }
+  },
+  "lobar_topology_gate": "BLOCKED_MISSING_FIVE_LOBE_MASKS",
+  "vascular_status": "BLOCKED_MISSING_VASCULAR_MASKS",
+  "clinical_segmentation_approval": "PENDING_INDEPENDENT_REVIEW",
+  "ct_registered_bronchoscopy": "BLOCKED_NO_REVIEWED_AIRWAY_CENTRELINE",
+  "patient_specific_flow": "BLOCKED_UNVALIDATED_PHYSICS",
+  "note": "Matching source space does not establish anatomical segmentation accuracy. No independent lobe, airway, artery or vein masks were supplied."
+}
