@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync,existsSync} from 'node:fs';
+const url=new URL('../data/nlst-a1/study-manifest.json',import.meta.url);
+const manifest=JSON.parse(readFileSync(url,'utf8'));
+test('Public NLST A1 research manifest retains source coordinates, hashes and calibrated intensity',()=>{
+ assert.equal(manifest.origin_license,'CC BY 4.0 (TCIA public NLST radiology CT images)');
+ assert.equal(manifest.source_shape_vox.join('x'),'512x512x150');
+ assert.equal(manifest.HU_stored_slope,1);
+ assert.equal(manifest.HU_stored_intercept,-1024);
+ assert.equal(manifest.source_sha256,'5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087');
+ assert.equal(manifest.mesh_sha256,'5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f');
+ assert.equal(manifest.sform_RAS_mm.length,4);
+ assert.equal(manifest.model_from_ras_mm.length,4);
+ assert.equal(manifest.geometry_class,'PRELIMINARY_CT_DERIVED_AIRSPACE_MASK');
+ assert.equal(manifest.validation,'RESEARCH_ONLY_UNVALIDATED');
+});
+test('Public data catalog does not silently claim a CT upload or validated bronchoscopy',()=>{
+ assert.equal(manifest.binary_objects_in_git,false);
+ assert.ok(manifest.limitations.some(x=>/airway/i.test(x)));
+ assert.ok(manifest.quality_gates.bronchoscope_to_ct_registration==='BLOCKED');
+ assert.ok(manifest.quality_gates.right_lung_mask_leakage==='FLAGGED_FOR_REVIEW');
+ const readme=readFileSync(new URL('../data/nlst-a1/README.md',import.meta.url),'utf8');
+ assert.ok(readme.includes('Not attached to GitHub yet'));
+ assert.ok(readme.includes('CC BY 4.0'));
+ assert.ok(readme.includes('75 MiB'));
+ const publisher=readFileSync(new URL('../data/nlst-a1/publish-a1-release.ps1',import.meta.url),'utf8');
+ assert.ok(publisher.includes('Get-FileHash'));
+ assert.ok(publisher.includes('gh release create'));
+ assert.ok(publisher.includes('if(-not $Publish)'));
+ assert.ok(publisher.includes('PUBLISH-NLST-A1'));
+});
