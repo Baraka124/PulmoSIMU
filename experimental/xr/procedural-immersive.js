@@ -645,13 +645,24 @@ function install(ctx){
     });
     controller.addEventListener('selectstart',event=>{
       // Hand selectstart is the physical pinch handled by XRJointPose.
-      if(!event.data?.hand)onTrigger(i);
+      // Mark the corresponding gamepad edge handled to prevent a duplicate
+      // procedure action when both WebXR events and buttons report the press.
+      if(!event.data?.hand){
+        mapButtons[i][0]=true;
+        onTrigger(i);
+      }
     });
     controller.addEventListener('selectend',event=>{
       if(!event.data?.hand)release(i,'controller','trigger');
     });
-    controller.addEventListener('squeezestart',()=>startGrab(i,'controller','grip'));
-    controller.addEventListener('squeezeend',()=>release(i,'controller','grip'));
+    controller.addEventListener('squeezestart',()=>{
+      squeezeHeld[i]=true;
+      startGrab(i,'controller','grip');
+    });
+    controller.addEventListener('squeezeend',()=>{
+      squeezeHeld[i]=false;
+      release(i,'controller','grip');
+    });
     controller.addEventListener('disconnected',()=>{
       health.event('controllerDisconnected');
       release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;
