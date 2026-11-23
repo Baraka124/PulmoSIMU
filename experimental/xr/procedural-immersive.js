@@ -23,7 +23,8 @@ function install(ctx){
   const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
   const contactMarkers=[];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
-  let scaleMode='comfort',lastPanelUpdate=0;
+  let scaleMode='comfort',lastPanelUpdate=0,physicsSnapshot=null;
+  let physicsError=null;
   let saved=null,scopeSteering=null;
   let gesture=null,worldMenu=null,scopeScreen=null,scopeTexture=null,scopeCanvas=null;
   let button=null,lastFeed=0,actionHitbox=[],summonGeneration=0;
@@ -402,7 +403,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText('PULMOSIMU  /  XR-08 ORIGINAL ENGINE',48,64);
+    c.fillText('PULMOSIMU  /  XR-09 UNIFIED ENGINE',48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
@@ -420,7 +421,12 @@ function install(ctx){
       ?(clearance
         ?'EST. LUMEN '+clearance.diameterMm.toFixed(1)+' mm  /  TOOL '+clearance.scopeDiameterMm.toFixed(1)+' mm  ·  '+(clearance.canAdvance?'PASS':'BLOCK')
         :'NO VALID LUMEN-TOOL CLEARANCE MODEL')
-      :'CT SOURCE SCALE IS METADATA-DERIVED, NOT CLINICALLY VERIFIED';
+      :(role==='reference'&&physicsSnapshot
+       ?'R3 REFERENCE (ASSUMED)  ·  '+(physicsSnapshot.pressurePa/98.0665).toFixed(1)+
+          ' cmH2O  ·  '+(physicsSnapshot.flowM3PerS*1000).toFixed(2)+' L/s'
+       :role==='reference'
+        ?'R3 REDUCED-ORDER RESEARCH · LOADING / UNAVAILABLE'
+        :'CT SOURCE SCALE IS METADATA-DERIVED, NOT CLINICALLY VERIFIED');
     c.fillText(clinicalLabel.slice(0,83),48,311);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
@@ -559,6 +565,8 @@ function install(ctx){
   rBro.xr.addEventListener('sessionstart',()=>{
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';
+    physicsSnapshot=null;physicsError=null;
+    global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
     contactMarkers.forEach(m=>m.visible=false);
     monitorStatus='not-started';monitorError=null;monitorFrames=0;
@@ -580,6 +588,12 @@ function install(ctx){
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);updateTrackedHands(frame);updateGrab();updateSteering();
+      // The identical SI-unit R3 solver used in the research laboratory;
+      // explicitly reference-only, never CT-fitted or mesh-deforming.
+      if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
+        try{physicsSnapshot=global.PulmoXRReferencePhysics.step(dt);physicsError=null}
+        catch(error){physicsSnapshot=null;physicsError=String(error?.message||error).slice(0,140)}
+      }else physicsSnapshot=null;
       // Advance the ORIGINAL medical procedure engine on XR time, not
       // tab requestAnimationFrame, which can be throttled in a headset.
       if(mode==='procedure'&&Math.abs(scope.velocity)>.0001){
@@ -616,6 +630,8 @@ function install(ctx){
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     contact:lastContact,
     handTracking:handSeen.slice(),grabSources:grabSource.slice(),
+    physics:physicsSnapshot,physicsError,
+    referencePhysicsStatus:global.PulmoXRReferencePhysicsStatus||'not-loaded',
     referenceFocus:getReferenceFocus?.()||null,
     sourceAudit:getPatientAudit?.()||null,
     scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
