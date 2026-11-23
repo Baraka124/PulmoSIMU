@@ -14,9 +14,10 @@ page.on('console',message=>{if(message.type()==='error'&&!message.text().include
 try {
  await page.goto(host+'/experimental/lab.html',{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>document.getElementById('networkStatus')?.textContent?.includes('SI-unit'),null,{timeout:45000});
- assert.ok(await page.locator('#lungCanvas').isVisible(),'3D canvas visible');
- const canvas=await page.locator('#lungCanvas').boundingBox();
- assert.ok(canvas?.width>250&&canvas.height>250,'Canvas has nonzero stage dimensions');
+ assert.ok(await page.locator('#referenceObservatory').isVisible(),'Numerical observatory visible by default');
+ assert.ok(await page.locator('#lungCanvas').isHidden(),'No fake anatomical mesh presented in numerical reference');
+ assert.equal(await page.locator('#regionalBars .region-row').count(),5,'Five mathematical region outputs');
+ assert.equal(await page.locator('#regionalProfileTitle').innerText(),'Ventilation allocation');
  assert.notEqual(await page.locator('#tidal').innerText(),'—','R3 breathing model mounted');
  assert.notEqual(await page.locator('#terminals').innerText(),'—','Airway graph loaded');
  assert.equal(await page.locator('#atlasSegmentCount').innerText(),'3','RUL segment allocation present');
@@ -42,10 +43,11 @@ try {
  assert.equal(await page.locator('#overlayLabel').innerText(),'TUMOR');
  assert.ok(await page.locator('#selected').isVisible());
  await page.locator('#isolateRegion').click();
- assert.match(await page.locator('#isolateRegion').innerText(),/Show all lobes/);
- await page.locator('#toggleAirways').click();
- assert.match(await page.locator('#toggleAirways').innerText(),/Show airway/);
- await page.locator('#resetCamera').click();
+ assert.match(await page.locator('#isolateRegion').innerText(),/Show all regions/);
+ assert.equal(await page.locator('#regionalBars .region-row').count(),1,'Numerical region isolation');
+ await page.locator('#isolateRegion').click();
+ assert.equal(await page.locator('#regionalBars .region-row').count(),5);
+ assert.ok(await page.locator('#resetCamera').isHidden(),'Source camera controls hidden without a source');
  // Generate a synthetic GLB and PNEUMO·VR metadata pair entirely within Chromium.
  // This is a browser integration fixture, NOT patient imaging data.
  await page.evaluate(async()=>{
@@ -66,6 +68,8 @@ try {
  await page.locator('#loadCt').click();
  await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/);
+ assert.ok(await page.locator('#lungCanvas').isVisible(),'Source-backed 3D canvas only after GLB load');
+ assert.ok(await page.locator('#referenceObservatory').isHidden(),'Numerical board replaced by supplied source');
  assert.ok(await page.locator('#anatomicalAtlas').isHidden(),'reference atlas hidden during CT-source inspection');
  assert.match(await page.locator('#networkStatus').innerText(),/NOT computed from/);
  assert.equal(await page.locator('#ctBranchCount').innerText(),'2','CT-derived branch inspection');
@@ -83,8 +87,9 @@ try {
  await page.waitForFunction(()=>document.getElementById('ctStatus')?.textContent?.includes('rejected'),null,{timeout:15000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/CT AIRWAY/,'Rejected replacement leaves existing source active');
  await page.locator('#restoreReference').click();
- assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
- assert.ok(await page.locator('#anatomicalAtlas').isVisible(),'reference topology restored');
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/NUMERICAL REFERENCE/);
+ assert.ok(await page.locator('#anatomicalAtlas').isVisible(),'reference terminology restored');
+ assert.ok(await page.locator('#lungCanvas').isHidden(),'No artificial anatomy after returning to numerical mode');
  assert.match(await page.locator('#ctStatus').innerText(),/cleared/);
  // Surface-atlas fixture: authored geometric primitives for integration only.
  await page.evaluate(async()=>{
@@ -115,6 +120,7 @@ try {
  await page.locator('#loadSurfaceAtlas').click();
  await page.waitForFunction(()=>document.getElementById('surfaceStatus')?.textContent?.includes('loaded locally'),null,{timeout:30000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/EXTERNAL SURFACE ATLAS/);
+ assert.ok(await page.locator('#lungCanvas').isVisible(),'Atlas source uses imported 3D only');
  assert.equal(await page.locator('#surfaceLobeCount').innerText(),'1/5');
  assert.equal(await page.locator('#surfaceVesselCount').innerText(),'1');
  assert.equal(await page.locator('#surfaceUnit').innerText(),'mm');
@@ -136,11 +142,11 @@ try {
  await page.waitForFunction(()=>document.getElementById('surfaceStatus')?.textContent?.includes('rejected'),null,{timeout:15000});
  assert.match(await page.locator('#anatomyProvenance').innerText(),/EXTERNAL SURFACE ATLAS/);
  await page.locator('#restoreReference').click();
- assert.match(await page.locator('#anatomyProvenance').innerText(),/PROCEDURAL REFERENCE/);
+ assert.match(await page.locator('#anatomyProvenance').innerText(),/NUMERICAL REFERENCE/);
  assert.ok(await page.locator('#anatomicalAtlas').isVisible());
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
- console.log('PASS experimental canvas: airway load, numerical results, disease, R5, overlays and controls');
+ console.log('PASS numerical laboratory: no invented lobe meshes; R3, R5 and source-backed inspections retained');
  const xr=await browser.newPage({viewport:{width:1260,height:850}});
  const xrErrors=[];
  xr.on('pageerror',err=>xrErrors.push(err.message));
