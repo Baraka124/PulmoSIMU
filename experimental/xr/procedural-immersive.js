@@ -489,6 +489,19 @@ function install(ctx){
     paint();
   }
   const mapButtons=[[],[]];
+  function toggleSpatialPanel(i){
+    if(!active||!viewerValid)return false;
+    if(worldMenu.visible){
+      worldMenu.visible=false;hoverPanels.fill(null);
+      grabFeedback='SPATIAL CONTROLS HIDDEN / LEFT Y TO SHOW';
+    }else{
+      positionPanels();
+      worldMenu.visible=true;
+      grabFeedback='SPATIAL CONTROLS READY / AIM AND TRIGGER';
+    }
+    attempts.panelToggles++;
+    haptic(i,.20,36);paint();return true;
+  }
   function applyAnalogAnatomy(side,x,y,dt){
     if(mode!=='anatomy'||!placed||!boundsCache||grab.some(Boolean))return;
     const center=focusWorld();
@@ -546,6 +559,9 @@ function install(ctx){
       const x=Math.abs(axes[n]||0)<.13?0:axes[n],y=Math.abs(axes[n+1]||0)<.13?0:axes[n+1];
       if(side==='right'&&edge(4))setMode(mode==='anatomy'?'procedure':'anatomy');
       if(side==='left'&&edge(4))frameGroup();
+      // Quest left-controller Y: restore/hide the spatial menu. This avoids
+      // a permanent HUD and works from either anatomy or bronchoscopy.
+      if(side==='left'&&edge(5))toggleSpatialPanel(i);
       if(mode==='anatomy'){
         applyAnalogAnatomy(side,x,y,dt);
         continue;
@@ -565,15 +581,29 @@ function install(ctx){
     // A vanished controller must not leave the original scope advancing.
     if(mode==='procedure'&&!leftControllerAvailable)scope.velocity=0;
   }
-  // World-space context for a seated user. This is environmental staging,
-  // deliberately independent of anatomy/scopes and ignored by raycasting.
+  // World-space architectural VR shell, independent of the anatomical source.
+  // Fixed when the session starts: viewer head motion creates genuine parallax
+  // and presence. No fake lung geometry, HUD skyboxes or computer-room overlay.
   const room=new THREE.Group();room.visible=false;scene.add(room);
+  const chamber=new THREE.Mesh(
+    new THREE.SphereGeometry(8,32,16),
+    new THREE.MeshBasicMaterial({color:0x0a1218,side:THREE.BackSide,
+      depthWrite:false,fog:false}));
+  chamber.position.y=1.22;
+  chamber.renderOrder=-100;room.add(chamber);
   const floor=new THREE.Mesh(new THREE.CircleGeometry(3.8,64),
     new THREE.MeshStandardMaterial({color:0x14242e,roughness:1,metalness:0}));
   floor.rotation.x=-Math.PI/2;room.add(floor);
   const grid=new THREE.GridHelper(7.2,20,0x4e6671,0x263843);
   grid.material.transparent=true;grid.material.opacity=.24;
   grid.position.y=.003;room.add(grid);
+  const ringMaterial=new THREE.MeshBasicMaterial({
+    color:0x51727f,transparent:true,opacity:.19,depthWrite:false});
+  for(const radius of [1.3,2.3,3.4]){
+    const ring=new THREE.Mesh(new THREE.RingGeometry(radius,radius+.006,64),
+      ringMaterial);
+    ring.rotation.x=-Math.PI/2;ring.position.y=.012;room.add(ring);
+  }
   const plinth=new THREE.Mesh(new THREE.CylinderGeometry(.72,.78,.055,64),
     new THREE.MeshStandardMaterial({color:0x253742,metalness:.16,roughness:.86,
       transparent:true,opacity:.45}));
@@ -606,7 +636,7 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-11 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU XR-12 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
@@ -616,7 +646,7 @@ function install(ctx){
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
-       :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · L STICK: SIZE',48,236);
+       :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
     c.fillText(source,48,274);
     c.fillStyle='#d8e1e4';c.font='22px system-ui';
@@ -828,6 +858,7 @@ function install(ctx){
     cursor:'pointer',borderRadius:'3px',display:'none'});
   global.document.body.appendChild(reportButton);
   const localSessionReport=()=>({
+    release:'XR-12 · Spatial Laboratory',
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     lastInteractionResult:grabFeedback,
@@ -835,13 +866,13 @@ function install(ctx){
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
     scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
-    integration:'XR-09 original procedural scene; unvalidated research build'
+    integration:'XR-12 controller routing on original procedural scene; unvalidated research build'
   });
   reportButton.addEventListener('click',()=>{
     const blob=new Blob([JSON.stringify(localSessionReport(),null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download='pulmosimu-xr09-session-report.json';
+    a.href=url;a.download='pulmosimu-xr12-session-report.json';
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
@@ -977,6 +1008,8 @@ function install(ctx){
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
+    spatialMenuVisible:Boolean(worldMenu.visible),
+    roomShellVisible:Boolean(room.visible),
     worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
     hoverStatus:aimTargets.map(t=>t?{hit:t.hit,reason:t.reason,distanceM:t.distanceM}:null),
