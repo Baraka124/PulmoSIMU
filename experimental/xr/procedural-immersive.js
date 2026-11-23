@@ -1067,35 +1067,66 @@ function install(ctx){
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
   global.pulmoXRSessionReport=localSessionReport;
-  button.addEventListener('click',async()=>{
+  // AR is an explicit, capability-gated alternative session for the SAME
+  // original engine. Quest 2 displays grayscale camera passthrough. Browser
+  // alpha compositing reveals the room; no fabricated room scan or occlusion.
+  arButton=document.createElement('button');
+  arButton.type='button';arButton.id='pulmo-passthrough-ar';
+  arButton.textContent='ENTER MR · PASSTHROUGH PREVIEW';
+  Object.assign(arButton.style,{position:'fixed',bottom:'18px',right:'241px',
+    zIndex:10020,padding:'13px 16px',border:'1px solid #9ab8bd',
+    background:'#15252d',color:'#d4e5ea',font:'600 12px system-ui',
+    cursor:'pointer',borderRadius:'4px',display:'none'});
+  document.body.appendChild(arButton);
+  async function enterXR(presentation){
     if(rBro.xr.isPresenting){await rBro.xr.getSession()?.end();return}
+    const desired=presentation==='ar'?'immersive-ar':'immersive-vr';
     try{
-      // The splash screen blocks all other UI. For WebXR, open the existing
-      // model without requesting webcam/MediaPipe desktop tracking.
       const splash=document.getElementById('splash'),app=document.getElementById('app');
       if(splash)splash.style.display='none';if(app)app.style.display='flex';
       onResize();
-      const session=await navigator.xr.requestSession('immersive-vr',{
+      const session=await navigator.xr.requestSession(desired,{
         optionalFeatures:['local-floor','bounded-floor','hand-tracking']
       });
-      await rBro.xr.setSession(session);
-    }catch(e){showToast('Quest XR unavailable: '+e.message,'warn');console.warn('Procedural XR',e)}
-  });
+      xrPresentation=presentation;
+      try{await rBro.xr.setSession(session)}
+      catch(error){try{await session.end()}catch{}throw error}
+    }catch(error){
+      xrPresentation='vr';
+      showToast((presentation==='ar'?'MR passthrough':'Quest XR')+
+        ' unavailable: '+String(error?.message||error),'warn');
+      console.warn('PulmoSIMU WebXR entry',error);
+    }
+  }
+  button.addEventListener('click',()=>enterXR('vr'));
+  arButton.addEventListener('click',()=>enterXR('ar'));
   if(!navigator.xr){
     button.disabled=true;button.textContent='PROCEDURAL XR · QUEST REQUIRED';
   }else{
     navigator.xr.isSessionSupported('immersive-vr').then(ok=>{
       if(!ok){button.disabled=true;button.textContent='PROCEDURAL XR · QUEST REQUIRED'}
     }).catch(()=>{button.disabled=true;button.textContent='PROCEDURAL XR UNAVAILABLE'});
+    navigator.xr.isSessionSupported('immersive-ar').then(ok=>{
+      arButton.style.display=ok?'block':'none';
+    }).catch(()=>{arButton.style.display='none'});
   }
   rBro.xr.addEventListener('sessionstart',()=>{
+    // Preserve ordinary opaque 2D/VR rendering and fully restore it at exit.
+    backgroundBeforeXR=scene.background;fogBeforeXR=scene.fog;
+    clearBeforeXR=rBro.getClearColor(new THREE.Color()).clone();
+    clearAlphaBeforeXR=rBro.getClearAlpha?.()??1;
+    if(xrPresentation==='ar'){
+      scene.background=null;scene.fog=null;
+      rBro.setClearColor(0x000000,0);
+    }
     health.begin(rBro.xr.getSession()?.frameRate??null);
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
+    guideVisible=true;guideStep=0;guideActions=0;
     menuPage='primary';actionHitbox=panelLayouts.primary;
-    stage.setMode('studio');qualityStatus='unassessed';
+    stage.setMode('studio');
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
@@ -1112,9 +1143,12 @@ function install(ctx){
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
-    worldMenu.visible=true;scopeScreen.visible=false;room.visible=true;
+    worldMenu.visible=true;scopeScreen.visible=false;room.visible=xrPresentation!=='ar';
+    if(guidePlane)guidePlane.visible=false;
     room.position.copy(head).setY(-.02);
-    button.textContent='EXIT PROCEDURAL XR';setMode('anatomy');paint();
+    button.textContent='EXIT PROCEDURAL XR';
+    arButton.textContent='EXIT MR PREVIEW';
+    setMode('anatomy');paint();
     rBro.setAnimationLoop((time,frame)=>{
       if(!active||!rBro.xr.isPresenting)return;
       health.startFrame(time);
@@ -1179,6 +1213,11 @@ function install(ctx){
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
+    if(guidePlane)guidePlane.visible=false;
+    // Restore the exact pre-session desktop scene and renderer blend state.
+    scene.background=backgroundBeforeXR;scene.fog=fogBeforeXR;
+    if(clearBeforeXR)rBro.setClearColor(clearBeforeXR,clearAlphaBeforeXR);
+    xrPresentation='vr';
     if(saved){
       mGrp.position.copy(saved.position);mGrp.quaternion.copy(saved.quaternion);
       mGrp.scale.copy(saved.scale);setExtIdle(saved.extIdle);
@@ -1192,7 +1231,9 @@ function install(ctx){
     controllerSources.fill(null);controllerSide.fill(null);
     squeezeHeld.fill(false);aimTargets.fill(null);hoverPanels.fill(null);
     placed=false;viewerValid=false;
-    button.textContent='ENTER PROCEDURAL XR';onResize();
+    button.textContent='ENTER PROCEDURAL XR';
+    arButton.textContent='ENTER MR · PASSTHROUGH PREVIEW';
+    onResize();
   });
   paint();
   const diagnostics=()=>({source:'original-pneumovr-scene',modelRole:getMeshMode(),
@@ -1206,6 +1247,7 @@ function install(ctx){
     spatialMenuVisible:Boolean(worldMenu.visible),
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
+    xrPresentation,procedureGuideVisible:Boolean(guidePlane?.visible),
     panelPage:menuPage,
     worldSpaceSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
     scaleClampEvents:scaleClamps,workspaceClampEvents:workspaceClamps,
