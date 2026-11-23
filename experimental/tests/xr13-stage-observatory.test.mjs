@@ -30,7 +30,7 @@ test('XR13 expert menu preserves original actions while primary menu stays compa
     "panelPage:menuPage"]){
     assert.ok(xr.includes(token),'Missing contextual scene/UI contract '+token);
   }
-  assert.ok(launcher.includes('XR-13 · Spatial Anatomy Observatory'));
+  assert.ok(launcher.includes('XR-14 · Immersive Procedure Laboratory'));
   assert.ok(launcher.includes('EXPERT TOOLS'));
   assert.ok(launcher.includes('FOCUS VIEW'));
 });
@@ -42,5 +42,5 @@ test('XR13 foveation is optional and reported as a request, not validated frames
   assert.match(xr,/qualityStatus=configureComfortRendering\(\)/);
   assert.match(xr,/stagePresentation:stage\.snapshot\(\)/);
   assert.ok(main.includes('stage-presence.js?v=XR13-ARCHITECTURE'));
-  assert.ok(main.includes('procedural-immersive.js?v=XR13-SPATIAL-STAGE'));
+  assert.ok(main.includes('procedural-immersive.js?v=XR14-PROCEDURE-MR'));
 });
