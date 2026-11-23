@@ -25,6 +25,8 @@ function install(ctx){
     throw Error('XR-13 spatial architecture runtime missing');
   if(!global.PulmoXRProcedureGuide?.describe)
     throw Error('XR-14 airway guidance runtime missing');
+  if(!global.PulmoXRViewHistory?.create)
+    throw Error('XR-15 reversible anatomy transform runtime missing');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   rBro.xr.enabled=true;
@@ -75,6 +77,28 @@ function install(ctx){
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
   let boundsCache=null,limitsApplied=0,scaleClamps=0,workspaceClamps=0;
+  const viewHistory=global.PulmoXRViewHistory.create(24);
+  let pivotMode='center',axisMode='yaw',analogChangedAt=0;
+  const viewPose=()=>({
+    position:mGrp.position.toArray(),quaternion:mGrp.quaternion.toArray(),
+    scale:mGrp.scale.x
+  });
+  function beginViewChange(){
+    if(!active||!placed||mode!=='anatomy')return false;
+    return viewHistory.begin(viewPose());
+  }
+  function finishViewChange(){analogChangedAt=0;return viewHistory.finish(viewPose())}
+  function stepViewHistory(direction){
+    if(mode!=='anatomy'||grab.some(Boolean))return false;
+    finishViewChange();
+    const pose=direction==='undo'?viewHistory.undo(viewPose()):viewHistory.redo(viewPose());
+    if(!pose)return false;
+    mGrp.position.fromArray(pose.position);
+    mGrp.quaternion.fromArray(pose.quaternion);
+    mGrp.scale.setScalar(pose.scale);
+    constrainSizeAndFocus();grabFeedback=direction.toUpperCase()+' / ANATOMY VIEW RESTORED';
+    paint();return true;
+  }
   const modelExtent=()=>Math.max(.0001,boundsCache?.size?.x||0,
     boundsCache?.size?.y||0,boundsCache?.size?.z||0);
   const focusWorld=()=>boundsCache?.center
@@ -129,6 +153,7 @@ function install(ctx){
     if(input&&grab[i]&&grab[i].input!==input)return;
     const endedGrab=grab[i];
     grab[i]=null;grabSource[i]=null;
+    if(endedGrab&&!grab.some(Boolean))finishViewChange();
     if(endedGrab){
       // Release is deterministic: the model stays where it was placed.
       // No automatic summon, resize, teleport or camera movement on tap.
@@ -191,6 +216,7 @@ function install(ctx){
   // while remote laser grabs still work at larger distances.
   function frameGroup(distance=1.05,width=.68){
     if(!viewerValid)return false;
+    if(placed){finishViewChange();beginViewChange();}
     summonGeneration++;summonTween=null;
     release(0);release(1);
     const bounds=sourceBounds();boundsCache=bounds;
@@ -202,7 +228,7 @@ function install(ctx){
     mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale));
     mGrp.updateMatrixWorld(true);placed=true;
     constrainSizeAndFocus();positionPanels();
-    return true;
+    finishViewChange();return true;
   }
   function setSourceScale(){
     const audit=getPatientAudit?.();
@@ -218,6 +244,7 @@ function install(ctx){
       showToast('Physical source scale outside comfortable view; retaining bounded size','warn');
       return false;
     }
+    beginViewChange();
     const local=bounds.center;
     const currentCenter=local.clone().multiplyScalar(mGrp.scale.x)
       .applyQuaternion(mGrp.quaternion).add(mGrp.position);
@@ -225,7 +252,7 @@ function install(ctx){
     mGrp.position.copy(currentCenter)
       .sub(local.clone().multiplyScalar(sourceScale).applyQuaternion(mGrp.quaternion));
     scaleMode='source-derived';
-    constrainSizeAndFocus();
+    constrainSizeAndFocus();finishViewChange();
     return true;
   }
   function clearanceState(){
@@ -318,6 +345,8 @@ function install(ctx){
         distanceM:null};
       paint();return false;
     }
+    if(analogChangedAt)finishViewChange();
+    beginViewChange();
     summonGeneration++;summonTween=null;
     const method=near.hit?'near-surface':'distance-ray';
     attempts[near.hit?'acceptedNear':'acceptedRay']++;
