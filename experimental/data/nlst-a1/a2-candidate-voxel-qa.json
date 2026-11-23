@@ -1,0 +1,62 @@
+{
+  "protocol": "PulmoSIMU-A2-candidate-voxel-audit-v1",
+  "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "candidate_mesh_sha256": "8f8bea9a95fc21a44ca10244c91c249d2836539bf119973bcb18c614c9886d2f",
+  "voxel_grid": [
+    512,
+    512,
+    150
+  ],
+  "voxel_spacing_mm": [
+    0.5429688096046448,
+    0.5429688096046448,
+    2
+  ],
+  "voxelization_method": "CT IJK mesh stencil from explicit NIfTI sform and model_from_ras_mm",
+  "measurements": [
+    {
+      "node": "A2_candidate_patient_left_lung_airspace_UNVALIDATED",
+      "side": "left",
+      "voxels": 3014300,
+      "voxelized_airspace_volume_l": 1.7773224818875297,
+      "mesh_volume_l": 1.7739801091653924,
+      "inside_mesh_HU_threshold_fraction": 0.9737750058056597,
+      "inside_mesh_HU_mean": -824.546828119298,
+      "HU_quantiles_5_50_95": [
+        -930,
+        -867,
+        -545
+      ],
+      "voxels_on_opposite_RAS_side": 32009,
+      "volume_fraction_on_opposite_side": 0.010619049198818963,
+      "expert_anatomy_review": "REQUIRED",
+      "clinical_validation": false
+    },
+    {
+      "node": "A2_candidate_patient_right_lung_airspace_UNVALIDATED",
+      "side": "right",
+      "voxels": 2497485,
+      "voxelized_airspace_volume_l": 1.4725927209225615,
+      "mesh_volume_l": 1.4725613267130524,
+      "inside_mesh_HU_threshold_fraction": 0.9781476165022012,
+      "inside_mesh_HU_mean": -830.4248510001061,
+      "HU_quantiles_5_50_95": [
+        -937,
+        -868,
+        -564
+      ],
+      "voxels_on_opposite_RAS_side": 3292,
+      "volume_fraction_on_opposite_side": 0.0013181260347909997,
+      "expert_anatomy_review": "REQUIRED",
+      "clinical_validation": false
+    }
+  ],
+  "overlap_voxels": 27702,
+  "overlap_volume_ml": 16.333937362985885,
+  "overlap_fraction_of_union": 0.005051345867668305,
+  "threshold_method": "HU values inside threshold-derived mesh; not independent segmentation ground truth",
+  "mask_approval": "FAILED_PENDING_CLINICAL_REVIEW",
+  "bronchoscope_to_patient_CT": "BLOCKED",
+  "vascular_and_five_lobe_anatomy": "NOT_AVAILABLE",
+  "patient_specific_physics": "BLOCKED"
+}
