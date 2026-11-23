@@ -1,24 +1,15 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#152229">
-<title>PulmoSIMU XR-04 | Verified Quest entrance</title>
-<style>
-:root{color-scheme:dark;--bg:#14232b;--ink:#ecf3f4;--sub:#b8cad1;--line:#45606b}
-*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{width:min(590px,100%);padding:32px 28px 46px}
-small{font-size:11px;letter-spacing:.08em;color:var(--sub)}
-h1{font-size:clamp(32px,6vw,53px);font-weight:550;letter-spacing:-.055em;line-height:1.07;margin:24px 0 16px}
-p{color:var(--sub);margin:12px 0 23px;max-width:490px}
-hr{border:0;border-top:1px solid var(--line);margin:24px 0}
-strong{font-weight:610;color:var(--ink)}
-a{color:inherit}a.launch{display:block;background:#d5e7e9;color:#17252a;text-align:center;text-decoration:none;font-weight:650;padding:16px 18px;border-radius:5px;font-size:16px;max-width:350px}
-a:focus-visible{outline:3px solid #fff;outline-offset:4px}
-.note{font-size:12px;line-height:1.6}
-</style></head><body><main>
-<small>SPATIAL RESPIRATORY LABORATORY · QUEST 2</small>
-<h1>PulmoSIMU <span style="color:#a3cbd4">XR-04</span></h1>
-<p><strong>This is the new headset experience.</strong> You should see the reference lungs in front of you, with a separate spatial panel labeled PULMOSIMU XR-04. The original surgical interface is not this version.</p>
-<a class="launch" id="launchCurrent" href="./experimental/vr.html?release=XR04-NEW-20261120-1">Open XR-04 anatomy</a>
-<hr><p class="note">Next, select <strong>ENTER VR</strong> inside the 3D viewer. If you still see the old “CLINICAL MODE” panel, check the address bar: the original GitHub Pages site is a different application. No browser-history deletion is needed.</p>
-<small>RESEARCH REFERENCE · SCHEMATIC LOBES · NOT CLINICALLY VALIDATED</small>
-</main></body></html>
+<meta http-equiv="refresh" content="0;url=./index.html?xr=procedural%26release=XR09-UNIFIED">
+<title>PulmoSIMU — Unified XR entry</title>
+<style>body{margin:0;background:#13232c;color:#e4eef1;min-height:100dvh;display:grid;place-items:center;text-align:center;font:16px/1.7 system-ui}main{padding:30px}a{color:#e5f0f2;font-weight:650}</style>
+<script>
+const url=new URL('./index.html',location.href);
+url.searchParams.set('xr','procedural');url.searchParams.set('release','XR09-UNIFIED');
+const focus=new URLSearchParams(location.search).get('focus');
+if(['RUL','RML','RLL','LUL','LLL'].includes(focus))url.searchParams.set('focus',focus);
+location.replace(url.toString());
+</script></head>
+<body><main><h1>PulmoSIMU · Unified Immersive XR</h1><p>The former Quest prototype entrance is retired.</p>
+<a id="launchCurrent" href="./index.html?xr=procedural&amp;release=XR09-UNIFIED">Open the original-engine spatial laboratory</a>
+<p>Research-only reference · Clinical validation pending</p></main></body></html>
