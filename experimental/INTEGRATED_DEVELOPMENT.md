@@ -1,4 +1,4 @@
-# PulmoSIMU — Integrated Development Contract (ID-01)
+> **Current architecture notice · 23 November 2026.** This document preserves historical R1–R8 development decisions. The active integrated system is **XR-09**: `index.html` provides the original procedural scene and XR; `studio.html` and Quest entrances use that original engine. The former `experimental/vr.html` is an archived schematic interaction experiment, not an active flagship viewer. Original `index.html` was intentionally updated on this feature branch, while public `main` remains unchanged. For the authoritative architecture, science boundaries and freeze gates see [UNIFIED_SIMULATION_ARCHITECTURE.md](./UNIFIED_SIMULATION_ARCHITECTURE.md).\n\n# PulmoSIMU — Integrated Development Contract (ID-01)
 
 **Status:** Active integration branch `feature/mechanistic-lung-foundation` · 20 November 2026.
 
