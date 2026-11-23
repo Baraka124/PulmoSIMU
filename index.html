@@ -3441,30 +3441,51 @@ function animate(){
   const now=performance.now();
   if(now-lastFpsT>=1000){g('fps-v',el=>el.textContent=frames);frames=0;lastFpsT=now;}
 
-  // Update shaders
-  lungMats.forEach(m=>{m.uniforms.uT.value=time;m.uniforms.uBreath.value=time;});
-  mucoMats.forEach(m=>{m.uniforms.uT.value=time;m.uniforms.uBreath.value=time;});
-  if(patientData&&patientData._mat&&patientData._mat.uniforms) patientData._mat.uniforms.uT.value=time;
-  Object.values(bronchMatsMap).forEach(m=>m.uniforms.uT.value=time);
+  // The original desktop illustration keeps its authored animation.
+  // Immersive XR must not imply that uncalibrated shader oscillations,
+  // pathology glow or fixed-rate swelling are numerical tissue mechanics.
+  const illustrativeTime=rBro.xr.isPresenting?0:time;
+  lungMats.forEach(m=>{m.uniforms.uT.value=illustrativeTime;m.uniforms.uBreath.value=illustrativeTime;});
+  mucoMats.forEach(m=>{m.uniforms.uT.value=illustrativeTime;m.uniforms.uBreath.value=illustrativeTime;});
+  if(patientData&&patientData._mat&&patientData._mat.uniforms)
+    patientData._mat.uniforms.uT.value=illustrativeTime;
+  Object.values(bronchMatsMap).forEach(m=>m.uniforms.uT.value=illustrativeTime);
 
-  // Breathing scale
-  const bf=Math.sin(time*1.05)*.5+.5;
-  rUpperL.scale.setScalar(1+bf*.015);rMidL.scale.set(1+bf*.014,1+bf*.013,1+bf*.016);
-  rLowL.scale.setScalar(1+bf*.018);lUpperL.scale.setScalar(1+bf*.015);lLowL.scale.setScalar(1+bf*.019);
-
-  // Asthma wheeze
-  if(PAT.disease==='asthma'&&PAT.swellLevel>.1){
-    const wheeze=Math.sin(time*6)*PAT.swellLevel*.01;
-    rLowL.scale.setScalar(rLowL.scale.x+wheeze);lLowL.scale.setScalar(lLowL.scale.x+wheeze);
+  if(!rBro.xr.isPresenting){
+    // Desktop-only illustrative breathing, disease accent and lighting.
+    const bf=Math.sin(time*1.05)*.5+.5;
+    rUpperL.scale.setScalar(1+bf*.015);
+    rMidL.scale.set(1+bf*.014,1+bf*.013,1+bf*.016);
+    rLowL.scale.setScalar(1+bf*.018);
+    lUpperL.scale.setScalar(1+bf*.015);
+    lLowL.scale.setScalar(1+bf*.019);
+    if(PAT.disease==='asthma'&&PAT.swellLevel>.1){
+      const wheeze=Math.sin(time*6)*PAT.swellLevel*.01;
+      rLowL.scale.setScalar(rLowL.scale.x+wheeze);
+      lLowL.scale.setScalar(lLowL.scale.x+wheeze);
+    }
+    const hb=Math.pow(Math.max(0,Math.sin(time*2.62)),.5)*
+      Math.pow(Math.max(0,Math.sin(time*2.62-.75)),.5);
+    heartL.intensity=2.2+hb*5.5;
+    heartL.color.setHSL(.02,.9,.28+hb*.12);
+    sssL.intensity=4.2+hb*3.8;
+    Object.values(pathoMeshes).forEach(({mesh})=>{
+      mesh.traverse(c=>{
+        if(c.material?.emissiveIntensity!==undefined)
+          c.material.emissiveIntensity=.48+Math.sin(time*3.6)*.32;
+      });
+    });
+  }else{
+    // Stable source geometry: no invented pulsation/deformation in XR.
+    rUpperL.scale.setScalar(1);rMidL.scale.setScalar(1);
+    rLowL.scale.setScalar(1);lUpperL.scale.setScalar(1);lLowL.scale.setScalar(1);
+    heartL.intensity=2.2;sssL.intensity=4.2;
+    Object.values(pathoMeshes).forEach(({mesh})=>{
+      mesh.traverse(c=>{
+        if(c.material?.emissiveIntensity!==undefined)c.material.emissiveIntensity=.24;
+      });
+    });
   }
-
-  // Heartbeat
-  const hb=Math.pow(Math.max(0,Math.sin(time*2.62)),.5)*Math.pow(Math.max(0,Math.sin(time*2.62-.75)),.5);
-  heartL.intensity=2.2+hb*5.5;heartL.color.setHSL(.02,.9,.28+hb*.12);
-  sssL.intensity=4.2+hb*3.8;
-
-  // Pathology pulse
-  Object.values(pathoMeshes).forEach(({mesh})=>{mesh.traverse(c=>{if(c.material?.emissiveIntensity!==undefined)c.material.emissiveIntensity=.48+Math.sin(time*3.6)*.32;});});
 
   // Patient triggers
   // updatePatientTriggers removed — planning tool, no disease simulation
