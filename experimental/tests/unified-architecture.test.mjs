@@ -14,7 +14,7 @@ test('unified official Quest/Studio routes point only to original procedural Web
  assert.ok(studio.includes("new URL('./index.html?xr=procedural&release=XR09-UNIFIED'"));
  assert.ok(!studio.includes("src:'./experimental/vr.html'"));
  assert.ok(gateway.includes('XR-11 · Spatial anatomy and instrument laboratory'));
- assert.ok(gateway.includes('HOLD TRIGGER')||gateway.includes('hold <strong>trigger OR grip</strong>'));
+ assert.ok(gateway.includes('hold trigger or grip'));
  assert.ok(gateway.includes('XR-11 Spatial')||gateway.includes('XR-11 · Spatial'));
  assert.ok(gateway.includes('release=XR09-UNIFIED'));
  assert.ok(!gateway.includes('experimental/vr.html'),'Schematic viewer is archived, not prominently linked');
