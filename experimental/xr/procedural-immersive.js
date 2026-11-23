@@ -9,7 +9,7 @@
 function install(ctx){
   const {THREE,scene,rBro,rExt,camScope,mGrp,vrCam,scope,CFG,
     SEGS,SEG_MAP,pathCurves,patientData,getMeshMode,getAnatomyMeshes,
-    getPatientAudit,getMmPerSceneUnit,getScopeDiameterMm,
+    getPatientAudit,getMmPerSceneUnit,getScopeDiameterMm,getReferenceFocus,
     setClinMode,getClinMode,fireAction,enterBranch,advance,retract,hideBranchSel,
     updateScope,onResize,showToast,getExtIdle,setExtIdle}=ctx;
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
@@ -345,6 +345,7 @@ function install(ctx){
     const c=panelCtx,w=1024,h=600;
     const audit=getPatientAudit?.();
     const role=getMeshMode();
+    const referenceFocus=role==='reference'?(getReferenceFocus?.()||null):null;
     const source=role==='patient'&&audit?.status==='coframed'
       ?(audit.source==='synthetic'?'SYNTHETIC · COFRAMED ONLY':'CT-DERIVED · COFRAMED / UNVERIFIED')
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
@@ -358,7 +359,7 @@ function install(ctx){
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
     c.fillText((mode==='procedure'
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
-      :'Original anatomical scene · '+scaleMode+' scale').slice(0,51),48,189);
+      :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
@@ -551,6 +552,7 @@ function install(ctx){
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     contact:lastContact,
+    referenceFocus:getReferenceFocus?.()||null,
     sourceAudit:getPatientAudit?.()||null,
     scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
     clearance:clearanceState(),
