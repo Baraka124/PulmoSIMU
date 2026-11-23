@@ -112,8 +112,8 @@
     "pulmonary_vasculature": "NOT_AVAILABLE",
     "bronchoscope_to_ct_registration": "BLOCKED",
     "patient_specific_physics": "BLOCKED",
-    "laterality_labels": "FAIL_A2_SOURCE_RAS_CONFLICT",
-    "ct_linked_anatomy": "BLOCKED_UNTIL_LATERALITY_AND_SEGMENTATION_QA"
+    "laterality_labels": "REVIEW_REQUIRED_OLD_RIGHT_SURFACE_CROSSES_MIDLINE",
+    "ct_linked_anatomy": "BLOCKED_UNTIL_SEGMENTATION_AND_CENTRELINE_QA"
   },
   "limitations": [
     "2 mm through-plane slice spacing",
@@ -122,15 +122,15 @@
     "Thresholding may omit consolidated/high-attenuation lung or include non-lung air",
     "Provisional right-surface cross-midline leakage flagged for review",
     "Watertightness and mesh decimation metrics are not evidence of anatomical fidelity",
-    "A2 QA demonstrates both GLB left/right surface names conflict with source NIfTI RAS laterality (85.2% and 99.0% wrong-side mesh area). Do not use for laterality-dependent workflows."
+    "A prior audit mistakenly used RAS +X=patient LEFT. Correct convention is +X=patient RIGHT; old right mesh still has 14.81% of surface area crossing into patient left hemisphere."
   ],
   "public_research_metadata_allowed": true,
   "binary_objects_in_git": false,
   "data_distribution_note": "Binary CT and GLB must be separately uploaded after release/redistribution and provenance checks; this manifest alone is not the actual scan or surface.",
   "anatomical_laterality_check": {
     "qa_protocol": "PulmoSIMU-A2-source-geometry-v1",
-    "clinical_gate": "FAIL",
-    "reference_frame": "NIfTI RAS sform (+X patient left, -X patient right)",
+    "clinical_gate": "REVIEW_REQUIRED_NOT_PROVEN_REVERSED",
+    "reference_frame": "NIfTI RAS+ (+X patient RIGHT, -X patient LEFT)",
     "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
     "mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
     "findings": [
@@ -138,15 +138,21 @@
         "node": "NLST_CT_right_lung_airspace",
         "stored_label": "right",
         "area_fraction_at_patient_left": 0.8519357580932623,
-        "conflict": true
+        "conflict": false,
+        "area_fraction_at_patient_right": 0.8519357580932623,
+        "area_fraction_opposite_name": 0.14806424190673773,
+        "review_required": true
       },
       {
         "node": "NLST_CT_left_lung_airspace",
         "stored_label": "left",
-        "area_fraction_at_patient_right": 0.9895153290722436,
-        "conflict": true
+        "area_fraction_at_patient_right": 0.010484670927756408,
+        "conflict": false,
+        "area_fraction_opposite_name": 0.010484670927756408,
+        "review_required": false
       }
     ],
-    "status": "Labels reversed with respect to CT RAS; no automatic relabel or procedural coupling until original-scan review"
-  }
+    "status": "Original labels are not proven reversed. Prior RAS sign audit was incorrect. Right surface crosses midline in 14.81% of surface area. Clinical anatomy review pending."
+  },
+  "a2_1_corrected_airspace_report": "a2_1_observed_qa.json"
 }
