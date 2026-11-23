@@ -54,7 +54,7 @@ function validate(){
     a2LateralityConflict()
       ?'File hashes matched · A2 LATERALITY FAIL · tissue segmentation UNVALIDATED'
       :'Exact study files and header matched · tissue segmentation UNVALIDATED';
-  $('registration').dataset.state=aligned?'valid':status?'error':'pending';
+  $('registration').dataset.state=a2LateralityConflict()?'error':aligned?'valid':status?'error':'pending';
   const enabled=aligned;
   $('clip-toggle').disabled=!enabled;
   $('cross-3d').disabled=!enabled;
@@ -146,8 +146,11 @@ async function loadModel(file){
   $('mesh-faces').textContent=meshes.reduce((v,m)=>v+(m.geometry.index?m.geometry.index.count/3:m.geometry.attributes.position.count/3),0).toLocaleString()+' triangles';
   $('three-placeholder').hidden=true;
   $('structure-select').disabled=false;
-  viewReset();validate();updateStructureVisibility();
-  setMessage('Local GLB loaded. Geometry inspection is not clinical segmentation validation.','ok');
+  viewReset();applyQa();updateStructureVisibility();
+  setMessage(a2LateralityConflict()?
+    'A2 LATERALITY QUALITY FAILURE: this study mesh has reversed patient-side names relative to the CT. Cross-sections remain available for research review; patient-specific procedures are blocked.':
+    'Local GLB loaded. Geometry inspection is not clinical segmentation validation.',
+    a2LateralityConflict()?'error':'ok');
 }
 async function loadNifti(file){
   if(!/\.nii$/i.test(file.name))throw new Error('Choose an uncompressed NIfTI .nii file');
