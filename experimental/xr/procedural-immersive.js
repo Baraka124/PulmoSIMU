@@ -593,28 +593,63 @@ function install(ctx){
       new THREE.MeshBasicMaterial({color:0xc0dce0,transparent:true,opacity:.76,depthTest:false}));
     marker.visible=false;marker.renderOrder=36;scene.add(marker);contactMarkers.push(marker);
   }
+  function updatePointerAim(now){
+    if(!active)return;
+    if(now-lastAimTime<90)return;
+    lastAimTime=now;
+    for(let i=0;i<2;i++){
+      const laser=laserLines[i],tip=laserTips[i];
+      if(!laser||!tip)continue;
+      const available=mode==='anatomy'&&placed&&
+        controllerSources[i]&&!controllerSources[i].hand;
+      laser.visible=Boolean(available);
+      tip.visible=false;
+      aimTargets[i]=null;
+      if(!available)continue;
+      const aim=global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5});
+      aimTargets[i]={hit:aim.hit,reason:aim.reason,distanceM:aim.distanceM??null};
+      laser.scale.z=aim.hit?Math.max(.03,aim.distanceM):3.5;
+      laser.material.color.setHex(aim.hit?0x7be3dd:0x718e9b);
+      laser.material.opacity=aim.hit?.95:.35;
+      if(aim.hit){
+        tip.position.copy(aim.point);tip.visible=true;
+      }
+    }
+  }
   for(let i=0;i<2;i++){
     const controller=rBro.xr.getController(i),grip=rBro.xr.getControllerGrip(i);
     hands[i]=controller;grips[i]=grip;scene.add(controller,grip);
     const line=new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]),
       new THREE.LineBasicMaterial({color:i?0xb6d1d9:0x789ba9,transparent:true,opacity:.45}));
-    line.scale.z=1.9;controller.add(line);
+    line.scale.z=3.5;line.visible=false;controller.add(line);
+    laserLines[i]=line;
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.012,10,8),
+      new THREE.MeshBasicMaterial({color:0x7be3dd,depthTest:false,depthWrite:false}));
+    tip.renderOrder=38;tip.visible=false;scene.add(tip);
+    laserTips[i]=tip;
     controller.addEventListener('connected',event=>{
       controllerSide[i]=event.data?.handedness||null;
-      mapButtons[i].length=0;health.event('controllerConnected');
+      controllerSources[i]=event.data||null;
+      mapButtons[i].length=0;squeezeHeld[i]=false;
+      health.event('controllerConnected');
     });
     controller.addEventListener('selectstart',event=>{
-      // A tracked-hand selectstart is the same physical pinch handled by
-      // XRJointPose. Never treat it as an unrelated distance-ray click.
+      // Hand selectstart is the physical pinch handled by XRJointPose.
       if(!event.data?.hand)onTrigger(i);
     });
-    controller.addEventListener('squeezestart',()=>startGrab(i,'controller'));
-    controller.addEventListener('squeezeend',()=>release(i,'controller'));
+    controller.addEventListener('selectend',event=>{
+      if(!event.data?.hand)release(i,'controller','trigger');
+    });
+    controller.addEventListener('squeezestart',()=>startGrab(i,'controller','grip'));
+    controller.addEventListener('squeezeend',()=>release(i,'controller','grip'));
     controller.addEventListener('disconnected',()=>{
       health.event('controllerDisconnected');
-      release(i,'controller');controllerSide[i]=null;mapButtons[i].length=0;
-      if(i===0)scope.velocity=0;
+      release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;
+      mapButtons[i].length=0;squeezeHeld[i]=false;
+      if(laserLines[i])laserLines[i].visible=false;
+      if(laserTips[i])laserTips[i].visible=false;
+      scope.velocity=0;
     });
   }
   // Event buttons and actual headset session lifecycle
@@ -678,6 +713,12 @@ function install(ctx){
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
+    squeezeHeld.fill(false);aimTargets.fill(null);
+    laserLines.forEach(line=>{if(line)line.visible=false});
+    laserTips.forEach(tip=>{if(tip)tip.visible=false});
+    summonTween=null;lastAimTime=0;
+    Object.keys(attempts).forEach(k=>attempts[k]=0);
+    grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
     contactMarkers.forEach(m=>m.visible=false);
     monitorStatus='not-started';monitorError=null;monitorFrames=0;
     monitorImage.visible=false;
@@ -705,7 +746,7 @@ function install(ctx){
         frameGroup();
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
-      poll(dt);updateTrackedHands(frame);updateGrab();updateSteering();
+      poll(dt);updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();updatePointerAim(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -747,7 +788,10 @@ function install(ctx){
     for(let i=0;i<2;i++)grab[i]=null;
     grabSource.fill(null);handSeen.fill(false);handPinched.fill(false);
     contactMarkers.forEach(m=>m.visible=false);
-    summonGeneration++;gesture=null;scopeSteering=null;placed=false;viewerValid=false;
+    summonGeneration++;summonTween=null;gesture=null;scopeSteering=null;
+    laserLines.forEach(line=>{if(line)line.visible=false});
+    laserTips.forEach(tip=>{if(tip)tip.visible=false});
+    placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';onResize();
   });
   paint();
@@ -756,7 +800,10 @@ function install(ctx){
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
-    contact:lastContact,
+    contact:lastContact,grabFeedback,grabAttempts:{...attempts},
+    activeControllerSides:controllerSide.slice(),
+    hoverStatus:aimTargets.map(t=>t?{hit:t.hit,reason:t.reason,distanceM:t.distanceM}:null),
+    summonActive:Boolean(summonTween),
     handTracking:handSeen.slice(),grabSources:grabSource.slice(),
     physics:physicsSnapshot,physicsError,
     sessionHealth:health.snapshot(),
