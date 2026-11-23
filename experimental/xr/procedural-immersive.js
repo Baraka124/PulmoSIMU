@@ -30,7 +30,7 @@ function install(ctx){
   // WebXR getController(index) is connection-order, NOT reliably left=0/right=1.
   const controllerSources=[null,null],laserLines=[null,null],laserTips=[null,null];
   const aimTargets=[null,null],squeezeHeld=[false,false],hoverPanels=[null,null];
-  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0,menuActions:0};
+  const attempts={acceptedRay:0,acceptedNear:0,rejected:0,trigger:0,grip:0,movedFrames:0,menuActions:0,thumbstickFrames:0};
   let lastAimTime=0,grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
@@ -415,7 +415,7 @@ function install(ctx){
     const ease=1-Math.pow(1-t,3);
     mGrp.position.copy(summonTween.from).lerp(summonTween.to,ease);
     mGrp.scale.setScalar(summonTween.fromScale+(summonTween.toScale-summonTween.fromScale)*ease);
-    mGrp.updateMatrixWorld(true);
+    constrainSizeAndFocus();
     if(t>=1)summonTween=null;
   }
   function pickFromScene(r){
@@ -463,6 +463,33 @@ function install(ctx){
     paint();
   }
   const mapButtons=[[],[]];
+  function applyAnalogAnatomy(side,x,y,dt){
+    if(mode!=='anatomy'||!placed||!boundsCache||grab.some(Boolean))return;
+    const center=focusWorld();
+    let modified=false;
+    if(side==='right'){
+      // Right stick: yaw around the visible anatomy centre and move along
+      // the viewer's depth axis. It does not move the camera or the user.
+      if(Math.abs(x)>.02){
+        mGrp.quaternion.premultiply(
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-x*dt*1.35));
+        modified=true;
+      }
+      mGrp.position.copy(center).sub(boundsCache.center.clone()
+        .multiplyScalar(mGrp.scale.x).applyQuaternion(mGrp.quaternion));
+      if(Math.abs(y)>.02){
+        mGrp.position.addScaledVector(forward,-y*dt*.76);
+        modified=true;
+      }
+    }else if(side==='left'&&Math.abs(y)>.02){
+      const next=limits.clampScale(mGrp.scale.x*Math.exp(-y*dt*.92),modelExtent());
+      mGrp.scale.setScalar(next);
+      mGrp.position.copy(center).sub(boundsCache.center.clone()
+        .multiplyScalar(next).applyQuaternion(mGrp.quaternion));
+      modified=true;
+    }
+    if(modified){constrainSizeAndFocus();attempts.thumbstickFrames++}
+  }
   function poll(dt){
     const session=rBro.xr.getSession();if(!session)return;
     let leftControllerAvailable=false;
@@ -493,6 +520,10 @@ function install(ctx){
       const x=Math.abs(axes[n]||0)<.13?0:axes[n],y=Math.abs(axes[n+1]||0)<.13?0:axes[n+1];
       if(side==='right'&&edge(4))setMode(mode==='anatomy'?'procedure':'anatomy');
       if(side==='left'&&edge(4))frameGroup();
+      if(mode==='anatomy'){
+        applyAnalogAnatomy(side,x,y,dt);
+        continue;
+      }
       if(mode!=='procedure')continue;
       if(side==='left'){
         if(y)scope.velocity=-y*CFG.scopeSpd/900;
@@ -559,7 +590,7 @@ function install(ctx){
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
-       :'AIM LASER · HOLD TRIGGER/GRIP TO MOVE · TWO GRIPS TO RESIZE',48,236);
+       :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · L STICK: SIZE',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
     c.fillText(source,48,274);
     c.fillStyle='#d8e1e4';c.font='22px system-ui';
@@ -775,6 +806,9 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     lastInteractionResult:grabFeedback,
+    maximumModelSpanM:limits.CONFIG.maximumSpanM,
+    modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
+    scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
     integration:'XR-09 original procedural scene; unvalidated research build'
   });
@@ -822,6 +856,7 @@ function install(ctx){
     summonTween=null;lastAimTime=0;
     Object.keys(attempts).forEach(k=>attempts[k]=0);
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
+    scaleClamps=0;workspaceClamps=0;limitsApplied=0;
     contactMarkers.forEach(m=>m.visible=false);
     monitorStatus='not-started';monitorError=null;monitorFrames=0;
     monitorImage.visible=false;
