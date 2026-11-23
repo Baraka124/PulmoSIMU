@@ -18,6 +18,8 @@ const sample={
 };
 test('CT research study sidecar is NEVER mistaken for patient airway graph',()=>{
  assert.equal(bridge.isResearchManifest(sample),true);
+ assert.equal(bridge.isResearchManifest({...sample,geometry_class:'A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW'}),true);
+ assert.equal(bridge.isResearchManifest({...sample,geometry_class:'SYNTHETIC_PATIENT_AIRWAY_MODEL'}),false);
  assert.equal(bridge.isResearchManifest({...sample,segments:[{id:0}]}),false);
  assert.equal(bridge.isResearchManifest({...sample,mesh_sha256:'bad-hash'}),false);
  const status=bridge.describe(sample);
