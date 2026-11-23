@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 const source=readFileSync(new URL('../xr/procedural-immersive.js',import.meta.url),'utf8');
 const original=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
-test('XR-07 runtime is browser-valid classic JavaScript compatible with original Three r128',()=>{
+test('XR-09 runtime is browser-valid classic JavaScript compatible with original Three r128',()=>{
  const r=spawnSync(process.execPath,['--check'],{input:source,encoding:'utf8'});
  assert.equal(r.status,0,r.stderr);
  assert.match(source,/global\.PulmoImmersiveXR=\{install\}/);
@@ -21,7 +21,9 @@ test('only original clinical scene, geometry and procedural state drive headset 
    if(k==='pointerRay'||k==='advance')continue;
    assert.ok(source.includes(k),'immersive adapter: '+k);
  }
- assert.ok(!source.includes('new THREE.SphereGeometry('),'No replacement lung spheres');
+ assert.ok(source.includes('getAnatomyMeshes()'),'Original anatomical source is authoritative');
+ assert.ok(source.includes('new THREE.SphereGeometry(.009,8,6)'),
+  'Only a tiny tracked-hand location marker is added, not a substitute organ');
  assert.ok(!source.includes('new THREE.CatmullRomCurve3('),'No duplicate bronchial tree');
 });
 test('legacy wrist-menu VR animation loop has been replaced and desktop rendering guarded',()=>{
@@ -77,4 +79,15 @@ test('immersive XR owns original scope advance/retract without a second desktop 
  assert.ok(source.includes('if(distance>0)advance(distance);else retract(-distance);'));
  assert.ok(source.includes('Math.pow(scope.velocityDecay,step)'));
  assert.ok(source.includes('updateScope();'));
+});
+
+test('XR-09 integrates actual near-surface contact and optional Quest tracked hands',()=>{
+ assert.ok(original.includes('surface-contact.js?v=XR09'));
+ assert.ok(source.includes('PulmoXRSurface.contact'));
+ assert.ok(!source.includes('proximity(i)>.18'),'Bounding-box-only grasp must not be accepted');
+ for(const token of ['updateTrackedHands(frame)','getJointPose','index-finger-tip','thumb-tip',
+    'handPinched','grabSource','effectiveGrip','grabSources:','handTracking:']){
+   assert.ok(source.includes(token),'unified hand/controller ownership: '+token);
+ }
+ assert.ok(source.includes('getReferenceFocus?.()'),'Original reference focus context');
 });
