@@ -138,9 +138,31 @@ function updateStructureVisibility(){if(!state.model)return;
   state.model.traverse(obj=>{
     if(!obj.isMesh)return;
     if(choice==='both'){obj.visible=true;return;}
+    if(choice.startsWith('mesh:')){
+      obj.visible=Number(choice.slice(5))===obj.userData.pulmoSurfaceIndex;return;
+    }
     const name=obj.name.toLowerCase();
     obj.visible=choice==='right'?name.includes('right'):name.includes('left');
   });
+}
+function applySurfaceOpacity(){
+  const slider=$('surface-opacity');
+  if(!slider)return;
+  const value=Number(slider.value)/100;
+  state.surfaceOpacity=value;
+  $('opacity-readout').textContent=Math.round(100*value)+'%';
+  for(const m of originalMaterials){
+    if(!m)return;
+    if(!Number.isFinite(m.userData.pulmoBaseOpacity)){
+      m.userData.pulmoBaseOpacity=m.opacity??1;
+      m.userData.pulmoBaseTransparent=m.transparent;
+      m.userData.pulmoBaseDepthWrite=m.depthWrite;
+    }
+    m.opacity=m.userData.pulmoBaseOpacity*value;
+    m.transparent=value<.999||m.userData.pulmoBaseTransparent;
+    m.depthWrite=value>=.999?m.userData.pulmoBaseDepthWrite:false;
+    m.needsUpdate=true;
+  }
 }
 async function sha256(buffer){
   if(!globalThis.crypto?.subtle)throw new Error('SHA-256 unavailable: use HTTPS or a localhost server for verified alignment');
@@ -167,6 +189,15 @@ async function loadModel(file){
   });
   if(!meshes.length)throw new Error('GLB has no surface meshes');
   state.meshNames=meshes.map(m=>m.name);
+  const select=$('structure-select');
+  while(select.options.length>3)select.remove(select.options.length-1);
+  meshes.forEach((mesh,i)=>{
+    mesh.userData.pulmoSurfaceIndex=i;
+    select.add(new Option('Isolate · '+(mesh.name||('Structure '+(i+1))), 'mesh:'+i));
+  });
+  select.value='both';
+  $('surface-opacity').disabled=false;
+  $('surface-opacity').value='100';applySurfaceOpacity();
   $('mesh-count').textContent=meshes.length+' source mesh'+(meshes.length===1?'':'es');
   $('mesh-faces').textContent=meshes.reduce((v,m)=>v+(m.geometry.index?m.geometry.index.count/3:m.geometry.attributes.position.count/3),0).toLocaleString()+' triangles';
   $('three-placeholder').hidden=true;
@@ -271,11 +302,16 @@ function applyClipping(){
   const wants=Boolean($('clip-toggle').checked&&match&&state.qa.model_from_ras_mm);
   let plane=null;
   if(wants){
-    const k=state.cross[2],r0=state.volume.ras(0,0,k),r1=state.volume.ras(0,0,Math.min(k+1,state.volume.dims[2]-1));
-    const a=window.PulmoNiftiSource.getWorldFromRAS(r0,state.qa),b=window.PulmoNiftiSource.getWorldFromRAS(r1,state.qa);
+    const direction=$('section-plane').value;
+    const axis={sagittal:0,coronal:1,axial:2}[direction];
+    if(!Number.isInteger(axis))return;
+    const current=state.cross.slice(),neighbour=current.slice();
+    neighbour[axis]=Math.min(state.volume.dims[axis]-1,current[axis]+1);
+    if(neighbour[axis]===current[axis])neighbour[axis]=Math.max(0,current[axis]-1);
+    const a=window.PulmoNiftiSource.getWorldFromRAS(state.volume.ras(...current),state.qa);
+    const b=window.PulmoNiftiSource.getWorldFromRAS(state.volume.ras(...neighbour),state.qa);
     const vec=new THREE.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]).normalize();
-    const p=new THREE.Vector3(...a);
-    plane=new THREE.Plane().setFromNormalAndCoplanarPoint(vec,p);
+    plane=new THREE.Plane().setFromNormalAndCoplanarPoint(vec,new THREE.Vector3(...a));
   }
   for(const m of originalMaterials){m.clippingPlanes=plane?[plane]:[];m.needsUpdate=true;}
 }
