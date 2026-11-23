@@ -147,11 +147,17 @@ try {
  await page.screenshot({path:'/tmp/pulmosimu-experimental-smoke.png',fullPage:true});
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('PASS numerical laboratory: no invented lobe meshes; R3, R5 and source-backed inspections retained');
+ // An ordinary old VR bookmark must never show the schematic ellipsoids.
+ const redirect=await browser.newPage();
+ await redirect.goto(host+'/experimental/vr.html',{waitUntil:'domcontentloaded'});
+ await redirect.waitForURL(/index\.html\?xr=procedural.*XR09-UNIFIED/,{timeout:30000});
+ assert.ok(!redirect.url().includes('archive=1'),'Legacy entry points to original engine');
+ await redirect.close();
  const xr=await browser.newPage({viewport:{width:1260,height:850}});
  const xrErrors=[];
  xr.on('pageerror',err=>xrErrors.push(err.message));
  try{
-  await xr.goto(host+'/experimental/vr.html',{waitUntil:'domcontentloaded'});
+  await xr.goto(host+'/experimental/vr.html?archive=1',{waitUntil:'domcontentloaded'});
   await xr.waitForFunction(()=>document.getElementById('status')?.textContent?.includes('SOURCE BRANCHES'),null,{timeout:45000});
   assert.ok(await xr.locator('#stageCanvas').isVisible());
   assert.equal(await xr.locator('#selectedId').innerText(),'RUL');
