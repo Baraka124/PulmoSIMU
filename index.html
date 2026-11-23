@@ -15,8 +15,9 @@
 <script src="./experimental/xr/interaction-math.js?v=XR11-METRIC"></script>
 <script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
+<script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR13-SPATIAL-STAGE"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR14-PROCEDURE-MR"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -1816,7 +1817,9 @@ rExt.physicallyCorrectLights=true;rExt.outputEncoding=THREE.sRGBEncoding;
 rExt.toneMapping=THREE.ACESFilmicToneMapping;rExt.toneMappingExposure=1.4;
 
 const cBro=document.getElementById('c-bro');
-const rBro=new THREE.WebGLRenderer({canvas:cBro,antialias:true,powerPreference:'high-performance'});
+// Alpha-enabled XR renderer allows genuine immersive-ar passthrough blending.
+// Desktop and immersive-vr retain their opaque source scene background.
+const rBro=new THREE.WebGLRenderer({canvas:cBro,antialias:true,alpha:true,powerPreference:'high-performance'});
 rBro.outputEncoding=THREE.sRGBEncoding;rBro.toneMapping=THREE.ACESFilmicToneMapping;rBro.toneMappingExposure=2.2;
 
 const scene=new THREE.Scene();
