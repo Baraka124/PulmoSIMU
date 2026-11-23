@@ -133,18 +133,23 @@ function install(ctx){
       scopeScreen.position.y-=.1;scopeScreen.lookAt(head);
     }
   }
-  function proximity(i){
-    const controller=currentGrip(i);if(!controller)return Infinity;
-    const pos=controller.getWorldPosition(new THREE.Vector3());
-    let dist=Infinity;
-    for(const root of surfaceTarget()){
-      root.traverse(obj=>{
-        if(!obj.isMesh||!obj.visible)return;
-        tempBox.setFromObject(obj);
-        dist=Math.min(dist,tempBox.distanceToPoint(pos));
-      });
+  let lastContact=null;
+  function surfaceContact(i){
+    const controller=grips[i];
+    if(!controller||!global.PulmoXRSurface)return {hit:false,reason:'tracker-unavailable'};
+    controller.updateMatrixWorld(true);
+    const point=controller.getWorldPosition(new THREE.Vector3());
+    try{
+      const result=global.PulmoXRSurface.contact(THREE,surfaceTarget(),point,
+        {radius:.155,maxMeshes:256});
+      lastContact={hit:result.hit,reason:result.reason,
+        distanceM:result.distanceM};
+      return result;
+    }catch(error){
+      lastContact={hit:false,reason:'surface-test-error',distanceM:null};
+      console.warn('PulmoSIMU XR surface contact failed:',String(error?.message||error));
+      return lastContact;
     }
-    return dist;
   }
   function capture(i){
     if(!grips[i]||!grab[i])return;
@@ -159,7 +164,7 @@ function install(ctx){
         deflH:scope.deflH,deflV:scope.deflV};
       return true;
     }
-    if(!active||!placed||mode!=='anatomy'||grab[i]||proximity(i)>.18)return false;
+    if(!active||!placed||mode!=='anatomy'||grab[i]||!surfaceContact(i).hit)return false;
     const grip=grips[i];if(!grip)return false;
     summonGeneration++;
     grab[i]={relative:new THREE.Matrix4()};capture(i);
@@ -545,6 +550,7 @@ function install(ctx){
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
+    contact:lastContact,
     sourceAudit:getPatientAudit?.()||null,
     scaleMode,sourceScaleEligible:Boolean(getPatientAudit?.()?.sourceScaleEligible),
     clearance:clearanceState(),
