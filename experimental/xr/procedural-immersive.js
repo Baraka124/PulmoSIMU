@@ -113,7 +113,7 @@ function install(ctx){
   }
   function frameGroup(distance=1.55,width=.62){
     if(!viewerValid)return false;
-    summonGeneration++;
+    summonGeneration++;summonTween=null;
     release(0);release(1);
     const bounds=sourceBounds();
     const scale=safe(.1,1.2,Math.min(width/bounds.size.x,.65/bounds.size.y));
@@ -166,7 +166,7 @@ function install(ctx){
   }
   let lastContact=null;
   function surfaceContact(i,source='controller'){
-    const controller=source==='hand'?handProxies[i]:grips[i];
+    const controller=source==='hand'?handProxies[i]:trackedController(i);
     if(!controller||!global.PulmoXRSurface)return {hit:false,reason:'tracker-unavailable'};
     controller.updateMatrixWorld(true);
     const point=controller.getWorldPosition(new THREE.Vector3());
@@ -188,26 +188,54 @@ function install(ctx){
     grip.updateMatrixWorld(true);mGrp.updateMatrixWorld(true);
     grab[i].relative.copy(grip.matrixWorld).invert().multiply(mGrp.matrixWorld);
   }
-  function startGrab(i,source='controller'){
-    if(source==='controller'&&mode==='procedure'&&active&&controllerSide[i]==='right'){
-      const g=grips[i];if(!g)return false;
-      g.updateMatrixWorld(true);
+  function startGrab(i,source='controller',input='grip'){
+    const side=controllerSide[i]||controllerSources[i]?.handedness;
+    if(source==='controller'&&mode==='procedure'&&active&&side==='right'){
+      if(input!=='grip')return false;
+      const g=trackedController(i);if(!g)return false;
+      g.updateWorldMatrix(true,false);
       scopeSteering={i,origin:g.getWorldQuaternion(new THREE.Quaternion()),
         deflH:scope.deflH,deflV:scope.deflV};
-      return true;
+      grabFeedback='RIGHT GRIP / STEERING SOURCE SCOPE';return true;
     }
-    if(!active||!placed||mode!=='anatomy'||grab[i]||!surfaceContact(i,source).hit)return false;
-    const grip=source==='hand'?handProxies[i]:grips[i];if(!grip)return false;
-    summonGeneration++;
+    if(!active||!placed||mode!=='anatomy'||grab[i])return false;
+    const grip=source==='hand'?handProxies[i]:trackedController(i);
+    if(!grip)return false;
+    // A near-hand contact is tested against original mesh triangles.
+    const near=surfaceContact(i,source);
+    // If the anatomy is beyond arm's reach, pointing + holding either
+    // trigger or grip also acquires the ORIGINAL mesh via triangle raycast.
+    const remote=source==='controller'&&!near.hit
+      ?global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:3.5})
+      :null;
+    if(!near.hit&&!remote?.hit){
+      attempts.rejected++;
+      grabFeedback=remote?.reason==='no-anatomy-source'
+        ?'NO ANATOMY SOURCE / SELECT REFERENCE'
+        :'AIM LASER AT LUNG THEN HOLD TRIGGER OR GRIP';
+      lastContact={hit:false,reason:remote?.reason||near.reason||'no-contact',
+        distanceM:null};
+      paint();return false;
+    }
+    summonGeneration++;summonTween=null;
+    const method=near.hit?'near-surface':'distance-ray';
+    attempts[near.hit?'acceptedNear':'acceptedRay']++;
+    if(source==='controller')attempts[input==='trigger'?'trigger':'grip']++;
+    lastContact={hit:true,reason:method,distanceM:remote?.distanceM??near.distanceM??null};
     grabSource[i]=source;
-    grab[i]={relative:new THREE.Matrix4()};capture(i);
+    grab[i]={relative:new THREE.Matrix4(),input,method,startedAt:performance.now(),
+      startPosition:mGrp.position.clone(),startQuaternion:mGrp.quaternion.clone()};
+    capture(i);
+    grabFeedback='HOLD '+input.toUpperCase()+' / MOVE CONTROLLER / '+method.toUpperCase();
     if(grab[0]&&grab[1]){
-      effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
+      effectiveGrip(0).updateWorldMatrix(true,false);
+      effectiveGrip(1).updateWorldMatrix(true,false);
       const a=effectiveGrip(0).getWorldPosition(new THREE.Vector3());
       const b=effectiveGrip(1).getWorldPosition(new THREE.Vector3());
       gesture={a:a.clone(),b:b.clone(),center:a.clone().add(b).multiplyScalar(.5),
         position:mGrp.position.clone(),quat:mGrp.quaternion.clone(),scale:mGrp.scale.x};
     }else gesture=null;
+    paint();
     return true;
   }
   function updateGrab(){
@@ -284,8 +312,8 @@ function install(ctx){
   function updateSteering(){
     if(mode!=='procedure'||!scopeSteering)return;
     const {i,origin,deflH,deflV}=scopeSteering;
-    grips[i].updateMatrixWorld(true);
-    const orientation=grips[i].getWorldQuaternion(new THREE.Quaternion());
+    trackedController(i).updateWorldMatrix(true,false);
+    const orientation=trackedController(i).getWorldQuaternion(new THREE.Quaternion());
     // Change in controller orientation relative to the moment of grasp.
     // This is a VR input mapping to the ORIGINAL scope deflection state,
     // not an assertion of mechanical shaft/knob or force-feedback realism.
@@ -310,23 +338,24 @@ function install(ctx){
     return actionHitbox.find(a=>x>=a.u&&x<=a.u+a.w&&y>=a.v&&y<=a.v+a.h)?.id||null;
   }
   function summon(){
-    if(!viewerValid||mode!=='anatomy')return;
-    const bounds=sourceBounds(),targetScale=Math.min(mGrp.scale.x,.4/bounds.size.x,.45/bounds.size.y);
-    const targetCenter=head.clone().addScaledVector(forward,.82).add(new THREE.Vector3(0,-.07,0));
-    const targetPosition=targetCenter.clone().sub(bounds.center.clone().multiplyScalar(targetScale).applyQuaternion(mGrp.quaternion));
-    const start=mGrp.position.clone(),old=mGrp.scale.x;
-    // No camera motion. Smoothly approach a reachable workbench.
-    gesture=null;
-    const begin=performance.now(),generation=++summonGeneration;
-    const update=()=>{
-      if(generation!==summonGeneration||!active||mode!=='anatomy'||grab.some(Boolean))return;
-      const t=safe(0,1,(performance.now()-begin)/480);
-      const eased=1-Math.pow(1-t,3);
-      mGrp.position.copy(start).lerp(targetPosition,eased);
-      mGrp.scale.setScalar(old+(targetScale-old)*eased);
-      if(t<1)requestAnimationFrame(update);
-    };
-    update();
+    if(!viewerValid||mode!=='anatomy'||grab.some(Boolean))return;
+    const bounds=sourceBounds();
+    const targetScale=Math.min(mGrp.scale.x,.43/bounds.size.x,.50/bounds.size.y);
+    const center=head.clone().addScaledVector(forward,.83).add(new THREE.Vector3(0,-.07,0));
+    const dest=center.clone().sub(bounds.center.clone()
+      .multiplyScalar(targetScale).applyQuaternion(mGrp.quaternion));
+    summonTween={startedAt:performance.now(),durationMs:450,
+      from:mGrp.position.clone(),to:dest,fromScale:mGrp.scale.x,toScale:targetScale};
+    grabFeedback='SUMMONING SOURCE ANATOMY INTO REACH';paint();
+  }
+  function updateSummon(){
+    if(!summonTween||!active||mode!=='anatomy'||grab.some(Boolean))return;
+    const t=safe(0,1,(performance.now()-summonTween.startedAt)/summonTween.durationMs);
+    const ease=1-Math.pow(1-t,3);
+    mGrp.position.copy(summonTween.from).lerp(summonTween.to,ease);
+    mGrp.scale.setScalar(summonTween.fromScale+(summonTween.toScale-summonTween.fromScale)*ease);
+    mGrp.updateMatrixWorld(true);
+    if(t>=1)summonTween=null;
   }
   function pickFromScene(r){
     const targets=surfaceTarget();
