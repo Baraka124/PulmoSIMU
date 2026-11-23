@@ -1,0 +1,109 @@
+{
+  "schema": "pulmosimu.a2.1.source-qa.observed.v1",
+  "method": "A2.1-conservative-hemithorax-3d-connected-airspace-v1",
+  "execution": "Executed on the provided NLST 512x512x150 NIfTI in the research container on 2026-11-23; these are observed measurements, not validation against independent ground truth.",
+  "input_source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "image_spacing_mm": [
+    0.5429688096046448,
+    0.5429688096046448,
+    2
+  ],
+  "sampled_spacing_mm": [
+    1.0859376192092896,
+    1.0859376192092896,
+    2
+  ],
+  "image_orientation": "NIfTI sform RAS; +X is patient right",
+  "HU_threshold_open_interval": [
+    -1015,
+    -400
+  ],
+  "body_HU_threshold": -450,
+  "physical_midline_x_RAS_mm": 0,
+  "mask": {
+    "right": {
+      "label": 1,
+      "selected_voxels": 744656,
+      "airspace_l": 1.75629,
+      "three_d_connected": true,
+      "excluded_candidate_voxels": 30125,
+      "axial_slice_range": [
+        11,
+        149
+      ]
+    },
+    "left": {
+      "label": 2,
+      "selected_voxels": 623235,
+      "airspace_l": 1.46991,
+      "three_d_connected": true,
+      "excluded_candidate_voxels": 48650,
+      "axial_slice_range": [
+        15,
+        144
+      ]
+    },
+    "total_airspace_l": 3.2262,
+    "right_voxels_in_patient_left_hemisphere": 0,
+    "left_voxels_in_patient_right_hemisphere": 0,
+    "note": "Midline isolation is an intentional conservative rule; it cannot establish correct medial lung anatomy."
+  },
+  "A1_surface_observation": {
+    "right_previous_x_bounds_m": [
+      -0.10156553,
+      0.12944083
+    ],
+    "left_previous_x_bounds_m": [
+      -0.11372643,
+      0.00670633
+    ],
+    "comment": "Earlier right surface extended approximately 101.6 mm into the contralateral display hemisphere; this is a geometry red flag, not a measured Dice or accuracy error."
+  },
+  "A2_surface": {
+    "right": {
+      "triangles": 233268,
+      "vertices": 116320,
+      "watertight": true,
+      "model_x_bounds_m": [
+        0.00027147,
+        0.12949261
+      ]
+    },
+    "left": {
+      "triangles": 203536,
+      "vertices": 101602,
+      "watertight": true,
+      "model_x_bounds_m": [
+        -0.11375185,
+        0.00027147
+      ]
+    },
+    "combined_triangles": 436804,
+    "model_glb_sha256": "621edae920712df12760d4d13cade7066c7dd969533094914171986767b70ae2",
+    "source_mask_npz_sha256": "dc45149f3c69c55f4dc999eb7f0510aa66a85475e841c025dbf1c941a426df48",
+    "contour_preview_sha256": "bc32aeff3015cce135120aaac19698a921635657ebe063148052f73dc64e9d22",
+    "binary_artifact_distribution": "Not uploaded to this GitHub commit; binary surfaces and masks are kept separate pending authorized, verified distribution and segmentation QA."
+  },
+  "gates": {
+    "source_integrity": "PASS",
+    "RAS_hemithorax_partition": "PASS_BY_CONSTRUCTION",
+    "each_3D_lung_airspace_component": "PASS",
+    "watertight_source_mesh": "PASS",
+    "Quest_ready_low_poly_mesh": "BLOCKED—topology-preserving decimation not yet validated",
+    "independent_CT_review": "PENDING",
+    "correct_lung_parenchyma": "UNVALIDATED",
+    "lobes_fissures": "NOT_SEGMENTED",
+    "bronchial_lumen": "NOT_SEGMENTED",
+    "vessels": "NOT_SEGMENTED",
+    "bronchoscope_registered_to_CT": "BLOCKED",
+    "patient_specific_physics": "BLOCKED"
+  },
+  "limitations": [
+    "The right/left physical midline partition may cut true juxtamediastinal parenchyma.",
+    "The near-apical right candidate includes air up to source slice k=149 and requires expert review of whether connected central airway air was included.",
+    "HU-threshold airspace does not include consolidated/high-attenuation parenchyma or vascular tissue.",
+    "2 mm through-plane spacing limits precision of small airway/fissure geometry.",
+    "Watertightness and connectedness measure topology, not anatomical accuracy.",
+    "No reference segmentation exists here for Dice, Hausdorff, surface error or true sensitivity estimates."
+  ]
+}
