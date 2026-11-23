@@ -366,6 +366,33 @@ try {
    assert.equal(routing.behind,'anatomy');
    assert.equal(routing.blank.kind,'panel');
    assert.equal(routing.blank.action,null);
+   const spatial=await questEntry.evaluate(()=>{
+     const T=window.THREE,room=new T.Group();
+     const floor=new T.Mesh(new T.CircleGeometry(3.8,32),
+       new T.MeshStandardMaterial({transparent:true,opacity:1}));
+     const grid=new T.Group(),plinth=new T.Group();
+     room.add(floor,grid,plinth);
+     const presence=window.PulmoXRStagePresence.create(T,room,{floor,grid,plinth});
+     const original=presence.snapshot();
+     const singleLine=presence.root.children.filter(o=>o.isLineSegments).length;
+     presence.setMode('focus');
+     const focused={mode:presence.snapshot().mode,grid:grid.visible,
+       plinth:plinth.visible,floorOpacity:floor.material.opacity};
+     presence.setMode('studio');
+     const studio={mode:presence.snapshot().mode,grid:grid.visible,
+       plinth:plinth.visible,floorOpacity:floor.material.opacity};
+     return {original,focused,studio,singleLine};
+   });
+   assert.equal(spatial.original.mode,'studio');
+   assert.equal(spatial.original.datumSegments,24,'World references use 12 vertical + 12 rim segments');
+   assert.equal(spatial.singleLine,1,'Architecture is a single LineSegments object');
+   assert.equal(spatial.focused.grid,false);
+   assert.equal(spatial.focused.plinth,false);
+   assert.ok(spatial.focused.floorOpacity<1);
+   assert.equal(spatial.studio.grid,true);
+   assert.equal(spatial.studio.plinth,true);
+   assert.equal(spatial.studio.floorOpacity,1);
+   console.log('PASS XR13 world stage, single-draw-call architecture and focus/studio mode switching');
    console.log('PASS XR12 actual Three plane, source geometry and no-click-through hit arbitration');
    console.log('PASS XR11 front/back ray targeting and source material preservation');
    console.log('PASS XR10 remote triangle selection with real Three.js geometry');
