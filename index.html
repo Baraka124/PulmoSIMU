@@ -2190,6 +2190,7 @@ function setViewMode(mode){
 
   if(research){
     setView('overview');
+    scope.velocity=0;
     const label=document.getElementById('ext-label');
     if(label)label.textContent='CT RESEARCH SURFACE · UNVALIDATED · DRAG ROTATE · SCROLL ZOOM';
   }else{
@@ -2476,6 +2477,10 @@ function detectGrab(){
 
 let viewMode='dual';
 function setView(m){
+  if(meshMode==='research'&&m!=='overview'){
+    showToast('CT study anatomy is external-only; open CT Source Laboratory for image planes','warn');
+    return;
+  }
   viewMode=m;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const map={overview:'tab-ov',dual:'tab-du',scope:'tab-br'};
@@ -2850,6 +2855,11 @@ function cancelHold(){
   g('hold-arc',el=>el.style.strokeDashoffset=188);
 }
 function fireAction(){
+  if(meshMode==='research'){
+    cancelHold();
+    showToast('No CT-registered airway or biopsy target: reference simulation only','warn');
+    return;
+  }
   cancelHold();const ar=document.getElementById('aring');
   if(ar){ar.classList.add('fire');setTimeout(()=>ar.classList.remove('fire','show'),650);}
   const seg=SEG_MAP[scope.segId];
@@ -2886,6 +2896,9 @@ function exportSession(){
 window.exportSession=exportSession;
 
 function jumpToPathology(id){
+  if(meshMode==='research'){
+    showToast('No CT-derived lesions have been identified or validated','warn');return;
+  }
   // Works for both procedural (seg.pathology.id) and loaded patient (pathoMeshes key)
   const p=pathoMeshes[id];
   if(p){jumpToPathoById(id);return;}
@@ -3284,7 +3297,8 @@ const ext={mx:0,my:0,rx:0,ry:0,sc:1,rot:{on:false,hx:0,hy:0},buf:{rx:[],ry:[]},i
 function dead(v,d){return Math.abs(v)<d?0:v-Math.sign(v)*d;}
 function smV(buf,v,n){buf.push(v);if(buf.length>n)buf.shift();return buf.reduce((a,b)=>a+b,0)/buf.length;}
 function applyExt(){
-  ext.mx=Math.max(-4,Math.min(4,ext.mx));ext.my=Math.max(-3,Math.min(3,ext.my));ext.sc=Math.max(.2,Math.min(4.5,ext.sc));
+  ext.mx=Math.max(-4,Math.min(4,ext.mx));ext.my=Math.max(-3,Math.min(3,ext.my));
+  ext.sc=Math.max(meshMode==='research'?.65:.2,Math.min(meshMode==='research'?2.4:4.5,ext.sc));
   mGrp.position.set(ext.mx,ext.my,0);
   mGrp.rotation.set(THREE.MathUtils.degToRad(ext.rx),THREE.MathUtils.degToRad(ext.ry),0);
   mGrp.scale.setScalar(ext.sc);
@@ -3669,6 +3683,10 @@ const _sessionStart=Date.now();
 setInterval(()=>{const s=Math.floor((Date.now()-_sessionStart)/1000),m=Math.floor(s/60),ss=s%60;g('ses-t',el=>el.textContent=(m<10?'0':'')+m+':'+(ss<10?'0':'')+ss);},1000);
 
 document.addEventListener('keydown',e=>{
+  if(meshMode==='research'){
+    if(e.key==='Escape'||e.key==='0')window.resetCTResearchView();
+    return; // never trigger simulated pathology, biopsy or bronchoscopy keys
+  }
   if(e.key==='1')setView('overview');
   if(e.key==='2')setView('dual');
   if(e.key==='3')setView('scope');
