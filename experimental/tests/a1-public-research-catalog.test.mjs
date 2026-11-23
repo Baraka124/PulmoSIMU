@@ -17,7 +17,7 @@ test('Public NLST A1 research manifest retains source coordinates, hashes and ca
 });
 test('Public data catalog does not silently claim a CT upload or validated bronchoscopy',()=>{
  assert.equal(manifest.binary_objects_in_git,false);
- assert.ok(manifest.limitations.some(x=>/airway/i.test(x)));
+ assert.ok(manifest.limitations.some(x=>/airway|bronchial/i.test(x)));
  assert.ok(manifest.quality_gates.bronchoscope_to_ct_registration==='BLOCKED');
  assert.ok(manifest.quality_gates.right_lung_mask_leakage==='FLAGGED_FOR_REVIEW');
  const readme=readFileSync(new URL('../data/nlst-a1/README.md',import.meta.url),'utf8');
