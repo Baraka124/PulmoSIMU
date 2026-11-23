@@ -3856,9 +3856,13 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={
   const loader = new THREE.GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
 
-    // Hide all reference anatomy — keep in memory for REF toggle
-    proceduralMeshes.forEach(m=>m.visible=false);
-    referenceMeshes.forEach(m=>{if(m)m.visible=false;});
+    // Only pipeline-imported airway models supersede reference geometry.
+    // For research studies the dedicated view takes a full visibility
+    // snapshot *before* hiding reference scene elements.
+    if(!deferFocus){
+      proceduralMeshes.forEach(m=>m.visible=false);
+      referenceMeshes.forEach(m=>{if(m)m.visible=false;});
+    }
 
     // Remove previous patient GLB if reloading
     if (patientData.gltf) {
@@ -3903,9 +3907,12 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={
     // The research loader captures the original camera BEFORE fitting,
     // so returning to reference simulation restores its previous framing.
     if(!deferFocus)_focusCameraOnGLB(gltf.scene);
-    // Boost scene lighting for patient mesh visibility
-    kL.intensity = 5.5;
-    fillL.intensity = 2.2;
+    // Research sources keep existing light settings, so switching back
+    // to the original procedure cannot inherit an exaggerated exposure.
+    if(!deferFocus){
+      kL.intensity=5.5;
+      fillL.intensity=2.2;
+    }
 
     // Update the loader banner
     _updateLoaderBanner(true);
