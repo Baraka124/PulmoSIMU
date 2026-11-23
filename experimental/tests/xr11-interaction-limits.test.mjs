@@ -49,7 +49,7 @@ test('XR-11 preserves original procedural engine, source geometry and independen
  assert.match(main,/interaction-math\.js\?v=XR11-METRIC/);
  for(const token of ['constrainSizeAndFocus()', 'limits.clampFocus(', 'limits.scaleFromHands(',
   'applyAnalogAnatomy(', 'limits.clampScale(', "mode==='anatomy'",
-  'worldMenu.updateWorldMatrix(true,false)', 'panelIntersection(rayFrom(i))',
+  'worldMenu.updateWorldMatrix(true,false)', 'choosePointer(i)',
   'hoverPanels.includes(a.id)', 'aimTargets[i]', 'hoverPanels[i]',
   'menuActions', 'right', 'left', 'updatePointerAim(time)', 'rBro.render(scene,vrCam)']){
   assert.ok(xr.includes(token),'Required real interaction invariant: '+token)
