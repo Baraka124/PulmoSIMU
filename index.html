@@ -2196,7 +2196,16 @@ function setViewMode(mode){
       position:camExt.position.clone(),quaternion:camExt.quaternion.clone(),
       near:camExt.near,far:camExt.far,
       previousView:viewMode,
-      extState:{mx:ext.mx,my:ext.my,rx:ext.rx,ry:ext.ry,sc:ext.sc,idle:ext.idle}
+      extState:{mx:ext.mx,my:ext.my,rx:ext.rx,ry:ext.ry,sc:ext.sc,idle:ext.idle},
+      stage:{
+        background:scene.background,fog:scene.fog,
+        groundVisible:gnd.visible,vignetteVisible:vignPlane.visible,
+        ambient:{color:ambientLight.color.clone(),intensity:ambientLight.intensity},
+        key:{color:kL.color.clone(),intensity:kL.intensity},
+        fill:{color:fillL.color.clone(),intensity:fillL.intensity},
+        redScatter:sssL.intensity,heartRed:heartL.intensity,
+        exposure:rExt.toneMappingExposure
+      }
     };
   }
   const returnState=ctResearchHidden&&mode!=='research'?ctResearchReturn:null;
@@ -2211,6 +2220,19 @@ function setViewMode(mode){
   if(typeof ambientLight!=='undefined')
     ambientLight.intensity=mode==='reference'?1.0:research?1.25:mode==='patient'?.6:.1;
   if(research){
+    // Neutral source stage: no simulated procedure atmosphere, dramatic
+    // lesion-red lights, decorative ground or photographic context.
+    // Nothing here changes the GLB or declares new anatomical structures.
+    if(enteringResearch){
+      scene.background=new THREE.Color(0x121c22);
+      scene.fog=null;
+      gnd.visible=false;vignPlane.visible=false;
+      ambientLight.color.setHex(0xc1cdd2);ambientLight.intensity=1.0;
+      kL.color.setHex(0xf0f4f2);kL.intensity=2.5;
+      fillL.color.setHex(0x9dafb9);fillL.intensity=1.1;
+      sssL.intensity=0;heartL.intensity=0;
+      rExt.toneMappingExposure=1.0;
+    }
     // Keep only the loaded CT-derived source object in the model assembly.
     // Reference heart/bronchi, lesions, anatomical decorations and tools
     // cannot silently appear to be measured patient structures.
@@ -2251,6 +2273,18 @@ function setViewMode(mode){
     const label=document.getElementById('ext-label');
     if(label)label.textContent='BILATERAL LUNG · EXTERNAL VIEW · CLICK TELEPORT · DRAG ROTATE · SCROLL ZOOM';
     if(returnState){
+      const old=returnState.stage;
+      if(old){
+        scene.background=old.background;scene.fog=old.fog;
+        gnd.visible=old.groundVisible;
+        vignPlane.visible=old.vignetteVisible;
+        ambientLight.color.copy(old.ambient.color);
+        ambientLight.intensity=old.ambient.intensity;
+        kL.color.copy(old.key.color);kL.intensity=old.key.intensity;
+        fillL.color.copy(old.fill.color);fillL.intensity=old.fill.intensity;
+        sssL.intensity=old.redScatter;heartL.intensity=old.heartRed;
+        rExt.toneMappingExposure=old.exposure;
+      }
       camExt.position.copy(returnState.position);
       camExt.quaternion.copy(returnState.quaternion);
       camExt.near=returnState.near;camExt.far=returnState.far;
