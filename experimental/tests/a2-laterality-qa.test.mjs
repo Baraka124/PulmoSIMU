@@ -7,7 +7,7 @@ const inspector=readFileSync(new URL('../anatomy/inspector-app.js',import.meta.u
 const script=readFileSync(new URL('../anatomy/a2_laterality_qa.py',import.meta.url),'utf8');
 
 test('A2 canonical NIfTI RAS+ orientation is patient RIGHT at +X, correcting historical sign inversion',()=>{
- assert.match(qa.laterality_convention,/X>0.*RIGHT/i);
+ assert.match(qa.laterality_convention,/right is X>0/i);
  assert.match(manifest.anatomical_laterality_check.reference_frame,/\+X patient RIGHT/);
  assert.equal(manifest.quality_gates.laterality_labels,'REVIEW_REQUIRED_OLD_RIGHT_SURFACE_CROSSES_MIDLINE');
  assert.equal(qa.critical_label_reversal,false);
