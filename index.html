@@ -3685,84 +3685,15 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
       mGrp.remove(patientData.gltf);
     }
 
-    // Patient GLB — anatomical bronchial tissue shader
-    // Target: warm salmon-pink tissue, visible cartilage rings, wet sheen, SSS
-    const PATIENT_V=`
-      varying vec3 vWP;varying vec3 vN;varying vec2 vUV;
-      void main(){
-        vN=normalize(mat3(modelMatrix)*normal);
-        vUV=uv;vWP=(modelMatrix*vec4(position,1.)).xyz;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
-      }`;
-    const PATIENT_F=`
-      precision highp float;
-      varying vec3 vWP;varying vec3 vN;varying vec2 vUV;
-      uniform float uT;
-      float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
-      float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
-        return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
-      float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<3;i++){v+=a*n2(p);p*=2.1;a*=.52;}return v;}
-      void main(){
-        vec3 N=normalize(vN);
-        vec3 viewDir=normalize(cameraPosition-vWP);
-        float u=vUV.x,v=vUV.y;
-
-        // ── Tissue base: warm salmon-pink, light variation ──
-        float noiseVal=fbm(vec2(u*4.,v*6.));
-        vec3 tissueLight=vec3(.92,.62,.50);  // highlight — light salmon
-        vec3 tissueDark =vec3(.82,.46,.36);  // shadow — warm rose
-        vec3 base=mix(tissueDark,tissueLight,noiseVal);
-
-        // ── Cartilage rings — C-shaped bands every ~14 uv units ──
-        float ring=fract(v*14.);
-        float inRing=smoothstep(.08,.14,ring)*smoothstep(.45,.38,ring);
-        // Posterior gap (trachealis membrane) — no cartilage at u≈0.5
-        float posterior=1.-smoothstep(.35,.5,abs(fract(u+.5)-.5)*2.);
-        float cartilage=inRing*(1.-posterior*.9);
-        vec3 cartCol=vec3(.80,.72,.58);  // pale yellowish cartilage
-        base=mix(base,cartCol,cartilage*.65);
-
-        // ── Vasculature — subtle arterial/venous threads ──
-        float art=smoothstep(.08,.0,abs(sin(v*22.+fbm(vec2(u*4.,v*2.))*2.5)));
-        float ven=smoothstep(.10,.0,abs(sin(v*17.+(u+.2)*3.+fbm(vec2(u*3.,v*3.))*2.)));
-        float pulse=sin(uT*2.6)*.5+.5;
-        base=mix(base,vec3(.82,.12,.08),art*.35*(1.+pulse*.2));
-        base=mix(base,vec3(.30,.08,.28),ven*.28);
-
-        // ── Multi-light diffuse — high ambient floor so nothing goes black ──
-        vec3 key =normalize(vec3( 2., 5., 4.));
-        vec3 fill=normalize(vec3(-3.,-1., 2.));
-        vec3 rim =normalize(vec3(-1., 2.,-4.));
-        vec3 back=normalize(vec3( 0.,-1.,-1.));
-        float diff= max(dot(N,key), 0.)*.65
-                  + max(dot(N,fill),0.)*.20
-                  + max(dot(N,rim), 0.)*.15
-                  + max(dot(N,back),0.)*.10
-                  + .48;  // strong ambient floor — no face goes black
-
-        // ── Wet specular ──
-        vec3 H=normalize(key+viewDir);
-        float spec=pow(max(dot(N,H),0.),60.)*.6;
-        float cartSpec=pow(max(dot(N,H),0.),120.)*cartilage*.5;
-
-        // ── Subsurface scatter — backlit warmth through thin tissue ──
-        float sss=pow(max(dot(viewDir,-N),0.),2.)*.28;
-
-        vec3 col=base*diff;
-        col+=vec3(.98,.96,.94)*(spec+cartSpec);
-        col+=vec3(.92,.30,.14)*sss;
-        col+=base*.18;  // emissive floor — always readable in dark scene
-
-        gl_FragColor=vec4(clamp(col,0.,1.),1.);
-      }`;
-    const patientMat = new THREE.ShaderMaterial({
-      uniforms:{ uT:{value:0} },
-      vertexShader: PATIENT_V,
-      fragmentShader: PATIENT_F,
-      side: THREE.DoubleSide,
+    // Source-fidelity rule: an imported CT/GLB is rendered with its
+    // authored material and actual mesh geometry. Do NOT paint invented
+    // cartilage rings, vessels, wet mucosa or pathology from noise functions.
+    // Those require their own measured/segmented inputs and provenance.
+    // Existing authored GLB material colors are preserved.
+    patientData._mat = null;
+    const neutralFallback = new THREE.MeshStandardMaterial({
+      color:0xb19b94,roughness:.83,metalness:0,side:THREE.DoubleSide
     });
-    // Animate the shader uniform in the render loop
-    patientData._mat = patientMat;
     gltf.scene.traverse(child => {
       if (child.isMesh) {
         // Ensure smooth normals — compute if not in GLB
@@ -3770,7 +3701,9 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
           child.geometry.computeVertexNormals();
         }
         child.geometry.normalizeNormals();
-        child.material = patientMat;
+        // Keep source-defined segmentation colors/materials; a fallback is
+        // allowed only for malformed meshes lacking any material.
+        if(!child.material)child.material=neutralFallback;
         child.castShadow = false;
         child.receiveShadow = false;
       }
