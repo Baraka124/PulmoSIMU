@@ -71,22 +71,27 @@ def audit(ct: Path, glb: Path, manifest: Path) -> dict:
         ras = trimesh.transform_points(np.asarray(mesh.vertices), ras_from_scene)
         areas = np.asarray(mesh.area_faces)
         signed = ras[np.asarray(mesh.faces), 0].mean(axis=1)
+        # NIfTI RAS+: +X is PATIENT RIGHT, -X is PATIENT LEFT.
+        # See the NIfTI-1 coordinate standard and 3D Slicer RAS documentation.
         pos = float(areas[signed > 0].sum() / areas.sum())
         name = "right" if "right" in node.lower() else (
             "left" if "left" in node.lower() else "unknown"
         )
-        wrong = pos if name == "right" else (1 - pos if name == "left" else None)
+        wrong = (1 - pos) if name == "right" else (pos if name == "left" else None)
         conflict = wrong is not None and wrong > 0.8
+        leakage_review = wrong is not None and wrong > 0.10
         surfaces.append(dict(
             source_node=node, unverified_label=name,
             face_count=len(mesh.faces), watertight=bool(mesh.is_watertight),
-            area_fraction_RAS_patient_left=pos,
-            area_fraction_RAS_patient_right=1 - pos,
+            area_fraction_RAS_patient_left=1 - pos,
+            area_fraction_RAS_patient_right=pos,
+            area_fraction_RAS_x_positive=pos,
             area_fraction_opposite_named_side=wrong,
             area_weighted_center_RAS_x_mm=float(
                 (signed * areas).sum() / areas.sum()
             ),
             source_laterality_conflict=bool(conflict),
+            midline_crossing_requires_review=bool(leakage_review),
         ))
     if sorted([x["unverified_label"] for x in surfaces]) != ["left", "right"]:
         raise ValueError("Expected exactly one right-labelled and left-labelled mesh")
@@ -96,9 +101,12 @@ def audit(ct: Path, glb: Path, manifest: Path) -> dict:
         sha256_verified=True,
         source=ct.name,
         mesh=glb.name,
-        laterality="NIfTI sform RAS: patient left X-positive, right X-negative",
-        anatomy_review="FAIL" if failures else "NOT_INDEPENDENTLY_VALIDATED",
+        laterality="NIfTI sform RAS: +X PATIENT RIGHT, -X PATIENT LEFT",
+        anatomy_review="FAIL" if failures else
+            ("REVIEW_REQUIRED" if any(x["midline_crossing_requires_review"] for x in surfaces)
+             else "NOT_INDEPENDENTLY_VALIDATED"),
         critical_laterality_conflicts=failures,
+        supersedes="earlier A2 RAS sign-inverted laterality swap audit",
         original_node_names_preserved=True,
         surfaces=surfaces,
         bronchoscopy_linkage="BLOCKED",
