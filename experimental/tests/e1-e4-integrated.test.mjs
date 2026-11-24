@@ -78,3 +78,13 @@ test('E4 evidence is conservative; no automatic clinical or Quest freeze',()=>{
  assert.equal(a.headsetPhysicalAcceptance,'PENDING_EXPLICIT_QUEST_2_RUN');
  assert.equal(Array.from(root.PulmoXRAcceptance.gates).length,4);
 });
+
+
+test('Quest short launcher stays on the deployed build for VR, MR and desktop',()=>{
+ const html=readFileSync(new URL('../../quest-short/index.html',import.meta.url),'utf8');
+ assert.match(html,/href="\.\.\/index\.html\?xr=procedural/);
+ assert.match(html,/href="\.\.\/"[^>]*>Open desktop workstation/);
+ assert.equal((html.match(/href="\.\.\/index\.html\?xr=procedural/g)||[]).length,2);
+ assert.doesNotMatch(html,/href="https:\/\/pulmosimu-xr-preview\.vercel\.app\//,
+  'Quest launch would silently navigate to a stale deployment');
+});
