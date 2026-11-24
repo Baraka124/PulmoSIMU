@@ -87,7 +87,11 @@ function validate(){
   updateMarker();applyClipping();updateResearchGates();renderReviewStatus();
 }
 let scene=null,renderer=null,camera=null,orbit=null,modelGroup=null,marker=null,
-  scenePlane=null,workLight=null,originalMaterials=[];
+  sourceSection=null,sourceSectionKey=null,workLight=null,originalMaterials=[];
+function disposeSourceSection(){
+  if(sourceSection){sourceSection.dispose();sourceSection=null;}
+  sourceSectionKey=null;
+}
 function start3d(){
   if(!has3d){setMessage('3D libraries could not load. The CT slice viewer remains available.','error');return;}
   renderer=new THREE.WebGLRenderer({canvas:$('three-canvas'),antialias:true,alpha:false,powerPreference:'high-performance'});
@@ -123,6 +127,7 @@ function resize(){if(!renderer||!camera)return;
   renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
 }
 function clear3d(){if(!modelGroup)return;
+  disposeSourceSection();
   for(const child of [...modelGroup.children])modelGroup.remove(child);
   state.model=null;state.meshNames=[];originalMaterials=[];
 }
@@ -211,6 +216,7 @@ async function loadModel(file){
     a2LateralityConflict()?'error':a2CandidateReviewPending()?'note':'ok');
 }
 async function loadNifti(file){
+  disposeSourceSection();
   if(!/\.nii$/i.test(file.name))throw new Error('Choose an uncompressed NIfTI .nii file');
   if(file.size>800*1024*1024)throw new Error('CT file exceeds local browser size limit');
   setMessage('Reading local 3D NIfTI volume…');
@@ -227,6 +233,7 @@ async function loadNifti(file){
   setMessage('NIfTI read locally. Compare all segmentation boundaries against the original image.','ok');
 }
 async function loadManifest(file){
+  disposeSourceSection();
   if(!/\.json$/i.test(file.name))throw new Error('Choose a reconstruction manifest .json file');
   const data=JSON.parse(await file.text());
   if(!Array.isArray(data.source_shape_vox)||!Array.isArray(data.sform_RAS_mm)||
@@ -397,23 +404,50 @@ function updateMarker(){
   }catch(err){marker.visible=false;setMessage(err.message,'warn')}
 }
 function applyClipping(){
-  if(!originalMaterials.length)return;
-  const match=state.volume&&state.qa&&state.meshSha===state.qa.mesh_sha256&&state.ctSha===state.qa.source_sha256&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid;
+  // The inspector source section is a local CT pixel plane in the registered
+  // model frame, not a mesh-material WebGL clip. The old clipping path could
+  // blank both lung meshes in Chromium, although the plane crossed both.
+  const match=state.volume&&state.qa&&state.model&&
+    state.meshSha===state.qa.mesh_sha256&&state.ctSha===state.qa.source_sha256&&
+    window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid;
   const wants=Boolean($('clip-toggle').checked&&match&&state.qa.model_from_ras_mm);
-  let plane=null;
-  if(wants){
+  if(!wants){
+    if(sourceSection)sourceSection.setVisible(false);
+    return;
+  }
+  if(!window.PulmoXRCTSpatial?.create||!modelGroup){
+    $('clip-toggle').checked=false;
+    setMessage('CT source plane unavailable; original surfaces preserved.','error');
+    return;
+  }
+  try{
+    const study={volume:state.volume,manifest:state.qa,ctSha:state.ctSha,
+      meshSha:state.meshSha,meshVerified:true};
+    const gate=window.PulmoXRCTSpatial.gate(study);
+    if(!gate.ok)throw Error(gate.reason);
+    const key=state.ctSha+':'+state.meshSha;
+    if(sourceSection&&sourceSectionKey!==key)disposeSourceSection();
+    if(!sourceSection){
+      sourceSection=window.PulmoXRCTSpatial.create(THREE,modelGroup,study);
+      sourceSectionKey=key;
+    }
     const direction=$('section-plane').value;
     const axis={sagittal:0,coronal:1,axial:2}[direction];
-    if(!Number.isInteger(axis))return;
-    const current=state.cross.slice(),neighbour=current.slice();
-    neighbour[axis]=Math.min(state.volume.dims[axis]-1,current[axis]+1);
-    if(neighbour[axis]===current[axis])neighbour[axis]=Math.max(0,current[axis]-1);
-    const a=window.PulmoNiftiSource.getWorldFromRAS(state.volume.ras(...current),state.qa);
-    const b=window.PulmoNiftiSource.getWorldFromRAS(state.volume.ras(...neighbour),state.qa);
-    const vec=new THREE.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]).normalize();
-    plane=new THREE.Plane().setFromNormalAndCoplanarPoint(vec,new THREE.Vector3(...a));
+    if(!Number.isInteger(axis))throw Error('Invalid CT section orientation');
+    sourceSection.setIndex(direction,state.cross[axis]);
+    for(const mesh of sourceSection.group.children){
+      mesh.visible=mesh.userData.plane===direction;
+      // Translucent actual CT intensities, legible in front of the surface.
+      // Original lung materials, geometry, and camera are never modified.
+      mesh.material.depthTest=false;
+      mesh.material.opacity=.70;
+    }
+    sourceSection.setVisible(true);
+  }catch(error){
+    if(sourceSection)sourceSection.setVisible(false);
+    $('clip-toggle').checked=false;
+    setMessage('3D CT section unavailable: '+String(error.message||error),'error');
   }
-  for(const m of originalMaterials){m.clippingPlanes=plane?[plane]:[];m.needsUpdate=true;}
 }
 function clickSlice(plane,ev){
   if(!state.volume)return;
@@ -540,6 +574,9 @@ $('offline-help').addEventListener('click',()=>{$('help-dialog').showModal()});
 $('help-close').addEventListener('click',()=>$('help-dialog').close());
 window.PulmoAnatomyInspector=Object.freeze({get status(){return{
   hasCT:!!state.volume,hasGLB:!!state.model,hasQA:!!state.qa,
+  sourceSectionVisible:Boolean(sourceSection?.snapshot().visible),
+  sourceSectionMode:sourceSection?.snapshot().visible?'source-voxel-plane':'off',
+  sectionPlane:$('section-plane').value,
   sourceMatched:!!(state.volume&&state.qa&&state.ctSha===state.qa.source_sha256&&state.meshSha===state.qa.mesh_sha256&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid),
   meshNames:state.meshNames.slice(),cross:state.cross.slice(),
    reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity()),
