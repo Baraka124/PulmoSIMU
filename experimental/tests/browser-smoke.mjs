@@ -355,6 +355,43 @@ try {
    'Original procedural XR is available as a headset-specific option, not prerequisite');
   console.log('PASS direct desktop workstation: original clinical reference engine, no Quest or camera required');
  }finally{await desktop.close()}
+ // XR16 final: the evidence lab must work from an ordinary browser and
+ // must NEVER infer clinical validity from a synthetic test bench fixture.
+ const validationPage=await browser.newPage({viewport:{width:1300,height:900}});
+ try{
+  await validationPage.goto(host+'/experimental/validation-lab.html',{waitUntil:'domcontentloaded'});
+  await validationPage.waitForFunction(()=>!!window.PulmoXRInstrumentBench?.assess
+    && !!window.PulmoXRClinicalReview?.assess);
+  assert.ok(await validationPage.getByText('Clinical review and physical instrument verification.').isVisible());
+  assert.equal(await validationPage.locator('#benchBadge').innerText(),'BENCH · AWAITING TRACE');
+  const samples=Array.from({length:110},(_,i)=>({
+    tMs:i*60,
+    cmdInsertionMm:i*.25,measInsertionMm:i*.25+.8,
+    cmdTipHDeg:15,measTipHDeg:16,
+    cmdTipVDeg:-10,measTipVDeg:-9,
+    cmdRollDeg:i*3,measRollDeg:i*3+1,
+    tracking:true
+  }));
+  const trace={
+    version:'pulmosimu-instrument-trace/1',
+    provenance:{deviceModel:'Synthetic test fixture',instrumentId:'Synthetic QA A1',
+      referenceSensor:'Synthetic reference sensor',operator:'Automated browser test',
+      measuredAt:'2026-11-24T12:00:00Z',measurementSource:'external-bench'},
+    units:{time:'ms',insertion:'mm',angles:'deg'},samples
+  };
+  await validationPage.locator('#trace').setInputFiles({
+    name:'synthetic-browser-fixture.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify(trace))
+  });
+  await validationPage.locator('#evaluate').click();
+  assert.match(await validationPage.locator('#benchReport').textContent(),/BENCH_ENGINEERING_TARGET_MET/);
+  assert.match(await validationPage.locator('#benchReport').textContent(),/"clinicalValidated": false/);
+  await validationPage.locator('#review').click();
+  assert.match(await validationPage.locator('#clinicalReport').textContent(),/INCOMPLETE_REVIEW_PACKET/);
+  assert.match(await validationPage.locator('#clinicalReport').textContent(),/"clinicalValidated": false/);
+  console.log('PASS XR16F browser evidence lab: measured trace fixture, clinician gate, no false clinical certification');
+ }finally{await validationPage.close()}
+
  // Retired launcher routes must never open the competing XR-04/06 viewer.
  const legacyEntry=await browser.newPage({viewport:{width:1100,height:760}});
  try{
