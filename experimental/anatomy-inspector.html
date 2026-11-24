@@ -36,6 +36,8 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 .review-import input{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0)}
 .review-import:focus-within{outline:2px solid #bbdce5;outline-offset:3px}
 @media(max-width:640px){.review-panel{padding:15px}.review-controls select{flex:1}.review-row{flex-wrap:wrap}}
+.metric-strip{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:11px 0 0;border-top:1px solid #304650;margin-top:5px}
+.metric-strip button{font-size:11px;background:transparent}.metric-strip output{font-size:12px;font-variant-numeric:tabular-nums;color:#ead2ae}.metric-strip .muted{flex:1 1 200px}
 </style>
 </head><body>
 <header><div class="brand">Pulmo<span>SIMU</span> <span style="font-weight:300;color:#698795"> / Source Anatomy</span></div><div class="headright">A1–A2.3 / CT SOURCE QA · UNVALIDATED</div></header>
@@ -91,6 +93,14 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
       <label class="review-import" for="review-import">Import JSON<input id="review-import" type="file" accept=".json" disabled aria-label="Import exact-study review JSON"></label>
       <button id="review-export" type="button" disabled>Export JSON</button>
       <button id="review-clear" type="button" disabled>Clear session</button>
+    </div>
+    <div class="metric-strip" aria-label="Source-affine anatomical distance measuring">
+      <span class="minor">CT source distance</span>
+      <button id="metric-a" type="button" disabled>Set A</button>
+      <button id="metric-b" type="button" disabled>Set B</button>
+      <button id="metric-clear" type="button" disabled>Clear distance</button>
+      <output id="metric-result" aria-live="polite">Mark two CT voxels for physical distance</output>
+      <div class="muted">Straight-line distance from the original affine in millimetres. Not a vessel, airway or curved surface length.</div>
     </div>
     <div class="review-list" id="review-list" aria-label="Manual CT point observations"><div class="muted">No review marks. Select a source-verified CT position, then choose Mark CT point.</div></div>
   </section>
