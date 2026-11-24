@@ -975,19 +975,54 @@ function install(ctx){
   // Live bronchoscopy is rendered from the ORIGINAL camScope directly
   // into a render target owned by the SAME VR WebGL context. No canvas
   // readback, second-context upload, video recording or synthetic camera.
-  const scopeTarget=new THREE.WebGLRenderTarget(640,360,{
+  const scopeTarget=new THREE.WebGLRenderTarget(
+    station.snapshot().capture.width,station.snapshot().capture.height,{
     minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
     format:THREE.RGBAFormat,depthBuffer:true,stencilBuffer:false
   });
   scopeTexture=scopeTarget.texture;scopeTexture.encoding=THREE.sRGBEncoding;
   let monitorStatus='not-started',monitorError=null,monitorFrames=0;
   const monitorRoot=new THREE.Group();
-  const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(.78,.49),
+  monitorRoot.name='xr16-independent-endoscopy-display';
+  const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(1.00,.665),
     new THREE.MeshBasicMaterial({color:0x0b161e,side:THREE.DoubleSide}));
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
-  const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.73,.411),
+  // Keep anatomical source pixels clear: identification and instrument data
+  // are physically above/below the image, never drawn across the lumen.
+  const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.94,.529),
     new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
+  monitorImage.position.y=-.012;
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
+  function monitorStrip(y){
+    const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=74;
+    const ctx=canvas.getContext('2d');
+    const texture=new THREE.CanvasTexture(canvas);texture.encoding=THREE.sRGBEncoding;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(.94,.056),
+      new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,
+        depthTest:false,depthWrite:false}));
+    mesh.position.set(0,y,.004);mesh.renderOrder=31;
+    monitorRoot.add(mesh);
+    return {canvas,ctx,texture};
+  }
+  const topStrip=monitorStrip(.294),bottomStrip=monitorStrip(-.303);
+  function paintMonitorChrome(){
+    const settings=station.snapshot();
+    const seg=SEG_MAP[scope.segId];
+    function draw(strip,left,rightText,small=false){
+      const c=strip.ctx,w=strip.canvas.width,h=strip.canvas.height;
+      c.clearRect(0,0,w,h);c.fillStyle='#14242d';c.fillRect(0,0,w,h);
+      c.fillStyle='#8fb5c0';c.fillRect(0,0,w,3);
+      c.fillStyle='#e3edf0';c.font='600 '+(small?23:27)+'px system-ui';
+      c.textAlign='left';c.fillText(left.slice(0,75),18,49);
+      c.textAlign='right';c.fillStyle='#a4c1ca';
+      c.fillText(rightText.slice(0,45),w-17,49);
+      strip.texture.needsUpdate=true;
+    }
+    draw(topStrip,'PULMOSIMU / ENDOSCOPIC VIDEO','REFERENCE AIRWAY · '+monitorStatus.toUpperCase());
+    draw(bottomStrip,
+      'SEG '+scope.segId+' · '+(seg?.name||'—')+' · DEPTH '+Math.round(scope.depth)+' MM',
+      settings.capture.label+' · '+settings.fovDegrees+'°',true);
+  }
   scopeScreen=monitorRoot;scopeScreen.visible=false;scene.add(scopeScreen);
   // A dedicated, world-space, interactive procedure window. Its content
   // originates only from SEG_MAP, the real scope state, and the selected
@@ -996,7 +1031,7 @@ function install(ctx){
   guideCanvas.width=1024;guideCanvas.height=680;
   guideCtx=guideCanvas.getContext('2d');
   guideTex=new THREE.CanvasTexture(guideCanvas);guideTex.encoding=THREE.sRGBEncoding;
-  guidePlane=new THREE.Mesh(new THREE.PlaneGeometry(.82,.545),
+  guidePlane=new THREE.Mesh(new THREE.PlaneGeometry(.90,.60),
     new THREE.MeshBasicMaterial({map:guideTex,transparent:true,
       side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   guidePlane.renderOrder=41;guidePlane.visible=false;
@@ -1061,10 +1096,19 @@ function install(ctx){
     }
     c.fillStyle='#839da7';c.font='19px system-ui';
     c.fillText(state.provenance,42,652);
+    // Real current instrument commands, deliberately separate from the
+    // endoscopic image. Angles are reference actuator inputs, not measured
+    // patient mechanics.
+    c.fillStyle='#c7d7dc';c.font='23px system-ui';
+    c.fillText('TIP H '+Math.round(scope.deflH*CFG.deflMax)+'°  /  V '+
+      Math.round(scope.deflV*CFG.deflMax)+'°   ·   SHAFT '+
+      Math.round(scope.roll*180/Math.PI)+'°',42,523);
     guideTex.needsUpdate=true;
+    paintMonitorChrome();
   }
   function captureFeed(now){
-    if(mode!=='procedure'||now-lastFeed<90||monitorStatus==='unavailable')return;
+    if(mode!=='procedure'||now-lastFeed<station.snapshot().capture.intervalMs||
+       monitorStatus==='unavailable')return;
     lastFeed=now;
     const previousTarget=rBro.getRenderTarget();
     const previousXR=rBro.xr.enabled;
@@ -1245,6 +1289,11 @@ function install(ctx){
     interactionAttempts:{...attempts},
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
       actions:guideActions,lastSourceState:guideLastState},
+    procedureStation:station.snapshot(),
+    instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
+    videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
+      requestedIntervalMs:station.snapshot().capture.intervalMs,
+      framesRendered:monitorFrames},
     sessionType:xrPresentation==='ar'?'mixed-reality-passthrough-preview':'immersive-vr',
     lastInteractionResult:grabFeedback,
     xrGeometryAtExit:endedXRGeometry,
@@ -1327,6 +1376,9 @@ function install(ctx){
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
+    station.reset();
+    scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
+    camScope.fov=station.snapshot().fovDegrees;camScope.updateProjectionMatrix();
     viewHistory.clear();analogChangedAt=0;pivotMode='center';axisMode='yaw';
     orientationLocked=false;orientationAnchor=null;ctAxis='axial';
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
@@ -1418,12 +1470,15 @@ function install(ctx){
       xrFoveation:qualityStatus,
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
+      procedureStation:station.snapshot(),
+      instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
       controllerActions:{...attempts},
       viewHistory:viewHistory.status(),pivotMode,axisMode,
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
+    camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
     if(guidePlane)guidePlane.visible=false;
@@ -1454,6 +1509,9 @@ function install(ctx){
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
+    monitorResolution:[scopeTarget.width,scopeTarget.height],
+    procedureStation:station.snapshot(),
+    instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
