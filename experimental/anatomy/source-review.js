@@ -53,6 +53,26 @@ function checkMark(raw,study){
  return Object.freeze({id:raw.id,voxel:raw.voxel.slice(),ras_mm:ras,
   region:raw.region,finding:raw.finding,note:note.trim()});
 }
+/* Spatial distances are computed from the full source affine in RAS mm.
+ * A voxel-index Euclidean length is wrong for anisotropic/oblique CT data.
+ * These are geometric source distances, not tissue-path lengths.
+ */
+function measureRAS(study,voxelA,voxelB){
+ if(!study||!Array.isArray(study.source_shape_vox)||
+   !matrixOK(study.sform_RAS_mm))throw Error('Verified source geometry required');
+ function check(v){
+  if(!Array.isArray(v)||v.length!==3||v.some((n,i)=>
+    !Number.isInteger(n)||n<0||n>=study.source_shape_vox[i]))
+    throw Error('Measurement point outside source CT');
+ }
+ check(voxelA);check(voxelB);
+ const a=rasOf(voxelA,study),b=rasOf(voxelB,study);
+ const mm=Math.hypot(...a.map((n,i)=>n-b[i]));
+ return Object.freeze({schema:'pulmosimu-ct-metric-v1',
+   voxelA:voxelA.slice(),voxelB:voxelB.slice(),
+   rasA_mm:a,rasB_mm:b,distance_mm:Math.round(mm*1000)/1000,
+   interpretation:'SOURCE GEOMETRIC DISTANCE · NOT ANATOMICAL SEGMENTATION'});
+}
 function newMark(study,voxel,region,finding,note='',id){
  const markerId=id||('m-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12));
  return checkMark({id:markerId,voxel,region,finding,note},study);
@@ -87,5 +107,5 @@ function importReview(bundle,study){
  return marks;
 }
 root.PulmoCTReview=Object.freeze({SCHEMA,REGIONS,FINDINGS,MAX_MARKS,
- identity,rasOf,newMark,exportReview,importReview,sameStudy});
+ identity,rasOf,measureRAS,newMark,exportReview,importReview,sameStudy});
 })(typeof window!=='undefined'?window:globalThis);
