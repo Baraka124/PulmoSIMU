@@ -384,6 +384,10 @@ try {
     buffer:Buffer.from(JSON.stringify(trace))
   });
   await validationPage.locator('#evaluate').click();
+  await validationPage.waitForFunction(
+    ()=>document.querySelector('#benchReport')?.textContent?.includes('BENCH_ENGINEERING_TARGET_MET'),
+    null,{timeout:15000}
+  );
   assert.match(await validationPage.locator('#benchReport').textContent(),/BENCH_ENGINEERING_TARGET_MET/);
   assert.match(await validationPage.locator('#benchReport').textContent(),/"clinicalValidated": false/);
   await validationPage.locator('#review').click();
