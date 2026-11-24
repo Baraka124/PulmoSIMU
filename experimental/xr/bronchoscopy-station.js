@@ -5,6 +5,8 @@
 (function(root){
 'use strict';
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const finite=x=>typeof x==='number'&&Number.isFinite(x);
+const stick=x=>finite(x)?(Math.abs(x)<.13?0:clamp(x,-1,1)):0;
 const LAYOUTS=Object.freeze({
  stacked:Object.freeze({
   monitor:Object.freeze({depth:1.24,right:.72,y:.13,scale:1.06}),
@@ -47,29 +49,51 @@ function make(){
  }});
 }
 function tipStep(current,axis,dt){
- const step=clamp(Number(dt)||0,0,.06);
- const demand=Math.abs(axis)<.13?0:clamp(axis,-1,1);
+ const step=finite(dt)?clamp(dt,0,.06):0;
+ const demand=stick(axis);
  // Relative, bounded motor command. Releasing the stick holds the last tip
  // angle, unlike spring-to-centre camera controls; not a calibrated scope.
- return clamp(current+demand*step*1.16,-1,1);
+ return clamp((finite(current)?current:0)+demand*step*1.16,-1,1);
 }
 function rollStep(current,axis,dt){
- const step=clamp(Number(dt)||0,0,.06);
- const demand=Math.abs(axis)<.13?0:clamp(axis,-1,1);
+ const step=finite(dt)?clamp(dt,0,.06):0;
+ const demand=stick(axis);
  // Winding in radians; separate from insertion and distal tip steering.
- const next=current+demand*step*1.45;
+ const next=(finite(current)?current:0)+demand*step*1.45;
  return Math.atan2(Math.sin(next),Math.cos(next));
 }
 function velocity(axis,scopeSpeed,multiplier=1){
- if(Math.abs(axis)<.13)return 0;
- return -clamp(axis,-1,1)*clamp(Number(scopeSpeed)||0,0,60)/1500*
-   clamp(Number(multiplier)||1,.2,1);
+ const demand=stick(axis);
+ if(!demand)return 0;
+ return -demand*clamp(finite(scopeSpeed)?scopeSpeed:0,0,60)/1500*
+   clamp(finite(multiplier)?multiplier:1,.2,1);
 }
 function rateLimit(current,target,dt,rate=2.0){
- const s=clamp(Number(dt)||0,0,.06)*rate;
- return clamp(target,current-s,current+s);
+ const from=finite(current)?current:0;
+ const to=finite(target)?target:from;
+ const s=clamp(finite(dt)?dt:0,0,.06)*clamp(finite(rate)?rate:0,0,20);
+ return clamp(to,from-s,from+s);
+}
+// Monitor frame-cost governor monitors JavaScript CPU call time only.
+// It NEVER claims to measure actual GPU time or frame latency. A manual
+// video-quality selection remains available, but sustained expensive video
+// passes can automatically step down to protect headset stability.
+function videoCostGovernor(){
+ const samples=[];let downgrades=0,lastMeanMs=null;
+ return Object.freeze({
+  note(ms,currentMode){
+   if(!finite(ms)||ms<0||ms>500)return null;
+   samples.push(ms);if(samples.length<16)return null;
+   lastMeanMs=samples.reduce((a,b)=>a+b,0)/samples.length;samples.length=0;
+   if(lastMeanMs<=17||currentMode==='economy')return null;
+   downgrades++;
+   return currentMode==='detail'?'balanced':'economy';
+  },
+  snapshot(){return Object.freeze({downgrades,meanVideoCpuMs:lastMeanMs,
+    measurement:'CPU_SUBMISSION_TIME_ONLY_NO_GPU_TIMING'});}
+ });
 }
 root.PulmoXRBronchoscopyStation=Object.freeze({
- create:make,LAYOUTS,VIDEO,OPTICS,tipStep,rollStep,velocity,rateLimit
+ create:make,LAYOUTS,VIDEO,OPTICS,tipStep,rollStep,velocity,rateLimit,videoCostGovernor
 });
 })(typeof window!=='undefined'?window:globalThis);
