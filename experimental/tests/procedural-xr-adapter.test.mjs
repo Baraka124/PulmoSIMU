@@ -9,7 +9,7 @@ test('XR-09 runtime is browser-valid classic JavaScript compatible with original
  assert.equal(r.status,0,r.stderr);
  assert.match(source,/global\.PulmoImmersiveXR=\{install\}/);
  assert.match(original,/three@0\.128\.0/);
- assert.match(original,/procedural-immersive\.js\?v=XR15-VIEW-CONTROLS/);
+ assert.match(original,/procedural-immersive\\.js\\?v=XR16-BRONCHOSCOPY-ENGINEERING/);
 });
 test('only original clinical scene, geometry and procedural state drive headset experience',()=>{
  for(const k of ['scene, rBro, rExt, camScope, mGrp','scope, CFG, SEGS, SEG_MAP, pathCurves','patientData','proceduralMeshes','referenceMeshes','pathoMeshes','fireAction,enterBranch','setClinMode,getClinMode','getAnatomyMeshes'])
@@ -57,7 +57,7 @@ test('XR-08 uses audited CT source registration and estimated instrument-lumen c
 });
 
 test('XR-08 live endoscopy is rendered in the original VR GPU context, not copied from a second canvas',()=>{
- for(const token of ['new THREE.WebGLRenderTarget(640,360','rBro.xr.enabled=false',
+ for(const token of ['new THREE.WebGLRenderTarget(','station.snapshot().capture.width,station.snapshot().capture.height','rBro.xr.enabled=false',
    'rBro.setRenderTarget(scopeTarget)','rBro.render(scene,camScope)',
    'rBro.setRenderTarget(previousTarget)','monitorSource:']){
   assert.ok(source.includes(token),'same-context bronchoscopy feed: '+token);
