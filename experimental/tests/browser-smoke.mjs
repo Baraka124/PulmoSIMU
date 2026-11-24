@@ -342,6 +342,19 @@ try {
   assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
   console.log('PASS original procedural PNEUMO XR: authentic source anatomy, pathology, scope bridge and desktop compatibility');
  }finally{await proceduralXR.close()}
+ // A normal Chrome/Edge browser must enter the original procedural
+ // workstation without WebXR or webcam permission dialogs.
+ const desktop=await browser.newPage({viewport:{width:1300,height:860}});
+ try{
+  await desktop.goto(host+'/index.html?xr=procedural&entry=desktop',{waitUntil:'domcontentloaded'});
+  await desktop.waitForFunction(()=>document.getElementById('app')?.style.display==='flex',null,{timeout:45000});
+  assert.ok(await desktop.locator('#splash').isHidden(),'Desktop entry bypasses headset-only launch UI');
+  assert.equal((await desktop.locator('#sdot-l').textContent()).trim(),'DESKTOP',
+   'Desktop entry must not request camera hand tracking');
+  assert.equal(await desktop.locator('#pulmo-procedural-xr').count(),1,
+   'Original procedural XR is available as a headset-specific option, not prerequisite');
+  console.log('PASS direct desktop workstation: original clinical reference engine, no Quest or camera required');
+ }finally{await desktop.close()}
  // Retired launcher routes must never open the competing XR-04/06 viewer.
  const legacyEntry=await browser.newPage({viewport:{width:1100,height:760}});
  try{
