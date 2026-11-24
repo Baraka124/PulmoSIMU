@@ -313,6 +313,13 @@ try {
    'Without a valid GLB, patient metadata must be rejected before touching original procedure graph');
   assert.equal(afterReject.sourceAudit,null);
   assert.equal(await proceduralXR.locator('#pulmo-procedural-xr').count(),1,'Dedicated immersive original-engine entry is mounted');
+  const xr16=await proceduralXR.evaluate(()=>window.pulmoProceduralXRDebug());
+  assert.deepEqual(xr16.monitorResolution,[800,450],'XR16 starts with balanced same-renderer source video');
+  assert.equal(xr16.procedureStation.layout,'stacked');
+  assert.equal(xr16.procedureStation.fovDegrees,100);
+  assert.equal(xr16.procedureStation.insertionMultiplier,1);
+  assert.equal(xr16.instrumentInputs.tipH,0,'No invented instrument movement at rest');
+  console.log('PASS XR16: original Quest scene loads independent larger monitor and bounded procedure station');
   assert.equal(await proceduralXR.locator('#pulmo-passthrough-ar').count(),1,
     'Actual, separate AR passthrough entry is mounted');
   const arCapability=await proceduralXR.evaluate(()=>({
