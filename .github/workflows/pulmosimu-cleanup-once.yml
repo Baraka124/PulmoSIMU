@@ -1,0 +1,42 @@
+name: One-time canonical release cleanup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pulmosimu-cleanup-once.yml']
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: pulmosimu-one-time-cleanup
+  cancel-in-progress: false
+jobs:
+  clean:
+    if: github.repository == 'Baraka124/PulmoSIMU' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify no unmerged feature commits and delete redundant feature ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          compare='repos/Baraka124/PulmoSIMU/compare/feature%2Fmechanistic-lung-foundation...main'
+          status="$(gh api "$compare" --jq '.status')"
+          behind="$(gh api "$compare" --jq '.behind_by')"
+          echo "Branch ancestry: status=$status behind=$behind"
+          if [[ "$behind" != '0' ]] || [[ "$status" != 'ahead' && "$status" != 'identical' ]]; then
+            echo 'Feature branch is not safely contained in main. Ref deletion refused.' >&2
+            exit 1
+          fi
+          gh api -X DELETE 'repos/Baraka124/PulmoSIMU/git/refs/heads/feature/mechanistic-lung-foundation'
+          echo 'Retired duplicate GitHub branch after verified ancestry.'
+      - name: Remove unused GitHub Pages site (Vercel remains canonical)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api 'repos/Baraka124/PulmoSIMU/pages' >/dev/null 2>&1; then
+            gh api -X DELETE 'repos/Baraka124/PulmoSIMU/pages'
+            echo 'Disabled unused GitHub Pages publication.'
+          else
+            echo 'GitHub Pages is already disabled or not accessible. Verify in repository settings.'
+          fi
