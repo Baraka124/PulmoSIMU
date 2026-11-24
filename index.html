@@ -11,6 +11,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
 <script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
+<script src="./experimental/anatomy/nifti-source.js?v=E2-LOCAL-CT"></script>
+<script src="./experimental/xr/ct-spatial-mpr.js?v=E2-SOURCE-MPR"></script>
 <script src="./experimental/anatomy/ct-review.js?v=A23-RAS-REVIEW"></script>
 <script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
 <script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
@@ -1359,6 +1361,8 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
           <button type="button" onclick="resetCTResearchView()">Fit both lungs</button>
           <button id="research-material-toggle" type="button" onclick="toggleCTResearchMaterial()">Original material</button>
           <button id="ct-lobe-toggle" type="button" onclick="toggleCTTerritoryAtlas()">Lobe study</button>
+          <button type="button" onclick="document.getElementById('ct-volume-file').click()">Load verified CT volume</button>
+          <input type="file" id="ct-volume-file" accept=".nii" style="display:none" onchange="loadResearchCTVolume(this)">
           <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">Inspect CT slices</a>
           <button type="button" onclick="triggerPatientLoad()">Change study</button>
           <button type="button" onclick="setViewMode('reference')">Reference simulator</button>
@@ -2202,6 +2206,8 @@ var patientData = {
   sourceKind: null,
   sourceManifest: null,
   sourceIntegrity: null,
+  ctVolume: null,
+  ctVolumeSha: null,
 };
 
 let meshMode='reference';
@@ -4016,6 +4022,11 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   getMeshMode:()=>meshMode==='research'?'patient':meshMode,
   getReferenceFocus:()=>meshMode==='reference'?window.pulmoActiveReferenceRegion:null,
   getPatientAudit:()=>patientData.xrAudit||null,
+  getCTStudy:()=>meshMode==='research'&&patientData.ctVolume&&
+    patientData.sourceManifest&&patientData.sourceIntegrity?.verifiedBytes
+    ?{volume:patientData.ctVolume,manifest:patientData.sourceManifest,
+      ctSha:patientData.ctVolumeSha,meshSha:patientData.sourceIntegrity.sha256,
+      meshVerified:true}:null,
   getMmPerSceneUnit:()=>mmPerUnit,
   getScopeDiameterMm:()=>scopeDiamMm,
   getAnatomyMeshes:()=>{
@@ -4050,6 +4061,35 @@ if(!xrProcedural)console.warn('Procedural XR bridge missing; original desktop pr
 // ── Single picker — select GLTF + JSON together ──────────────────
 // Browser blocks programmatic .click() on a second picker, so we use
 // one <input multiple> and sort files by extension client-side.
+async function loadResearchCTVolume(input){
+  const file=input.files?.[0];input.value='';
+  if(!file)return;
+  try{
+    if(meshMode!=='research'||!patientData.sourceManifest||
+       !patientData.sourceIntegrity?.verifiedBytes)
+      throw Error('First load the matching CT-derived GLB and source manifest');
+    if(!/\\.nii$/i.test(file.name))throw Error('Select an uncompressed NIfTI .nii');
+    if(!globalThis.crypto?.subtle)throw Error('Secure HTTPS or localhost is required');
+    const bytes=await file.arrayBuffer();
+    if(bytes.byteLength>750000000)throw Error('Volume exceeds 750 MB local limit');
+    const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),
+      x=>x.toString(16).padStart(2,'0')).join('');
+    if(sha.toLowerCase()!==patientData.sourceManifest.source_sha256.toLowerCase())
+      throw Error('CT SHA-256 does not match the loaded GLB study manifest');
+    const volume=window.PulmoNiftiSource.readNifti(bytes);
+    const match=window.PulmoNiftiSource.matchQA(volume,patientData.sourceManifest);
+    if(!match.valid)throw Error(match.reason);
+    patientData.ctVolume=volume;patientData.ctVolumeSha=sha;
+    const warning=document.getElementById('ct-source-warning');
+    if(warning)warning.textContent='Real NIfTI verified · '+volume.dims.join(' × ')+
+      ' · source anatomical segmentation UNVALIDATED';
+    showToast('Local CT verified for spatial XR MPR · '+volume.dims.join(' × '),'success');
+  }catch(error){
+    patientData.ctVolume=null;patientData.ctVolumeSha=null;
+    showToast('CT volume rejected · '+String(error.message||error),'error');
+  }
+}
+window.loadResearchCTVolume=loadResearchCTVolume;
 function triggerPatientLoad() {
   const picker = document.getElementById('patient-picker');
   picker.onchange = (e) => {
@@ -4130,6 +4170,7 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={
     // Source-surface draft colours are disposed before a replacement
     // study is mounted; no stale geometry or material remains.
     if(ctLobeAtlas)closeCTTerritoryAtlas();
+    patientData.ctVolume=null;patientData.ctVolumeSha=null;
     // Remove previous patient GLB if reloading
     if (patientData.gltf) {
       mGrp.remove(patientData.gltf);
