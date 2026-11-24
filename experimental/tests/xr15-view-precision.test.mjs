@@ -34,7 +34,8 @@ test('XR15 runtime preserves original meshes and exposes functional controls',()
  for(const t of ['viewHistory.begin','viewHistory.finish','viewHistory.undo','viewHistory.redo',
   "pivotMode='center'","axisMode='yaw'","{id:'undo'","{id:'redo'","{id:'pivot'","{id:'axis'",
   "a.id==='pivot'","a.id==='axis'","finishViewChange()","beginViewChange()","attempts.thumbstickFrames++",
-  "viewHistory:viewHistory.status()","axisList=['yaw','pitch','roll']"]){
+  "viewHistory:viewHistory.status()","axisList=['yaw','pitch','roll','locked']",
+  "orientationLocked=axisMode==='locked'","mGrp.quaternion.copy(orientationAnchor)"]){
    assert.ok(runtime.includes(t),'Missing source-preserving precision interaction: '+t)
  }
  assert.ok(main.includes('view-history.js?v=XR15-UNDO'));
