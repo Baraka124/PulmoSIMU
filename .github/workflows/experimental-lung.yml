@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - main
-      - feature/mechanistic-lung-foundation
     paths:
       - 'experimental/**'
       - 'index.html'
@@ -41,9 +40,9 @@ jobs:
         shell: bash
         run: |
           git fetch origin main --depth=1
-          # XR is now deliberately integrated into feature-branch index.html.
-          # Keep the unmodified source of truth on main and gate the actual
-          # surgical features with procedural-xr-adapter + original-browser tests.
+          # XR and the original procedural engine are integrated on main.
+          # Preserve source pipeline files and gate the clinical reference
+          # workstation with procedural-adapter and original-browser checks.
           git diff --exit-code origin/main -- pipeline.py server.py synthetic.py
           node --test experimental/tests/procedural-xr-adapter.test.mjs
   browser-smoke:
