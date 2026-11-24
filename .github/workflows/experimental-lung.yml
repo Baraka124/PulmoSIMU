@@ -8,6 +8,7 @@ on:
       - '.github/workflows/experimental-lung.yml'
   push:
     branches:
+      - main
       - feature/mechanistic-lung-foundation
     paths:
       - 'experimental/**'
