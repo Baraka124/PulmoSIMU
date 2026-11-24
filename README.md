@@ -9,6 +9,7 @@ PulmoSIMU is an integrated pulmonary research and spatial procedure laboratory b
 - **PulmoSIMU launcher:** https://pulmosimu-xr-preview.vercel.app/quest-short/
 - **Desktop procedural workstation (no Quest or webcam required):** https://pulmosimu-xr-preview.vercel.app/index.html?xr=procedural&entry=desktop
 - **CT source / MPR inspector:** https://pulmosimu-xr-preview.vercel.app/experimental/anatomy-inspector.html
+- **Clinical review and physical instrument bench evidence (local-only):** https://pulmosimu-xr-preview.vercel.app/experimental/validation-lab.html
 
 Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.vercel.app`, are historical compatibility addresses, not separate release targets. The single production project is **`pulmosimu-xr-preview`**. The earlier `pulmovr` project is obsolete and subject to permanent deletion in the Vercel dashboard.
 
@@ -16,11 +17,13 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 
 - `index.html`: original airway, clinical reference procedure, scope state, desktop controls and WebXR adapter installation.
 - `experimental/xr/procedural-immersive.js`: VR/MR session lifecycle, controller/hand tracking, spatial UI, original camera feed and procedure station.
-- `experimental/xr/bronchoscopy-station.js`: bounded XR-16 reference instrument controls, configurable endoscopic monitor quality and spatial layouts.
+- `experimental/xr/bronchoscopy-station.js`: bounded XR-16F reference instrument controls, dynamic source-video CPU safeguard, configurable monitor quality and spatial layouts.
+- `experimental/xr/physical-instrument-bench.js`, `clinical-review-gate.js` and `experimental/validation-lab.html`: fail-closed external evidence intake. Does **not** certify devices, clinical fidelity or physical Quest performance.
 - `experimental/anatomy-inspector.html`: local CT / NIfTI / GLB/manifest source review and multiplanar section visualization, separate from procedural validity claims.
 - `experimental/core/`: reduced-order computational research models, **not** automatically coupled to patient CT.
 - `experimental/tests/`: numerical, source, controller, browser and procedure regression tests.
 - `experimental/UNIFIED_SIMULATION_ARCHITECTURE.md`: core source and scientific boundaries.
+- `experimental/XR16F_CLINICAL_PHYSICAL_INSTRUMENT_ACCEPTANCE.md`: explicit review and physical bench measurements still required before hardware/clinical claims.
 - `experimental/XR17_REALITY_CONTINUUM_ARCHITECTURE.md`: proposed future capability-negotiated VR/MR/AV roadmap. This is **not** a completed feature.
 
 ## Development and release policy
@@ -34,6 +37,6 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 
 ## Current release
 
-**Desktop/Quest software baseline:** XR-16. **Continuum architecture design:** XR-17 (planned). Hardware-validated medical device claims, stable physical MR anchoring, depth-based room occlusion and verified patient-specific endoscopy are **not available**.
+**Desktop/Quest software baseline:** XR-16F. **Continuum architecture design:** XR-17 (planned). The physical-instrument evidence reader and clinical review checklist are software, not measured proof. Hardware-validated device claims, stable physical MR anchoring, depth-based room occlusion and verified patient-specific endoscopy are **not available**.
 
-The repository documents and code define a single product boundary. Compatibility domain aliases and the temporary cleanup branch are administrative remnants, not new products.
+**Cleanup status:** The duplicate development branch was deleted after proving it contained no unique commits. The obsolete `pulmovr` Vercel project remains paused and requires its owner's Delete Project confirmation; GitHub Pages depublication also requires repository settings because the automation token received HTTP 403. Compatibility aliases all resolve to canonical production, not competing builds. GitHub automatic deployment in the remaining Vercel project must still be verified in the Vercel Git settings.
