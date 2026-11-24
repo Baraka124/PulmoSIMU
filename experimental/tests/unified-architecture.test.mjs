@@ -15,7 +15,8 @@ test('unified official Quest/Studio routes point only to original procedural Web
  assert.ok(!studio.includes("src:'./experimental/vr.html'"));
  assert.ok(gateway.includes('Anatomy, in space.')&&gateway.includes('Virtual laboratory'));
  assert.ok(gateway.includes('hold trigger or grip'));
- assert.ok(gateway.includes('XR-14')||gateway.includes('XR-14 · Immersive'));
+ assert.ok(gateway.includes('E1–E4')&&gateway.includes('interaction=XR14'), 'E1–E4 uses original XR-14 interaction integration');
+ assert.ok(gateway.includes('href="../index.html?'), 'Quest launcher stays on current deployment');
  assert.ok(gateway.includes('release=XR09-UNIFIED'));
  assert.ok(!gateway.includes('experimental/vr.html'),'Schematic viewer is archived, not prominently linked');
  for(const page of entrances){
