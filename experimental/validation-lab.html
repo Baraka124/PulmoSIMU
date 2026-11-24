@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>PulmoSIMU · Clinical & Instrument Verification</title>
+<style>
+:root{--bg:#101920;--surface:#192630;--line:#344955;--ink:#eaf1f3;--muted:#adbec7;--quiet:#829ba6;--accent:#bcd8df;--alert:#ebbc9f}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}button,input,textarea{font:inherit}button,input[type=file]{cursor:pointer}
+.wrap{max-width:1150px;margin:auto;padding:0 35px 65px}
+header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);min-height:80px;gap:12px}
+.brand{font-size:20px;font-weight:700;letter-spacing:-.04em}.brand em{font-style:normal;color:#8caeba}
+.toplink{color:var(--muted);text-decoration:none;font-size:12px}.toplink:hover{color:var(--ink)}
+.hero{padding:61px 0 45px;max-width:850px}.eyebrow{font-weight:700;letter-spacing:.17em;text-transform:uppercase;font-size:10px;color:#a9c7d0;margin:0 0 18px}
+h1{font-size:clamp(32px,4.8vw,53px);letter-spacing:-.055em;line-height:1.07;font-weight:530;margin:0 0 16px}
+.lead{max-width:800px;color:var(--muted);font-size:16px;line-height:1.65;margin:0}
+.statusline{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.status{border:1px solid #61727c;padding:5px 11px;font-size:11px;letter-spacing:.06em;color:#dce8eb;border-radius:3px}
+.shell{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(290px,.9fr);gap:32px}
+section{min-width:0;border-top:1px solid var(--line);padding-top:21px;margin-bottom:35px}
+h2{font-size:22px;letter-spacing:-.025em;font-weight:550;margin:0 0 6px}
+.desc{color:var(--muted);font-size:13px;margin:0 0 21px}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.11em;font-weight:650;color:var(--accent);margin:28px 0 15px}
+label{display:block;font-size:11px;color:var(--muted);letter-spacing:.035em;margin:12px 0 5px}
+input[type=text],input[type=date],textarea{border:1px solid #455c68;background:#13202a;color:var(--ink);padding:10px 12px;border-radius:3px;width:100%;outline:none}
+input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+textarea{min-height:67px;resize:vertical}.fields{display:grid;grid-template-columns:1fr 1fr;gap:0 13px}
+.check{padding:15px 0;border-top:1px solid #2b3c46}.check:first-of-type{border-top:none}
+.checkhead{display:flex;gap:10px;align-items:baseline}.checkhead input{accent-color:#a4c7d1;transform:scale(1.1)}.checkhead span{font-weight:550;font-size:13px}
+.check textarea{margin-top:8px}
+input[type=file]{max-width:100%;font-size:12px;background:#20333e;border:1px dashed #708996;border-radius:3px;padding:16px;width:100%;color:var(--accent)}
+button{border:1px solid #a5c3cb;padding:10px 15px;border-radius:3px;background:#20323b;color:#e5f0f4;font-size:12px;font-weight:650}
+button:hover{background:#2c4450}.actions{display:flex;gap:11px;flex-wrap:wrap;margin-top:15px}
+pre{background:#13202a;color:#b7cdd5;white-space:pre-wrap;word-break:break-word;padding:17px;font:12px/1.6 ui-monospace,"Cascadia Mono",monospace;border:1px solid #344a54;border-radius:3px;max-height:440px;overflow:auto}
+.note{border-left:2px solid #829eaa;padding:11px 15px;background:#192630;color:#beced4;font-size:12px;margin-top:19px}
+.key{display:grid;grid-template-columns:1fr 1fr;gap:12px}.key div{border-top:1px solid #344c56;padding-top:9px;color:var(--muted);font-size:12px}.key strong{display:block;color:var(--ink);font-size:13px}
+footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:var(--quiet);font-size:11px}
+@media(max-width:760px){.wrap{padding:0 18px 42px}.shell{grid-template-columns:1fr;gap:4px}.hero{padding:40px 0 30px}.fields,.key{grid-template-columns:1fr}}
+</style>
+<script defer src="./xr/physical-instrument-bench.js"></script>
+<script defer src="./xr/clinical-review-gate.js"></script>
+</head>
+<body>
+<div class="wrap">
+<header><div class="brand">Pulmo<em>SIMU</em><span style="font-size:12px;color:#8ba2ac;font-weight:400;margin-left:13px">RESEARCH / VALIDATION</span></div><a class="toplink" href="../quest-short/">Return to the laboratory ↗</a></header>
+<div class="hero">
+<p class="eyebrow">XR-16F · Source & instrument evidence</p>
+<h1>Clinical review and physical instrument verification.</h1>
+<p class="lead">An evidence workspace for the existing reference bronchoscopy simulator. Import independently measured physical-instrument traces, document clinical source review, and export a self-contained local report. No patient data upload, no invented measurements and no automatic clinical approval.</p>
+<div class="statusline"><span class="status" id="benchBadge">BENCH · AWAITING TRACE</span><span class="status" id="clinicalBadge">CLINICAL · UNREVIEWED</span><span class="status">ORIGINAL ENGINE ONLY</span></div>
+</div>
+<div class="shell">
+<div>
+<section>
+<h2>01 / Physical instrument</h2>
+<p class="desc">Upload one locally acquired JSON trace with independent reference measurements in millimetres, degrees and milliseconds. Quest controller motion alone is not bench evidence.</p>
+<input id="trace" type="file" accept=".json,application/json" aria-label="Select external instrument bench JSON">
+<div class="actions"><button id="evaluate" type="button">Evaluate instrument trace</button><button id="schema" type="button">Copy trace schema</button></div>
+<div class="note">The acceptance targets are preliminary engineering QA bounds, not clinical tolerances. Missing or malformed measurements fail closed. No files leave your browser.</div>
+<h3>Measured performance</h3>
+<pre id="benchReport" aria-live="polite">No physical instrument trace has been supplied.</pre>
+</section>
+<section>
+<h2>02 / Clinical source review</h2>
+<p class="desc">Record a qualified reviewer, evidence for each check, and limitations. Completing a packet means it is ready for independent review—not that anatomical or procedural accuracy has been clinically validated.</p>
+<div class="fields">
+<div><label for="reviewer">Reviewer name / identifier</label><input id="reviewer" type="text" placeholder="Professional reviewer"></div>
+<div><label for="role">Clinical role</label><input id="role" type="text" placeholder="E.g., pulmonologist"></div>
+</div>
+<label for="date">Review date</label><input id="date" type="date">
+<div id="checks"></div>
+<label for="limitations">Known limitations acknowledged</label>
+<textarea id="limitations" placeholder="Document source limitations and the scope of the review."></textarea>
+<div class="actions"><button id="review" type="button">Evaluate review packet</button><button id="export" type="button">Export local evidence JSON</button></div>
+</section>
+</div>
+<div>
+<section>
+<h2>Evidence & readiness</h2>
+<p class="desc">One report for engineering and clinical researchers. The outputs deliberately keep model validation, physical hardware verification and regulatory status separate.</p>
+<div class="key">
+<div><strong>Source model</strong>Original reference</div>
+<div><strong>CT-specific bronchoscopy</strong>Not approved</div>
+<div><strong>Physical instrument</strong>External bench evidence required</div>
+<div><strong>Clinical validity</strong>Independent assessment required</div>
+</div>
+<h3>Clinical packet result</h3>
+<pre id="clinicalReport" aria-live="polite">No clinical review evidence has been entered.</pre>
+<h3>Physical bench trace schema</h3>
+<p class="desc">Required fields in each sample: <code>tMs</code>, <code>cmdInsertionMm</code>, <code>measInsertionMm</code>, <code>cmdTipHDeg</code>, <code>measTipHDeg</code>, <code>cmdTipVDeg</code>, <code>measTipVDeg</code>, <code>cmdRollDeg</code>, <code>measRollDeg</code>, <code>tracking</code>. A real independent sensor and its provenance are mandatory.</p>
+<div class="note">Do not enter patient names, study IDs or protected clinical data. Export stays on your computer. A complete evidence packet is not a medical-device or patient-specific acceptance certificate.</div>
+</section>
+</div>
+</div>
+<footer>PULMOSIMU / XR-16F · ORIGINAL PROCEDURAL REFERENCE · ENGINEERING QA AND CLINICAL REVIEW ARE DISTINCT PROCESSES</footer>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ 'use strict';
+ const $=id=>document.getElementById(id);
+ const bench=window.PulmoXRInstrumentBench;
+ const clinical=window.PulmoXRClinicalReview;
+ const checks=$('checks'),report=$('benchReport'),reviewReport=$('clinicalReport');
+ let benchResult=null,clinicalResult=null;
+ if(!bench||!clinical){report.textContent='Verification modules unavailable; no clinical claims are possible.';return}
+ clinical.checks.forEach((item,index)=>{
+  const block=document.createElement('div');block.className='check';
+  const head=document.createElement('label');head.className='checkhead';
+  const flag=document.createElement('input');flag.type='checkbox';flag.id='flag-'+index;
+  const title=document.createElement('span');title.textContent=item.label;
+  head.append(flag,title);
+  const desc=document.createElement('textarea');desc.id='note-'+index;
+  desc.placeholder='Clinical observation, source reference or measured evidence';
+  desc.setAttribute('aria-label','Evidence for '+item.label);
+  block.append(head,desc);checks.append(block);
+ });
+ const summary=x=>JSON.stringify(x,null,2);
+ function packet(){
+  const observations={};
+  clinical.checks.forEach((item,i)=>{
+   observations[item.id]={completed:$('flag-'+i).checked,evidence:$('note-'+i).value};
+  });
+  return {
+   version:'pulmosimu-clinical-review/1',model:'original-reference',
+   reviewer:{name:$('reviewer').value,role:$('role').value,reviewedAt:$('date').value},
+   observations,limitationsAcknowledged:$('limitations').value,
+   bench:benchResult||{status:'NOT_ASSESSED',clinicalValidated:false}
+  };
+ }
+ async function evaluateBench(){
+  const file=$('trace').files?.[0];
+  if(!file){report.textContent='Select a real external bench trace first.';return}
+  if(file.size>3500000){report.textContent='Trace rejected: limit 3.5 MB.';return}
+  let input;
+  try{input=JSON.parse(await file.text());benchResult=bench.assess(input)}
+  catch(error){benchResult=null;report.textContent='Trace could not be evaluated: '+String(error?.message||error);return}
+  report.textContent=summary(benchResult);
+  $('benchBadge').textContent='BENCH · '+benchResult.status.replaceAll('_',' ');
+  clinicalResult=null;$('clinicalBadge').textContent='CLINICAL · RE-EVALUATE';
+ }
+ $('evaluate').addEventListener('click',evaluateBench);
+ $('review').addEventListener('click',()=>{
+  clinicalResult=clinical.assess(packet());
+  reviewReport.textContent=summary(clinicalResult);
+  $('clinicalBadge').textContent='CLINICAL · '+clinicalResult.status.replaceAll('_',' ');
+ });
+ $('export').addEventListener('click',()=>{
+  clinicalResult=clinical.assess(packet());reviewReport.textContent=summary(clinicalResult);
+  const data={version:'pulmosimu-xr16f-evidence/1',exportedAt:new Date().toISOString(),
+    bench:benchResult,clinical:clinicalResult,clinicalPacket:packet(),
+    release:'ORIGINAL_REFERENCE_ONLY',clinicalValidated:false,patientUseApproved:false};
+  const link=document.createElement('a'),url=URL.createObjectURL(new Blob([summary(data)],{type:'application/json'}));
+  link.href=url;link.download='pulmosimu-xr16f-local-evidence.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+ });
+ $('schema').addEventListener('click',()=>{
+   const example={
+    version:'pulmosimu-instrument-trace/1',
+    provenance:{deviceModel:'REPLACE_WITH_ACTUAL',instrumentId:'REPLACE_WITH_ACTUAL',
+      referenceSensor:'REPLACE_WITH_INDEPENDENT_SENSOR',operator:'REPLACE_WITH_ACTUAL',
+      measuredAt:'2026-11-24T12:00:00Z',measurementSource:'external-bench'},
+    units:{time:'ms',insertion:'mm',angles:'deg'},
+    samples:[{tMs:0,cmdInsertionMm:0,measInsertionMm:0,cmdTipHDeg:0,measTipHDeg:0,
+       cmdTipVDeg:0,measTipVDeg:0,cmdRollDeg:0,measRollDeg:0,tracking:true}]
+   };
+   navigator.clipboard?.writeText(summary(example)).catch(()=>{});
+   report.textContent='Trace template copied (where clipboard is allowed). Template has insufficient samples and does NOT pass evaluation.';
+ });
+});
+</script>
+</body>
+</html>
