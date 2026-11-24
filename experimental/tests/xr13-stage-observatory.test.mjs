@@ -25,7 +25,7 @@ test('XR13 expert menu preserves original actions while primary menu stays compa
     assert.ok(xr.includes('id:'+name),'Required spatial menu action '+name);
   }
   for(const token of ['actionHitbox=panelLayouts.primary',
-    "action==='precision'?'precision':'primary'",
+    "action==='precision'?(mode==='procedure'?'station':'precision'):'primary'",
     "stage.setMode(modeNext)", "menuPage==='advanced'?'Research instruments'",
     "panelPage:menuPage"]){
     assert.ok(xr.includes(token),'Missing contextual scene/UI contract '+token);
@@ -42,5 +42,5 @@ test('XR13 foveation is optional and reported as a request, not validated frames
   assert.match(xr,/qualityStatus=configureComfortRendering\(\)/);
   assert.match(xr,/stagePresentation:stage\.snapshot\(\)/);
   assert.ok(main.includes('stage-presence.js?v=XR13-ARCHITECTURE'));
-  assert.ok(main.includes('procedural-immersive.js?v=XR15-VIEW-CONTROLS'));
+  assert.ok(main.includes('procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING'));
 });
