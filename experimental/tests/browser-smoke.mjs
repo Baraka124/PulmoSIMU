@@ -537,6 +537,19 @@ try {
        'Missing A3.1-A4 source inspector '+control);
    assert.equal(await source.locator('#section-plane').isDisabled(),true);
    assert.equal(await source.locator('#surface-opacity').isDisabled(),true);
+   // A2.3 review is strictly source-verified: without the three exact local
+   // sources, none of the annotation/import/export controls can mutate state.
+   for(const control of ['#review-region','#review-finding','#review-note',
+     '#review-add','#review-import','#review-export','#review-clear','#review-list'])
+     assert.equal(await source.locator(control).count(),1,
+       'Missing CT-local review control '+control);
+   assert.equal(await source.locator('#review-add').isDisabled(),true);
+   assert.equal(await source.locator('#review-import').isDisabled(),true);
+   assert.equal(await source.locator('#review-export').isDisabled(),true);
+   assert.equal(await source.locator('#review-clear').isDisabled(),true);
+   assert.match(await source.locator('#review-status').innerText(),/Exact matching CT, GLB and manifest required/);
+   assert.equal(await source.locator('body').evaluate(()=>
+     window.PulmoCTReview?.SCHEMA),'pulmosimu-ct-point-review-v1');
    const clinicalGate=await source.locator('body').evaluate(()=>
      window.PulmoSourceAnatomyGate?.assess({}).CTLinkedBronchoscopyAllowed);
    assert.equal(clinicalGate,false,'CT procedures require independent source airway review');
