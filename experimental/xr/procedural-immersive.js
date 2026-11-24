@@ -502,6 +502,15 @@ function install(ctx){
       candidates.push({action:item&&!item.disabled?item.id:null,
         distance:hit.distance,point:hit.point.clone(),x,y,role:panel.role});
     }
+    // Research image sections are true interactable 3D surfaces. Their
+    // first-hit depth blocks controller rays from grabbing lung triangles
+    // behind a visible CT plane. A pane is never an instrument target.
+    if(ctSpatial?.snapshot().visible){
+      const ctHit=r.intersectObject(ctSpatial.group,true)[0];
+      if(ctHit&&Number.isFinite(ctHit.distance))
+        candidates.push({action:null,distance:ctHit.distance,
+          point:ctHit.point.clone(),role:'ct-source-section'});
+    }
     return candidates.sort((a,b)=>a.distance-b.distance)[0]||null;
   }
   function choosePointer(i){
@@ -1178,8 +1187,13 @@ function install(ctx){
     background:'#13212a',color:'#c6d8de',font:'500 11px system-ui',
     cursor:'pointer',borderRadius:'3px',display:'none'});
   global.document.body.appendChild(reportButton);
+  const scienceSnapshot=()=>global.PulmoXRScience?.classify({
+    modelRole:getMeshMode(),ctStudy:getCTStudy?.()||null,
+    referenceSolverReady:Boolean(global.PulmoXRReferencePhysics?.step),
+    geometryValidated:false,airwayReviewed:false,motionStudy:null
+  })||null;
   const localSessionReport=()=>({
-    release:'XR-14 · Guided Procedure / Mixed Reality Preview',
+    release:'E1–E4 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
@@ -1188,15 +1202,22 @@ function install(ctx){
     lastInteractionResult:grabFeedback,
     xrGeometryAtExit:endedXRGeometry,
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
+    scienceIntegrity:scienceSnapshot(),
+    spatialCT:endedXRGeometry?.spatialCT||ctSpatial?.snapshot()||null,
+    E4Acceptance:global.PulmoXRAcceptance?.assess({
+      session:health.snapshot(),xrGeometryAtExit:endedXRGeometry,
+      endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
+      scienceIntegrity:scienceSnapshot()
+    })||null,
     scaleClamps,workspaceClamps,
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
-    integration:'XR-14 source-guided reference bronchoscopy and passthrough preview; no CT registration or real-world occlusion'
+    integration:'Unified original-engine XR, verified local CT MPR and reference-only R3; CT-specific bronchoscopy and physical/clinical certification remain blocked'
   });
   reportButton.addEventListener('click',()=>{
     const blob=new Blob([JSON.stringify(localSessionReport(),null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download='pulmosimu-xr14-session-report.json';
+    a.href=url;a.download='pulmosimu-e1-e4-session-report.json';
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
@@ -1394,6 +1415,8 @@ function install(ctx){
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,procedureGuideVisible:Boolean(guidePlane?.visible),
     viewHistory:viewHistory.status(),pivotMode,axisMode,
+    orientationLocked,spatialCT:ctSpatial?.snapshot()||null,
+    scienceIntegrity:scienceSnapshot(),
     A4SourceProcedureStatus:getMeshMode()==='patient'
       ?'BLOCKED_NO_VERIFIED_CT_AIRWAY':'ORIGINAL_PROCEDURAL_REFERENCE_ONLY',
     panelPage:menuPage,
