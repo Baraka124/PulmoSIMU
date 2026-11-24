@@ -85,12 +85,21 @@ function create(THREE,modelGroup,study){
  }
  try{for(const p of AXES)render(p)}
  catch(error){dispose();throw error}
+ function setIndex(plane,index){
+   if(!AXES.includes(plane))return false;
+   const axis={axial:2,coronal:1,sagittal:0}[plane];
+   if(!Number.isFinite(index))return false;
+   const next=Math.max(0,Math.min(volume.dims[axis]-1,Math.round(index)));
+   // Avoid rebuilding a GPU texture on every inspector camera or UI update.
+   if(next===cross[axis])return snapshot();
+   cross[axis]=next;
+   render(plane);return snapshot();
+ }
  function step(plane,delta=1){
    if(!AXES.includes(plane))return false;
    const axis={axial:2,coronal:1,sagittal:0}[plane];
    const d=volume.dims[axis];
-   cross[axis]=((cross[axis]+Math.round(delta))%d+d)%d;
-   render(plane);return snapshot();
+   return setIndex(plane,((cross[axis]+Math.round(delta))%d+d)%d);
  }
  function setVisible(value){group.visible=Boolean(value);return group.visible}
  function snapshot(){
@@ -105,7 +114,7 @@ function create(THREE,modelGroup,study){
    }entries.clear();modelGroup.remove(group);
  }
  group.visible=false;
- return Object.freeze({step,setVisible,snapshot,dispose,group});
+ return Object.freeze({setIndex,step,setVisible,snapshot,dispose,group});
 }
 root.PulmoXRCTSpatial=Object.freeze({gate,geometrySpec,create});
 })(typeof window!=='undefined'?window:globalThis);
