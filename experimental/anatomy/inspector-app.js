@@ -577,6 +577,10 @@ window.PulmoAnatomyInspector=Object.freeze({get status(){return{
   sourceSectionVisible:Boolean(sourceSection?.snapshot().visible),
   sourceSectionMode:sourceSection?.snapshot().visible?'source-voxel-plane':'off',
   sectionPlane:$('section-plane').value,
+  sourceMeshesVisible:state.model?(()=>{
+    let n=0;state.model.traverse(o=>{if(o.isMesh&&o.visible)n++});return n;
+  })():0,
+  sourceMaterialClippingActive:originalMaterials.some(m=>m?.clippingPlanes?.length>0),
   sourceMatched:!!(state.volume&&state.qa&&state.ctSha===state.qa.source_sha256&&state.meshSha===state.qa.mesh_sha256&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid),
   meshNames:state.meshNames.slice(),cross:state.cross.slice(),
    reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity()),
