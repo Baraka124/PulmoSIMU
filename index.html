@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
 <script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
+<script src="./experimental/anatomy/ct-review.js?v=A23-RAS-REVIEW"></script>
 <script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
 <script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
 <script src="./experimental/xr/session-health.js?v=XR09-PROFILE"></script>
@@ -1212,6 +1213,12 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
  font-size:10px;color:#a7bec7;margin-top:12px}
 #ct-lobe-panel .atlas-legend span{display:flex;align-items:center;gap:6px}
 #ct-lobe-panel .atlas-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+#ct-lobe-panel .review-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+#ct-lobe-panel .review-actions button{border:0;background:none;color:#bfd8e2;
+ padding:3px 0;border-bottom:1px solid #627d8b;font:600 11px system-ui;cursor:pointer}
+#ct-lobe-panel .review-state{font-size:10px;line-height:1.6;color:#a6bcc7;margin-top:10px}
+#ct-lobe-panel .review-list{max-height:112px;overflow:auto;font-size:10px;color:#c3d4db}
+#ct-lobe-panel .review-list button{margin-left:6px;background:none;border:0;color:#e8c6b2;cursor:pointer}
 #ct-lobe-panel .atlas-foot{border-top:1px solid #344b58;padding-top:10px;margin-top:14px;
  font-size:10px;color:#8da9b6}
 @media(max-width:680px){
@@ -1380,7 +1387,24 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
           <span><i class="atlas-dot" style="background:#C8A9A7"></i> L upper</span>
           <span><i class="atlas-dot" style="background:#A4AF9D"></i> L lower</span>
         </div>
-        <div class="atlas-foot">Atlas-seeded territory proposal · Fissure points pending CT review</div>
+        <label for="ct-point-type">Shift + click lung surface to annotate</label>
+        <select id="ct-point-type">
+          <option value="right-oblique">Right oblique fissure</option>
+          <option value="right-horizontal">Right horizontal fissure</option>
+          <option value="left-oblique">Left oblique fissure</option>
+          <option value="uncertain">Uncertain boundary</option>
+          <option value="artifact">Segmentation artifact</option>
+        </select>
+        <div id="ct-review-state" class="review-state" aria-live="polite">0 source-space points · local session</div>
+        <div id="ct-review-list" class="review-list"></div>
+        <div class="review-actions">
+          <button type="button" onclick="exportCTReview()">Export review JSON</button>
+          <button type="button" onclick="document.getElementById('ct-review-import').click()">Import review</button>
+          <button type="button" onclick="clearCTReview()">Clear points</button>
+          <button type="button" onclick="resetCTReviewAtlas()">Reset offsets</button>
+        </div>
+        <input id="ct-review-import" type="file" accept=".json,application/json" hidden onchange="importCTReviewFile(this)">
+        <div class="atlas-foot">Annotations are RAS-mm research hypotheses, not segmented fissures. CT + GLB SHA-256 must match when importing. Original geometry stays unchanged.</div>
       </aside>
       <svg id="scope-svg">
         <defs>
@@ -3054,7 +3078,95 @@ function _setResearchNeutralMaterial(enabled){
 window.toggleCTResearchMaterial=()=>{
   if(meshMode==='research')_setResearchNeutralMaterial(!patientData.researchNeutral);
 };
+// A2.3 annotation display lives outside the source mesh and is never a procedure object.
+let ctReviewPoints=[],ctReviewMarkers=[],ctReviewOwner=null;
+function clearCTReviewMarkers(){
+  for(const o of ctReviewMarkers){mGrp.remove(o);o.geometry.dispose();o.material.dispose();}
+  ctReviewMarkers=[];
+}
+function renderCTReviewPoints(){
+  clearCTReviewMarkers();
+  const label=document.getElementById('ct-review-state');
+  const list=document.getElementById('ct-review-list');
+  if(label)label.textContent=ctReviewPoints.length+' RAS-mm points · local research session';
+  if(list){list.replaceChildren();
+    ctReviewPoints.forEach((p,i)=>{
+      const line=document.createElement('div');
+      line.append(document.createTextNode((i+1)+'. '+p.type+' / '+p.ras_mm.join(', ')+' mm'));
+      const del=document.createElement('button');del.type='button';del.textContent='Remove';
+      del.setAttribute('aria-label','Remove point '+(i+1));
+      del.onclick=()=>{ctReviewPoints.splice(i,1);renderCTReviewPoints()};
+      line.append(del);list.append(line);
+    });
+  }
+  if(!ctLobeAtlas||!patientData.sourceManifest)return;
+  const manifest=patientData.sourceManifest;
+  const m=new THREE.Matrix4().set(...manifest.model_from_ras_mm.flat());
+  for(const p of ctReviewPoints){
+    const xyz=new THREE.Vector3(...p.ras_mm).applyMatrix4(m);
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(.0035,12,8),
+      new THREE.MeshBasicMaterial({color:0xe1ac76,depthTest:false}));
+    dot.position.copy(xyz);dot.renderOrder=12;mGrp.add(dot);ctReviewMarkers.push(dot);
+  }
+}
+function currentCTReview(){
+  if(!patientData.sourceManifest)throw Error('Verified CT manifest required');
+  const read=id=>Number(document.getElementById(id).value);
+  return window.PulmoCTReview.session(patientData.sourceManifest,{
+    rightMajor:read('ct-major-right'),rightMinor:read('ct-minor-right'),
+    leftMajor:read('ct-major-left'),selected:document.getElementById('ct-lobe-focus').value
+  },ctReviewPoints);
+}
+window.clearCTReview=()=>{ctReviewPoints=[];renderCTReviewPoints()};
+window.resetCTReviewAtlas=()=>{
+  for(const id of ['ct-major-right','ct-minor-right','ct-major-left'])
+    document.getElementById(id).value='0';
+  document.getElementById('ct-lobe-focus').value='all';window.updateCTTerritoryAtlas();
+};
+window.exportCTReview=()=>{
+  try{
+    const blob=new Blob([JSON.stringify(currentCTReview(),null,2)+'\n'],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='PulmoSIMU_A23_CT_Lobe_Review.json';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+  }catch(e){showToast('Cannot export: '+e.message,'error');}
+};
+window.importCTReviewFile=async input=>{
+  const file=input.files?.[0];input.value='';if(!file)return;
+  try{
+    if(file.size>160000)throw Error('Review JSON too large');
+    const review=window.PulmoCTReview.parse(await file.text(),patientData.sourceManifest);
+    for(const [id,key] of [['ct-major-right','rightMajor'],['ct-minor-right','rightMinor'],['ct-major-left','leftMajor']])
+      document.getElementById(id).value=review.atlas[key];
+    document.getElementById('ct-lobe-focus').value=review.atlas.selected;
+    ctReviewPoints=[...review.annotations];
+    window.updateCTTerritoryAtlas();renderCTReviewPoints();
+    showToast('Matched source review imported · '+ctReviewPoints.length+' points','success');
+  }catch(e){showToast('Review rejected: '+e.message,'error');}
+};
+document.getElementById('c-ext').addEventListener('click',event=>{
+  if(!event.shiftKey||!ctLobeAtlas||meshMode!=='research'||!patientData.gltf)return;
+  try{
+    const canvas=event.currentTarget,b=canvas.getBoundingClientRect();
+    const mouse=new THREE.Vector2(((event.clientX-b.left)/b.width)*2-1,
+      -((event.clientY-b.top)/b.height)*2+1);
+    const ray=new THREE.Raycaster();ray.setFromCamera(mouse,camExt);
+    const hits=ray.intersectObject(patientData.gltf,true).filter(h=>h.object.isMesh);
+    if(!hits.length){showToast('No source lung surface at pointer','warn');return;}
+    const modelPoint=mGrp.worldToLocal(hits[0].point.clone());
+    const inv=new THREE.Matrix4().set(...patientData.sourceManifest.model_from_ras_mm.flat()).invert();
+    const ras=modelPoint.applyMatrix4(inv);
+    const p=window.PulmoCTReview.point({
+      type:document.getElementById('ct-point-type').value,
+      ras_mm:[ras.x,ras.y,ras.z]
+    });
+    if(ctReviewPoints.length>=500)throw Error('Maximum 500 points');
+    ctReviewPoints.push(p);renderCTReviewPoints();
+    showToast('RAS point recorded · '+ctReviewPoints.length,'info');
+  }catch(e){showToast('Review point: '+e.message,'error');}
+});
 function closeCTTerritoryAtlas(){
+  clearCTReviewMarkers();
   if(ctLobeAtlas){ctLobeAtlas.dispose();ctLobeAtlas=null;}
   document.body.classList.remove('ct-lobe-open');
   const btn=document.getElementById('ct-lobe-toggle');
@@ -3069,7 +3181,12 @@ window.toggleCTTerritoryAtlas=()=>{
     ctLobeAtlas=window.PulmoCTLobeTerritories.create(
       THREE,patientData.gltf,mGrp,patientData.sourceManifest);
     const summary=ctLobeAtlas.enable();
+    const identity=window.PulmoCTReview.source(patientData.sourceManifest);
+    if(ctReviewOwner!==identity.ct_sha256+identity.mesh_sha256){
+      ctReviewPoints=[];ctReviewOwner=identity.ct_sha256+identity.mesh_sha256;
+    }
     document.body.classList.add('ct-lobe-open');
+    renderCTReviewPoints();
     document.getElementById('ct-lobe-toggle').textContent='Original surface';
     showToast('Five-lobe atlas territories · '+summary.vertices+' source vertices','info');
   }catch(error){
