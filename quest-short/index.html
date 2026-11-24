@@ -23,7 +23,15 @@ main{flex:1;display:flex;flex-direction:column;justify-content:center;padding:58
 .eyebrow{font-size:11px;line-height:1.4;font-weight:650;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}
 h1{font-size:clamp(38px,5.7vw,66px);line-height:1.06;letter-spacing:-.064em;font-weight:520;max-width:850px;margin:0 0 17px}
 .lead{color:var(--muted);max-width:680px;font-size:clamp(14px,1.7vw,17px);line-height:1.65;margin:0}
-.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:41px}
+.desktop-entry{display:flex;justify-content:space-between;align-items:center;gap:24px;
+border:1px solid #6b8d99;border-radius:5px;padding:24px 27px;margin-top:32px;background:#192b34}
+.desktop-entry .eyebrow{margin:0 0 7px;font-size:10px}
+.desktop-entry strong{display:block;font-size:22px;letter-spacing:-.025em;font-weight:550}
+.desktop-entry p{font-size:13px;color:#b7c9cf;margin:5px 0 0;max-width:500px}
+.desktop-entry a{flex:none;text-decoration:none;border:1px solid #a1c0c9;padding:12px 17px;
+border-radius:3px;font-size:13px;font-weight:600;color:#e7f2f5;background:transparent}
+.desktop-entry a:hover{border-color:#eaf7fa;background:#27424e}
+.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:22px}
 .mode{display:flex;flex-direction:column;text-decoration:none;min-height:263px;border:1px solid var(--edge);border-radius:5px;background:var(--panel);padding:27px 29px 23px;transition:background .15s ease,border-color .15s ease,transform .15s ease}
 .mode:hover{background:var(--panel-hover);border-color:#85abb8;transform:translateY(-2px)}
 .mode.primary{border-color:#7296a3;background:#192b34}
@@ -55,7 +63,9 @@ footer strong{font-weight:550;color:#b4cbd4}
  .topmeta{font-size:9px}
  main{justify-content:flex-start;padding:42px 0 22px}
  h1{font-size:clamp(37px,9vw,52px)}
- .modes{grid-template-columns:1fr;gap:12px;margin-top:27px}
+ .desktop-entry{flex-direction:column;align-items:stretch;padding:20px 21px;margin-top:23px;gap:13px}
+ .desktop-entry a{text-align:center}
+ .modes{grid-template-columns:1fr;gap:12px;margin-top:20px}
  .mode{min-height:186px;padding:20px 21px}
  h2{font-size:24px;margin:12px 0 6px}
  .mode-bottom{padding-top:18px}
@@ -76,7 +86,16 @@ footer strong{font-weight:550;color:#b4cbd4}
     <section aria-labelledby="page-title">
       <p class="eyebrow">Respiratory engineering laboratory</p>
       <h1 id="page-title">Anatomy, in space.</h1>
-      <p class="lead">Explore the pulmonary system in immersive VR or bring the same research model into your physical surroundings with mixed reality.</p>
+      <p class="lead">One pulmonary research environment across desktop, immersive VR and mixed reality. Start with the workstation on your computer or enter spatial mode on a supported headset.</p>
+    </section>
+
+    <section class="desktop-entry" aria-label="Use PulmoSIMU on this computer">
+      <div>
+        <p class="eyebrow">Desktop · No headset or camera needed</p>
+        <strong>Open the procedural workstation</strong>
+        <p>Explore the anatomical reference, navigate bronchoscopy and inspect research instruments in your browser.</p>
+      </div>
+      <a href="../index.html?xr=procedural&amp;entry=desktop" id="desktop-launch">Enter on this computer ↗</a>
     </section>
 
     <nav class="modes" aria-label="Choose an immersive experience">
@@ -100,7 +119,7 @@ footer strong{font-weight:550;color:#b4cbd4}
     </nav>
 
     <div class="utility">
-      <a href="../">Open desktop workstation</a>
+      <a href="../experimental/anatomy-inspector.html">Open CT source inspector</a>
       <span>One anatomical engine · Source/reference simulation</span>
     </div>
 
@@ -121,7 +140,7 @@ footer strong{font-weight:550;color:#b4cbd4}
 
   <footer>
     <span><strong>PulmoSIMU</strong> / Spatial pulmonary research</span>
-    <span>Experimental · Not clinically validated · Quest acceptance pending</span>
+    <span>Research prototype · Desktop available · Quest validation pending</span>
   </footer>
 </div>
 </body>
