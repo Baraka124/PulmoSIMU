@@ -21,9 +21,10 @@ test('Quest launch URLs still reach the canonical original-engine VR and feature
  const links=[...launcher.matchAll(/<a class="mode(?: primary)?" href="([^"]+)"/g)]
   .map(x=>x[1].replaceAll('&amp;','&'));
  assert.equal(links.length,2);
- const urls=links.map(x=>new URL(x));
+ const urls=links.map(x=>new URL(x,'https://current-deployment.example/quest-short/'));
+ assert.ok(links.every(x=>x.startsWith('../index.html?')), 'Immersive URLs stay on deployed origin');
  for(const u of urls){
-   assert.equal(u.hostname,'pulmosimu-xr-preview.vercel.app');
+   assert.equal(u.hostname,'current-deployment.example');
    assert.equal(u.pathname,'/index.html');
    assert.equal(u.searchParams.get('xr'),'procedural');
    assert.equal(u.searchParams.get('release'),'XR09-UNIFIED');
