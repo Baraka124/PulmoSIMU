@@ -1,9 +1,9 @@
 # PulmoSIMU — Unified Anatomical, Computational and Immersive System
 
-**Decision record:** 2026-11-23  
-**Active research build:** XR-09 / `feature/mechanistic-lung-foundation`  
+**Decision record:** 2026-11-23; updated 2026-11-24  
+**Canonical release:** `main` (desktop / XR-16 bronchoscopy workstation), with XR-17 modality architecture specified but **not implemented**  
 **Canonical procedural source:** original `index.html`, not a copied XR anatomy scene  
-**Status:** implemented integration foundation; **Quest 2 device acceptance, clinical validation and true coupled physics are still pending.**
+**Status:** implemented integration foundation; user-observed headset entry, six-DoF manipulation and smooth two-handed scale. **Formal Quest 2 performance/device acceptance, clinical validation and true coupled physics remain pending.**
 
 ## 1. One system, multiple research capabilities
 
@@ -20,7 +20,7 @@ PulmoSIMU is a spatial respiratory engineering environment. It is **not** a seri
 | Mechanistic disease/therapy experiments | `experimental/core/mechanistic-lung.js`, `disease-engine.js`, `therapeutics-engine.js` | Research workspace retained; **NOT** bound to patient-specific or bronchoscopy state | Mechanism invariants; no patient response validation |
 | Source CT loader | original `index.html` and `pipeline.py` | Co-frame check before mutating `SEGS`; GLB-authored materials preserved | Browser tests; DICOM LPS/RAS registration not yet verified |
 | Studio | `studio.html` | Procedural, immersive procedural XR and numerical lab are navigational facets of one product | Browser route and focus tests |
-| Quest public entry | `quest-short/index.html` | One primary original-engine immersive link; desktop secondary | Deployment HTTP + browser checks |
+| Unified launch | `quest-short/index.html` | Clear desktop first entry, plus original-engine VR and capability-gated MR links | Browser route and no-camera desktop checks |
 
 ### Explicit status distinctions
 
@@ -88,6 +88,10 @@ XR-08 estimated bronchoscope clearance derives from interpolated branch radii an
 **Imported geometry:** preserve source materials/units/provenance; never infer a named lobe or pathology from an unknown GLB vertex ID.
 
 Current near-contact ray sampling is **geometry-aware but approximate**. It is not continuous signed-distance contact and is not computationally feasible as a universal high-resolution tissue solver. Future source surfaces will need a spatial acceleration structure such as a BVH, with contact envelopes appropriate to instrumentation, and independent device validation.
+
+## 4.1 Reality modes and cross-device roadmap
+
+The canonical engineering decision for assisted/augmented/mixed/virtual reality, augmented virtuality, diminished reality, hardware fallbacks and measurable future capability gates is in [XR17_REALITY_CONTINUUM_ARCHITECTURE.md](./XR17_REALITY_CONTINUUM_ARCHITECTURE.md). **XR-17 is a proposed implementation plan**, not a new parallel headset scene and not released patient-specific modeling. The same source scene, procedure state and conservative scientific gates remain mandatory.
 
 ## 5. Finite acceptance path and freeze
 
