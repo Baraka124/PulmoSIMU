@@ -6,7 +6,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const state={volume:null,qa:null,structureQA:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
-  window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0};
+  window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[]};
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -84,7 +84,7 @@ function validate(){
   $('cross-3d').disabled=!enabled;
   $('section-plane').disabled=!enabled;
   if(!enabled){state.clip=false;$('clip-toggle').checked=false;}
-  updateMarker();applyClipping();updateResearchGates();
+  updateMarker();applyClipping();updateResearchGates();renderReviewStatus();
 }
 let scene=null,renderer=null,camera=null,orbit=null,modelGroup=null,marker=null,
   scenePlane=null,workLight=null,originalMaterials=[];
@@ -176,7 +176,7 @@ async function loadModel(file){
   const bytes=await file.arrayBuffer();
   state.meshSha=await sha256(bytes);
   const gltf=await new Promise((resolve,reject)=>new THREE.GLTFLoader().parse(bytes,'',resolve,reject));
-  clear3d();
+  resetReview();clear3d();
   state.gltf=gltf;state.model=gltf.scene;modelGroup.add(gltf.scene);
   const meshes=[];
   gltf.scene.traverse(obj=>{
@@ -215,7 +215,7 @@ async function loadNifti(file){
   if(file.size>800*1024*1024)throw new Error('CT file exceeds local browser size limit');
   setMessage('Reading local 3D NIfTI volume…');
   const bytes=await file.arrayBuffer();
-  state.ctSha=await sha256(bytes);
+  resetReview();state.ctSha=await sha256(bytes);
   state.volume=window.PulmoNiftiSource.readNifti(bytes);
   state.cross=state.volume.dims.map(n=>Math.floor(n/2));
   $('ct-state').textContent='Loaded locally · '+(file.size/1024/1024).toFixed(1)+' MiB';
@@ -233,12 +233,85 @@ async function loadManifest(file){
      String(data.validation||'').toUpperCase().includes('CLINICAL')){
     throw new Error('This is not a supported research CT geometry manifest.');
   }
-  state.qa=data;applyQa();renderSlices();
+  resetReview();state.qa=data;applyQa();renderSlices();
   setMessage(a2LateralityConflict()?a2Warning:
     a2CandidateReviewPending()?a2CandidateWarning:
     'Local manifest loaded. Registration and tissue segmentation are separate validations.',
     a2LateralityConflict()?'error':'note');
 }
+
+/* A2.3 source-verified manual points. This never labels mesh triangles,
+ * changes CT voxels or grants patient-specific procedure authorization. */
+function reviewIdentity(){
+  if(!window.PulmoCTReview?.identity||a2CandidateReviewPending()||
+     !state.volume||!state.model||!state.qa)return null;
+  return window.PulmoCTReview.identity({
+    ctSha:state.ctSha,meshSha:state.meshSha,qa:state.qa,
+    headerValid:window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid
+  });
+}
+function resetReview(){
+  state.reviewMarks=[];
+  renderReviewStatus();
+}
+function renderReviewStatus(){
+  const matched=Boolean(reviewIdentity()),count=state.reviewMarks.length;
+  $('review-add').disabled=!matched||count>=window.PulmoCTReview.MAX_MARKS;
+  $('review-import').disabled=!matched;
+  $('review-export').disabled=!matched||!count;
+  $('review-clear').disabled=!count;
+  $('review-status').textContent=matched
+    ?count+' / '+window.PulmoCTReview.MAX_MARKS+' local observations · exact source pair verified'
+    :'Exact matching CT, GLB and manifest required · no clinical approval';
+  const list=$('review-list');list.replaceChildren();
+  if(!count){
+    const p=document.createElement('div');p.className='muted';
+    p.textContent='No review marks. Select a source-verified CT position, then choose Mark CT point.';
+    list.append(p);return;
+  }
+  for(const mark of state.reviewMarks){
+    const row=document.createElement('div');row.className='review-row';
+    const description=document.createElement('div');description.className='review-description';
+    const strong=document.createElement('strong');strong.textContent=mark.region+' · '+mark.finding.replaceAll('-',' ');
+    const txt=document.createElement('span');
+    txt.textContent='i/j/k '+mark.voxel.join('/')+' · RAS '+mark.ras_mm.join('/')+' mm'+
+      (mark.note?' · '+mark.note:'');
+    description.append(strong,txt);
+    const focus=document.createElement('button');focus.type='button';focus.textContent='Locate';
+    focus.disabled=!matched;
+    focus.addEventListener('click',()=>{
+      if(!reviewIdentity())return;
+      state.cross=mark.voxel.slice();renderSlices();
+    });
+    const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';
+    remove.setAttribute('aria-label','Remove '+mark.region+' observation at voxel '+mark.voxel.join(', '));
+    remove.addEventListener('click',()=>{
+      state.reviewMarks=state.reviewMarks.filter(m=>m.id!==mark.id);
+      renderReviewStatus();renderSlices();
+    });
+    row.append(description,focus,remove);list.append(row);
+  }
+}
+function drawReviewPoints(plane,ctx,w,h){
+  if(!reviewIdentity())return;
+  const marks=state.reviewMarks,dimensions=state.volume.dims,coord=state.cross;
+  const axis={axial:2,coronal:1,sagittal:0}[plane];
+  for(const mark of marks){
+    if(mark.voxel[axis]!==coord[axis])continue;
+    const v=mark.voxel;
+    const x=plane==='sagittal'?v[1]:v[0];
+    const y=plane==='axial'?v[1]:
+      (1-v[2]/(dimensions[2]-1))*(h-1);
+    const px=x+.5,py=y+.5;
+    ctx.save();ctx.beginPath();ctx.arc(px,py,Math.max(3,w/125),0,Math.PI*2);
+    ctx.fillStyle='rgba(228,192,141,.18)';ctx.fill();
+    ctx.lineWidth=Math.max(1.4,w/420);ctx.strokeStyle='#e4c08d';ctx.stroke();
+    ctx.font='bold '+Math.max(10,Math.round(w/48))+'px system-ui';
+    ctx.fillStyle='#f5dfbe';ctx.fillText(mark.region,px+7,Math.max(11,py-7));
+    ctx.restore();
+  }
+}
+
 function imageBuffer(plane){
   const volume=state.volume;
   let [w,h]=[512,512];let position=()=>[0,0,0];let cross=[0,0];
@@ -272,6 +345,7 @@ function renderSlice(plane){
   ctx.lineWidth=Math.max(.7,w/512);ctx.strokeStyle='rgba(222,183,131,.85)';
   ctx.beginPath();ctx.moveTo(cross[0]+.5,0);ctx.lineTo(cross[0]+.5,h);
   ctx.moveTo(0,cross[1]+.5);ctx.lineTo(w,cross[1]+.5);ctx.stroke();
+  drawReviewPoints(plane,ctx,w,h);
   const [i,j,k]=state.cross;
   $('plane-'+plane).textContent=plane==='axial'?`k ${k} / ${state.volume.dims[2]-1}`:
     plane==='coronal'?`j ${j} / ${state.volume.dims[1]-1}`:`i ${i} / ${state.volume.dims[0]-1}`;
@@ -377,6 +451,47 @@ $('structure-qa-file').addEventListener('change',async ev=>{
     setMessage('Source structure QA rejected: '+String(err.message||err),'error');
   }
 });
+
+$('review-add').addEventListener('click',()=>{
+ try{
+   const study=reviewIdentity();
+   if(!study)throw Error('CT, GLB and manifest must exactly match before marking');
+   const mark=window.PulmoCTReview.newMark(study,state.cross.slice(),
+     $('review-region').value,$('review-finding').value,$('review-note').value);
+   if(state.reviewMarks.some(x=>x.id===mark.id))throw Error('Duplicate review marker ID');
+   state.reviewMarks.push(mark);$('review-note').value='';
+   renderReviewStatus();renderSlices();
+   setMessage('Source-bound review point added. Export JSON to preserve the session.','ok');
+ }catch(err){setMessage(String(err.message||err),'error');}
+});
+$('review-clear').addEventListener('click',()=>{
+  resetReview();renderSlices();setMessage('Session review marks cleared. Source data is unchanged.','note');
+});
+$('review-export').addEventListener('click',()=>{
+ try{
+   const study=reviewIdentity();
+   const bundle=window.PulmoCTReview.exportReview(study,state.reviewMarks);
+   const json=new Blob([JSON.stringify(bundle,null,2)+'\n'],{type:'application/json'});
+   const href=URL.createObjectURL(json),a=document.createElement('a');
+   a.href=href;a.download='PulmoSIMU_CT_Review_'+study.source_sha256.slice(0,12)+'.json';
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(href),500);
+   setMessage('Review JSON exported locally. No study CT or GLB data included.','ok');
+ }catch(err){setMessage('Review export failed: '+String(err.message||err),'error');}
+});
+$('review-import').addEventListener('change',async ev=>{
+ const file=ev.target.files?.[0];ev.target.value='';
+ if(!file)return;
+ try{
+   if(file.size>512*1024)throw Error('Review JSON exceeds 512 KiB');
+   const study=reviewIdentity();
+   if(!study)throw Error('Exact matching source is required before import');
+   const marks=window.PulmoCTReview.importReview(JSON.parse(await file.text()),study);
+   state.reviewMarks=marks;renderReviewStatus();renderSlices();
+   setMessage('Manual CT review imported for the matching exact source pair.','ok');
+ }catch(err){setMessage('Review import rejected: '+String(err.message||err),'error');}
+});
+
 $('reset-view').addEventListener('click',viewReset);
 $('source-files').addEventListener('dragover',e=>{e.preventDefault();$('source-files').classList.add('dropping')});
 $('source-files').addEventListener('dragleave',()=>$('source-files').classList.remove('dropping'));
@@ -389,6 +504,7 @@ $('help-close').addEventListener('click',()=>$('help-dialog').close());
 window.PulmoAnatomyInspector=Object.freeze({get status(){return{
   hasCT:!!state.volume,hasGLB:!!state.model,hasQA:!!state.qa,
   sourceMatched:!!(state.volume&&state.qa&&state.ctSha===state.qa.source_sha256&&state.meshSha===state.qa.mesh_sha256&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid),
-  meshNames:state.meshNames.slice(),cross:state.cross.slice()}}});
-applyQa();start3d();
+  meshNames:state.meshNames.slice(),cross:state.cross.slice(),
+   reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity())}}});
+applyQa();renderReviewStatus();start3d();
 })();
