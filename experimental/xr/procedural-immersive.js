@@ -475,8 +475,15 @@ function install(ctx){
   function updateSteering(){
     if(mode!=='procedure'||!scopeSteering)return;
     const {i,origin,deflH,deflV}=scopeSteering;
-    trackedController(i).updateWorldMatrix(true,false);
-    const orientation=trackedController(i).getWorldQuaternion(new THREE.Quaternion());
+    const controller=trackedController(i);
+    if(!controller||!controllerSources[i]){
+      // Disconnected input must not retain steering or insertion commands.
+      scopeSteering=null;scope.velocity=0;
+      health.event('controllerTrackingLost');
+      return;
+    }
+    controller.updateWorldMatrix(true,false);
+    const orientation=controller.getWorldQuaternion(new THREE.Quaternion());
     // Change in controller orientation relative to the moment of grasp.
     // This is a VR input mapping to the ORIGINAL scope deflection state,
     // not an assertion of mechanical shaft/knob or force-feedback realism.
@@ -614,7 +621,10 @@ function install(ctx){
       if(key==='layout')positionPanels();
       if(key==='video'){
         scopeTarget.setSize(settings.capture.width,settings.capture.height);
-        lastFeed=0;
+        // Explicit video changes also re-arm a failed renderer and reset the
+        // previous setting's CPU-cost samples.
+        monitorStatus='not-started';monitorRetryAt=0;lastFeed=0;
+        monitorBudget=instrument.videoCostGovernor();
       }
       if(key==='optics'){
         camScope.fov=settings.fovDegrees;camScope.updateProjectionMatrix();
@@ -982,6 +992,8 @@ function install(ctx){
   });
   scopeTexture=scopeTarget.texture;scopeTexture.encoding=THREE.sRGBEncoding;
   let monitorStatus='not-started',monitorError=null,monitorFrames=0;
+  let monitorFailures=0,monitorRecoveries=0,monitorRetryAt=0;
+  let monitorBudget=instrument.videoCostGovernor();
   const monitorRoot=new THREE.Group();
   monitorRoot.name='xr16-independent-endoscopy-display';
   const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(1.00,.665),
@@ -1107,8 +1119,8 @@ function install(ctx){
     paintMonitorChrome();
   }
   function captureFeed(now){
-    if(mode!=='procedure'||now-lastFeed<station.snapshot().capture.intervalMs||
-       monitorStatus==='unavailable')return;
+    if(mode!=='procedure'||now-lastFeed<station.snapshot().capture.intervalMs)return;
+    if(monitorStatus==='unavailable'&&now<monitorRetryAt)return;
     lastFeed=now;
     const previousTarget=rBro.getRenderTarget();
     const previousXR=rBro.xr.enabled;
@@ -1163,6 +1175,15 @@ function install(ctx){
       if(guidePlane)guidePlane.visible=guideWasVisible;
       room.visible=roomWasVisible;
       scopeScreen.visible=monitorWasVisible;
+      // One failed offscreen pass must not disable the monitor for the entire
+      // session. Retry is bounded by backoff and always source-rendered.
+      if(monitorStatus==='unavailable'){
+        monitorFailures++;
+        monitorRetryAt=now+Math.min(8000,500*Math.pow(2,Math.min(4,monitorFailures-1)));
+        monitorImage.visible=false;
+      }else if(monitorStatus==='live'&&monitorFailures){
+        monitorRecoveries++;monitorFailures=0;monitorRetryAt=0;
+      }
     }
   }
   for(let i=0;i<2;i++){
@@ -1306,7 +1327,10 @@ function install(ctx){
       scienceIntegrity:scienceSnapshot()
     })||null,
     scaleClamps,workspaceClamps,
-    endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames},
+    endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames,
+      retryFailures:monitorFailures,recoveries:monitorRecoveries},
+    videoBudget:monitorBudget.snapshot(),
+    clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     integration:'Unified original-engine XR, verified local CT MPR and reference-only R3; CT-specific bronchoscopy and physical/clinical certification remain blocked'
   });
   reportButton.addEventListener('click',()=>{
@@ -1396,6 +1420,8 @@ function install(ctx){
     scaleClamps=0;workspaceClamps=0;limitsApplied=0;
     contactMarkers.forEach(m=>m.visible=false);
     monitorStatus='not-started';monitorError=null;monitorFrames=0;
+    monitorFailures=0;monitorRecoveries=0;monitorRetryAt=0;
+    monitorBudget=instrument.videoCostGovernor();
     monitorImage.visible=false;
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
@@ -1448,10 +1474,24 @@ function install(ctx){
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
       if(mode==='procedure'){
-        const monitorStarted=performance.now(),beforeStatus=monitorStatus;
+        const monitorStarted=performance.now(),beforeStatus=monitorStatus,
+          beforeFrames=monitorFrames;
         captureFeed(time);monitorCpuMs=performance.now()-monitorStarted;
         if(beforeStatus!=='unavailable'&&monitorStatus==='unavailable')
           health.event('monitorUnavailable');
+        // Only consider actual offscreen source renders, not skipped frames.
+        // This is the measured CPU submission cost, never GPU frame time.
+        if(monitorStatus==='live'&&monitorFrames>beforeFrames){
+          const recommended=monitorBudget.note(monitorCpuMs,station.snapshot().video);
+          if(recommended&&station.snapshot().video!==recommended){
+            station.next('video'); // detail -> balanced -> economy
+            const video=station.snapshot().capture;
+            scopeTarget.setSize(video.width,video.height);
+            lastFeed=0;
+            grabFeedback='VIDEO QUALITY ADAPTED / HIGH MEASURED CPU COST';
+            paint();
+          }
+        }
       }
       // Stereoscopic source render. CPU call time is NOT a GPU timing.
       const renderStarted=performance.now();
@@ -1509,6 +1549,9 @@ function install(ctx){
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
+    monitorRetryFailures:monitorFailures,monitorRecoveries,
+    videoBudget:monitorBudget.snapshot(),
+    clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     monitorResolution:[scopeTarget.width,scopeTarget.height],
     procedureStation:station.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
