@@ -6,7 +6,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const state={volume:null,qa:null,structureQA:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
-  window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[]};
+  window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[],metric:{a:null,b:null}};
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -252,9 +252,25 @@ function reviewIdentity(){
 }
 function resetReview(){
   state.reviewMarks=[];
+  state.metric={a:null,b:null};
   renderReviewStatus();
 }
+function renderMetricStatus(){
+  const study=reviewIdentity(),p=state.metric;
+  for(const id of ['metric-a','metric-b'])$(id).disabled=!study;
+  $('metric-clear').disabled=!p.a&&!p.b;
+  if(!study){$('metric-result').textContent='Exact matching CT, GLB and manifest required';return;}
+  if(p.a&&p.b){
+    try{
+      const out=window.PulmoCTReview.measureRAS(study,p.a,p.b);
+      $('metric-result').textContent=out.distance_mm.toFixed(2)+' mm · A '+p.a.join('/')+' → B '+p.b.join('/');
+    }catch(err){$('metric-result').textContent='Invalid source measurement';}
+  }else $('metric-result').textContent=p.a
+    ?'A '+p.a.join('/')+' · choose B'
+    :'Mark two CT voxels for physical distance';
+}
 function renderReviewStatus(){
+  renderMetricStatus();
   const matched=Boolean(reviewIdentity()),count=state.reviewMarks.length;
   $('review-add').disabled=!matched||count>=window.PulmoCTReview.MAX_MARKS;
   $('review-import').disabled=!matched;
@@ -310,6 +326,16 @@ function drawReviewPoints(plane,ctx,w,h){
     ctx.fillStyle='#f5dfbe';ctx.fillText(mark.region,px+7,Math.max(11,py-7));
     ctx.restore();
   }
+  for(const [key,point] of Object.entries(state.metric)){
+    if(!point||point[axis]!==coord[axis])continue;
+    const x=plane==='sagittal'?point[1]:point[0];
+    const y=plane==='axial'?point[1]:(1-point[2]/(dimensions[2]-1))*(h-1);
+    ctx.save();ctx.beginPath();ctx.arc(x+.5,y+.5,Math.max(4,w/110),0,2*Math.PI);
+    ctx.lineWidth=1.8;ctx.strokeStyle=key==='a'?'#75bdca':'#e7bd87';ctx.stroke();
+    ctx.font='bold '+Math.max(11,Math.round(w/45))+'px system-ui';
+    ctx.fillStyle=key==='a'?'#8ed9e7':'#f3d1a5';
+    ctx.fillText(key.toUpperCase(),x+9,y-9);ctx.restore();
+  }
 }
 
 function imageBuffer(plane){
@@ -357,7 +383,7 @@ function renderSlices(){
   $('slice-readout').textContent='i '+state.cross[0]+' · j '+state.cross[1]+' · k '+state.cross[2];
   const [i,j,k]=state.cross;
   $('ras-readout').textContent='RAS '+state.volume.ras(i,j,k).map(x=>x.toFixed(1)).join(' / ')+' mm';
-  updateMarker();applyClipping();
+  updateMarker();applyClipping();renderMetricStatus();
 }
 function updateMarker(){
   if(!marker)return;
@@ -452,6 +478,17 @@ $('structure-qa-file').addEventListener('change',async ev=>{
   }
 });
 
+for(const [id,key] of [['metric-a','a'],['metric-b','b']]){
+ $(id).addEventListener('click',()=>{
+   if(!reviewIdentity())return;
+   state.metric[key]=state.cross.slice();
+   renderMetricStatus();renderSlices();
+   setMessage('CT source distance point '+key.toUpperCase()+' set in exact voxel coordinates.','note');
+ });
+}
+$('metric-clear').addEventListener('click',()=>{
+ state.metric={a:null,b:null};renderMetricStatus();renderSlices();
+});
 $('review-add').addEventListener('click',()=>{
  try{
    const study=reviewIdentity();
@@ -505,6 +542,7 @@ window.PulmoAnatomyInspector=Object.freeze({get status(){return{
   hasCT:!!state.volume,hasGLB:!!state.model,hasQA:!!state.qa,
   sourceMatched:!!(state.volume&&state.qa&&state.ctSha===state.qa.source_sha256&&state.meshSha===state.qa.mesh_sha256&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid),
   meshNames:state.meshNames.slice(),cross:state.cross.slice(),
-   reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity())}}});
+   reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity()),
+   metricReady:!!(reviewIdentity()&&state.metric.a&&state.metric.b)}}});
 applyQa();renderReviewStatus();start3d();
 })();
