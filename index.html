@@ -3966,12 +3966,19 @@ const panelStates={};
 function togglePanel(id){const body=document.getElementById(id+'-body'),arr=document.getElementById(id+'-arr');if(!body)return;panelStates[id]=!panelStates[id];body.style.display=panelStates[id]?'none':'';if(arr)arr.classList.toggle('open',!panelStates[id]);}
 window.togglePanel=togglePanel;
 
-document.getElementById('sbtn')?.addEventListener('click',async()=>{
+async function openDesktopWorkstation({requestCamera=true}={}){
+  // A physical computer can open the ORIGINAL procedural workstation without
+  // a WebXR headset or granting webcam access. Camera gestures remain opt-in
+  // through the original INITIALISE SYSTEM button.
   document.getElementById('splash').style.display='none';
   document.getElementById('app').style.display='flex';
   setTimeout(()=>{onResize();setView('dual');setClinMode('nav');updateScope();drawMap();applyModeUI();rExt.render(scene,camExt);rBro.render(scene,camScope);},130);
   const dot=document.getElementById('sdot'),lbl=document.getElementById('sdot-l');
   if(dot)dot.className='sdot w';if(lbl)lbl.textContent='CAMERA';
+  if(!requestCamera){
+    if(dot)dot.className='sdot';if(lbl)lbl.textContent='DESKTOP';
+    return;
+  }
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}}});
     const vid=document.getElementById('cvid');vid.srcObject=stream;await vid.play();
@@ -3986,7 +3993,12 @@ document.getElementById('sbtn')?.addEventListener('click',async()=>{
     console.error(err);if(dot)dot.className='sdot r';if(lbl)lbl.textContent='NO CAM';
     showToast('No camera · ↑↓ navigate · IJKL deflect · click=teleport','warn');
   }
-});
+}
+document.getElementById('sbtn')?.addEventListener('click',()=>openDesktopWorkstation({requestCamera:true}));
+if(new URLSearchParams(location.search).get('entry')==='desktop'){
+  // No webcam prompt, no headset requirement, same clinical reference engine.
+  openDesktopWorkstation({requestCamera:false});
+}
 
 setTimeout(()=>{
   if(document.getElementById('app').style.display==='flex'||document.getElementById('patient-shell')?.classList.contains('show')){
