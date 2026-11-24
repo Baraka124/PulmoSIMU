@@ -1,0 +1,158 @@
+{
+  "dataset_title": "PulmoSIMU A1 preliminary bilateral lung airspace research baseline",
+  "origin_dataset": "National Lung Screening Trial (NLST) — The Cancer Imaging Archive",
+  "origin_doi": "https://doi.org/10.7937/TCIA.HMQ8-J677",
+  "origin_license": "CC BY 4.0 (TCIA public NLST radiology CT images)",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "processing_notice": "Derived NIfTI and GLB are transformations and preliminary segmentations; study-specific correspondence to an individual TCIA series has not been independently established.",
+  "source": "NLST_Chest_CT_150_Slices_R21(1).nii",
+  "source_type": "NIfTI-1 3D CT",
+  "source_shape_vox": [
+    512,
+    512,
+    150
+  ],
+  "spacing_mm": [
+    0.5429688096046448,
+    0.5429688096046448,
+    2
+  ],
+  "sform_RAS_mm": [
+    [
+      -0.5429688096046448,
+      0,
+      0,
+      138.728515625
+    ],
+    [
+      0,
+      -0.5429688096046448,
+      0,
+      260.728515625
+    ],
+    [
+      0,
+      0,
+      2,
+      -549.4000244140625
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "HU_stored_slope": 1,
+  "HU_stored_intercept": -1024,
+  "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+  "mesh_file": "PulmoSIMU_NLST_CT_Lung_Quest_Research.glb",
+  "mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
+  "model_from_ras_mm": [
+    [
+      0.001,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0.001,
+      0.39
+    ],
+    [
+      0,
+      -0.001,
+      0,
+      0.122
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "geometry_class": "PRELIMINARY_CT_DERIVED_AIRSPACE_MASK",
+  "processing_method": "HU(-1010,-400), body enclosure, 2D largest hemithorax components, morphological smoothing; mesh decimation",
+  "geometry_summary": {
+    "original_right": {
+      "vertices": 101848,
+      "faces": 203692,
+      "estimated_airspace_volume_l": 1.779,
+      "watertight": true
+    },
+    "original_left": {
+      "vertices": 84044,
+      "faces": 168084,
+      "estimated_airspace_volume_l": 1.474,
+      "watertight": true
+    },
+    "quest_mesh_left": {
+      "faces": 22690,
+      "vertices": 11347,
+      "watertight": true,
+      "volume_ratio": 0.9998655796462478
+    },
+    "quest_mesh_right": {
+      "faces": 27498,
+      "vertices": 13751,
+      "watertight": true,
+      "volume_ratio": 0.9998859016980292
+    }
+  },
+  "validation": "RESEARCH_ONLY_UNVALIDATED",
+  "quality_gates": {
+    "image_header_and_file_hash_matching": "AVAILABLE_IN_A1_INSPECTOR",
+    "airspace_boundary_versus_ct": "AWAITING_EXPERT_REVIEW",
+    "right_lung_mask_leakage": "FLAGGED_FOR_REVIEW",
+    "lobar_boundaries": "NOT_AVAILABLE",
+    "airway_lumen": "NOT_AVAILABLE",
+    "pulmonary_vasculature": "NOT_AVAILABLE",
+    "bronchoscope_to_ct_registration": "BLOCKED",
+    "patient_specific_physics": "BLOCKED",
+    "laterality_labels": "REVIEW_REQUIRED_OLD_RIGHT_SURFACE_CROSSES_MIDLINE",
+    "ct_linked_anatomy": "BLOCKED_UNTIL_SEGMENTATION_AND_CENTRELINE_QA"
+  },
+  "limitations": [
+    "2 mm through-plane slice spacing",
+    "No clinician-reviewed fissures or five-lobe segmentation",
+    "No segmented bronchial lumen or pulmonary vascular tree",
+    "Thresholding may omit consolidated/high-attenuation lung or include non-lung air",
+    "Provisional right-surface cross-midline leakage flagged for review",
+    "Watertightness and mesh decimation metrics are not evidence of anatomical fidelity",
+    "A prior audit mistakenly used RAS +X=patient LEFT. Correct convention is +X=patient RIGHT; old right mesh still has 14.81% of surface area crossing into patient left hemisphere."
+  ],
+  "public_research_metadata_allowed": true,
+  "binary_objects_in_git": false,
+  "data_distribution_note": "Binary CT and GLB must be separately uploaded after release/redistribution and provenance checks; this manifest alone is not the actual scan or surface.",
+  "anatomical_laterality_check": {
+    "qa_protocol": "PulmoSIMU-A2-source-geometry-v1",
+    "clinical_gate": "REVIEW_REQUIRED_NOT_PROVEN_REVERSED",
+    "reference_frame": "NIfTI RAS+ (+X patient RIGHT, -X patient LEFT)",
+    "source_sha256": "5b234ac92a9a5d58d15f3f43144d31612d10ff6e60777d8c273cd52b36b13087",
+    "mesh_sha256": "5e4457003b45f9d7f78e87239f935c4299e4c3b947a9a3ffda0e273216228a0f",
+    "findings": [
+      {
+        "node": "NLST_CT_right_lung_airspace",
+        "stored_label": "right",
+        "area_fraction_at_patient_left": 0.8519357580932623,
+        "conflict": false,
+        "area_fraction_at_patient_right": 0.8519357580932623,
+        "area_fraction_opposite_name": 0.14806424190673773,
+        "review_required": true
+      },
+      {
+        "node": "NLST_CT_left_lung_airspace",
+        "stored_label": "left",
+        "area_fraction_at_patient_right": 0.010484670927756408,
+        "conflict": false,
+        "area_fraction_opposite_name": 0.010484670927756408,
+        "review_required": false
+      }
+    ],
+    "status": "Original labels are not proven reversed. Prior RAS sign audit was incorrect. Right surface crosses midline in 14.81% of surface area. Clinical anatomy review pending."
+  },
+  "a2_1_corrected_airspace_report": "a2_1_observed_qa.json"
+}

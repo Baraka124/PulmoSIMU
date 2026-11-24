@@ -9,6 +9,37 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
+<script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
+<script src="./experimental/anatomy/nifti-source.js?v=E2-LOCAL-CT"></script>
+<script src="./experimental/xr/ct-spatial-mpr.js?v=E2-SOURCE-MPR"></script>
+<script src="./experimental/xr/science-integrity.js?v=E3-SOURCE-SCIENCE"></script>
+<script src="./experimental/xr/acceptance-gates.js?v=E4-EVIDENCE"></script>
+<script src="./experimental/anatomy/ct-review.js?v=A23-RAS-REVIEW"></script>
+<script src="./experimental/xr/registered-geometry.js?v=XR08-20261120"></script>
+<script src="./experimental/xr/surface-contact.js?v=XR09-20261123"></script>
+<script src="./experimental/xr/session-health.js?v=XR09-PROFILE"></script>
+<script src="./experimental/xr/interaction-math.js?v=XR11-METRIC"></script>
+<script src="./experimental/xr/view-history.js?v=XR15-UNDO"></script>
+<script src="./experimental/anatomy/a4-source-gate.js?v=A4-CT-PROCEDURE-GATE"></script>
+<script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
+<script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
+<script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE"></script>
+<script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
+<script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING"></script>
+<script type="module">
+import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
+window.PulmoXRReferencePhysicsStatus='loading';
+loadXRReferencePhysics().then(engine=>{
+  window.PulmoXRReferencePhysics=engine;
+  window.PulmoXRReferencePhysicsStatus='reference-ready';
+}).catch(error=>{
+  window.PulmoXRReferencePhysics=null;
+  window.PulmoXRReferencePhysicsStatus='unavailable';
+  console.warn('Reference R3 physiology is unavailable:',error.message);
+});
+</script>
 <style>
 /* ============================================================
    PNEUMO·VR SURGICAL — Design System v20
@@ -1139,6 +1170,72 @@ input[type=range]::-webkit-slider-thumb {
 
 /* ── Planning mode: hide training UI ── */
 #lp, #bpanel-l, #score-bar, #debrief, #biopsy-bleed { display:none !important; }
+/* Source-only CT research stage: do not combine research meshes with
+   reference simulated lesions, airway UI or unverified procedure readouts. */
+#ct-source-desk{display:none}
+body.ct-source-mode #ct-source-desk{
+ display:flex;position:absolute;top:18px;left:22px;z-index:70;
+ width:min(650px,calc(100% - 44px));gap:16px;align-items:center;
+ justify-content:space-between;padding:14px 17px;
+ background:rgba(13,23,32,.94);border:1px solid #486273;border-radius:4px;
+ font:500 12px/1.5 system-ui,sans-serif;color:#dbe6eb;
+}
+#ct-source-desk strong{font-size:13px;letter-spacing:.015em}
+#ct-source-desk small{display:block;color:#a5bac6;font-size:11px;font-weight:400}
+#ct-source-desk .source-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#ct-source-desk button,#ct-source-desk a{background:none;border:none;padding:0;cursor:pointer;
+ color:#bad7e4;font:600 11px system-ui,sans-serif;text-decoration:none;
+ border-bottom:1px solid #759eaf}
+body.ct-source-mode #patient-loader,
+body.ct-source-mode #rp,
+body.ct-source-mode #sp-panel,
+body.ct-source-mode #seg-card,
+body.ct-source-mode #bro-view,
+body.ct-source-mode #scope-svg,
+body.ct-source-mode #cam-p,
+body.ct-source-mode #route-panel{display:none!important}
+body.ct-source-mode #ext-label{
+ top:auto;bottom:12px;left:22px;font-size:10px;letter-spacing:.08em;
+ color:#a1b9c5
+}
+body.ct-source-mode #ext-view{width:100%;flex:1}
+#ct-lobe-panel{display:none}
+body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
+ display:block;position:absolute;right:22px;top:117px;z-index:65;
+ width:282px;max-height:calc(100% - 156px);overflow-y:auto;
+ background:rgba(14,24,32,.96);border:1px solid #405767;border-radius:4px;
+ padding:17px 19px;color:#dce7ea;font:12px/1.55 system-ui,sans-serif;
+ box-shadow:0 7px 32px rgba(0,0,0,.19);
+}
+#ct-lobe-panel .atlas-title{font-weight:600;font-size:14px;letter-spacing:-.025em}
+#ct-lobe-panel .atlas-sub{font-size:11px;color:#91a8b5;margin:5px 0 15px}
+#ct-lobe-panel label{display:flex;justify-content:space-between;gap:10px;
+ align-items:center;color:#cadce2;font-size:11px;margin:14px 0 6px}
+#ct-lobe-panel input[type=range]{width:100%;accent-color:#a5c5cf;height:3px;cursor:pointer}
+#ct-lobe-panel select{width:100%;padding:10px;background:#192b35;color:#d7e6eb;
+ border:1px solid #4c6875;border-radius:3px;font:12px system-ui}
+#ct-lobe-panel .atlas-legend{display:grid;grid-template-columns:1fr 1fr;gap:5px 9px;
+ font-size:10px;color:#a7bec7;margin-top:12px}
+#ct-lobe-panel .atlas-legend span{display:flex;align-items:center;gap:6px}
+#ct-lobe-panel .atlas-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+#ct-lobe-panel .review-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+#ct-lobe-panel .review-actions button{border:0;background:none;color:#bfd8e2;
+ padding:3px 0;border-bottom:1px solid #627d8b;font:600 11px system-ui;cursor:pointer}
+#ct-lobe-panel .review-state{font-size:10px;line-height:1.6;color:#a6bcc7;margin-top:10px}
+#ct-lobe-panel .review-list{max-height:112px;overflow:auto;font-size:10px;color:#c3d4db}
+#ct-lobe-panel .review-list button{margin-left:6px;background:none;border:0;color:#e8c6b2;cursor:pointer}
+#ct-lobe-panel .atlas-foot{border-top:1px solid #344b58;padding-top:10px;margin-top:14px;
+ font-size:10px;color:#8da9b6}
+@media(max-width:680px){
+ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
+   left:12px;right:12px;top:180px;width:auto;max-height:38vh
+ }
+}
+@media(max-width:680px){
+ body.ct-source-mode #ct-source-desk{top:12px;left:12px;
+ width:calc(100% - 24px);display:block}
+ #ct-source-desk .source-actions{margin-top:9px}
+}
 </style>
 </head>
 <body>
@@ -1260,6 +1357,62 @@ input[type=range]::-webkit-slider-thumb {
     <div id="ext-view">
       <canvas id="c-ext"></canvas>
       <div id="ext-label">BILATERAL LUNG · External View · Click=Teleport · Drag=Rotate · Scroll=Zoom</div>
+      <div id="ct-source-desk" aria-label="CT research source controls">
+        <div><strong>CT-derived airspace · Research model</strong>
+        <small id="ct-source-warning">Not clinically validated · No verified airway or pathology</small></div>
+        <div class="source-actions">
+          <button type="button" onclick="resetCTResearchView()">Fit both lungs</button>
+          <button id="research-material-toggle" type="button" onclick="toggleCTResearchMaterial()">Original material</button>
+          <button id="ct-lobe-toggle" type="button" onclick="toggleCTTerritoryAtlas()">Lobe study</button>
+          <button type="button" onclick="document.getElementById('ct-volume-file').click()">Load verified CT volume</button>
+          <input type="file" id="ct-volume-file" accept=".nii" style="display:none" onchange="loadResearchCTVolume(this)">
+          <a href="./experimental/anatomy-inspector.html" target="_blank" rel="noopener">Inspect CT slices</a>
+          <button type="button" onclick="triggerPatientLoad()">Change study</button>
+          <button type="button" onclick="setViewMode('reference')">Reference simulator</button>
+        </div>
+      </div>
+      <aside id="ct-lobe-panel" aria-label="Editable five-lobe territory study">
+        <div class="atlas-title">Five-lobe study</div>
+        <p class="atlas-sub">Adjust source-space fissure hypotheses on the actual CT surface. Anatomical geometry remains intact.</p>
+        <label for="ct-lobe-focus">Territory <span>inspect individually</span></label>
+        <select id="ct-lobe-focus" onchange="updateCTTerritoryAtlas()">
+          <option value="all">All five territories</option>
+          <option value="RUL">Right upper</option><option value="RML">Right middle</option>
+          <option value="RLL">Right lower</option><option value="LUL">Left upper</option>
+          <option value="LLL">Left lower</option>
+        </select>
+        <label for="ct-major-right">Right oblique <output id="ct-major-right-v">0 mm</output></label>
+        <input id="ct-major-right" type="range" min="-35" max="35" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <label for="ct-minor-right">Right horizontal <output id="ct-minor-right-v">0 mm</output></label>
+        <input id="ct-minor-right" type="range" min="-30" max="30" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <label for="ct-major-left">Left oblique <output id="ct-major-left-v">0 mm</output></label>
+        <input id="ct-major-left" type="range" min="-35" max="35" step="1" value="0" oninput="updateCTTerritoryAtlas()">
+        <div class="atlas-legend">
+          <span><i class="atlas-dot" style="background:#AFC0C4"></i> R upper</span>
+          <span><i class="atlas-dot" style="background:#CCB495"></i> R middle</span>
+          <span><i class="atlas-dot" style="background:#829CA9"></i> R lower</span>
+          <span><i class="atlas-dot" style="background:#C8A9A7"></i> L upper</span>
+          <span><i class="atlas-dot" style="background:#A4AF9D"></i> L lower</span>
+        </div>
+        <label for="ct-point-type">Shift + click lung surface to annotate</label>
+        <select id="ct-point-type">
+          <option value="right-oblique">Right oblique fissure</option>
+          <option value="right-horizontal">Right horizontal fissure</option>
+          <option value="left-oblique">Left oblique fissure</option>
+          <option value="uncertain">Uncertain boundary</option>
+          <option value="artifact">Segmentation artifact</option>
+        </select>
+        <div id="ct-review-state" class="review-state" aria-live="polite">0 source-space points · local session</div>
+        <div id="ct-review-list" class="review-list"></div>
+        <div class="review-actions">
+          <button type="button" onclick="exportCTReview()">Export review JSON</button>
+          <button type="button" onclick="document.getElementById('ct-review-import').click()">Import review</button>
+          <button type="button" onclick="clearCTReview()">Clear points</button>
+          <button type="button" onclick="resetCTReviewAtlas()">Reset offsets</button>
+        </div>
+        <input id="ct-review-import" type="file" accept=".json,application/json" hidden onchange="importCTReviewFile(this)">
+        <div class="atlas-foot">Annotations are RAS-mm research hypotheses, not segmented fissures. CT + GLB SHA-256 must match when importing. Original geometry stays unchanged.</div>
+      </aside>
       <svg id="scope-svg">
         <defs>
           <radialGradient id="sg" cx="50%" cy="50%" r="50%">
@@ -1790,13 +1943,15 @@ function updateDiseaseUniforms(){
 
 // ==================== THREE.JS ====================
 const cExt=document.getElementById('c-ext');
-const rExt=new THREE.WebGLRenderer({canvas:cExt,antialias:true,powerPreference:'high-performance'});
+const rExt=new THREE.WebGLRenderer({canvas:cExt,antialias:true,powerPreference:'high-performance',preserveDrawingBuffer:true});
 rExt.shadowMap.enabled=true;rExt.shadowMap.type=THREE.PCFSoftShadowMap;
 rExt.physicallyCorrectLights=true;rExt.outputEncoding=THREE.sRGBEncoding;
 rExt.toneMapping=THREE.ACESFilmicToneMapping;rExt.toneMappingExposure=1.4;
 
 const cBro=document.getElementById('c-bro');
-const rBro=new THREE.WebGLRenderer({canvas:cBro,antialias:true,powerPreference:'high-performance'});
+// Alpha-enabled XR renderer allows genuine immersive-ar passthrough blending.
+// Desktop and immersive-vr retain their opaque source scene background.
+const rBro=new THREE.WebGLRenderer({canvas:cBro,antialias:true,alpha:true,powerPreference:'high-performance'});
 rBro.outputEncoding=THREE.sRGBEncoding;rBro.toneMapping=THREE.ACESFilmicToneMapping;rBro.toneMappingExposure=2.2;
 
 const scene=new THREE.Scene();
@@ -1960,7 +2115,7 @@ void main(){
   mucosaBase=mix(mucosaBase,vec3(.80,.04,.02),uBleed*.6);
   vec3 col=mucosaBase*mucosaRegion;col=mix(col,cartCol,cartilagePresence*.78);col=mix(col,membraneCol,membraneStr*.6);
   vec3 L=normalize(uSP-vWP);float att=1./(1.+length(vWP-uSP)*length(vWP-uSP)*2.5);float diff=max(dot(N,L),0.)*att;
-  vec3 vD=normalize(-vWP);vec3 H=normalize(L+vD);
+  vec3 vD=normalize(cameraPosition-vWP);vec3 H=normalize(L+vD);
   float cartSpec=pow(max(dot(N,H),0.),120.)*cartilagePresence*.9*att;float wetSpec=pow(max(dot(N,H),0.),48.)*mucosaRegion*.5*att;
   float mucusSpec=pow(max(dot(N,H),0.),64.)*mucus*1.2*att;float vSpec=pow(max(dot(N,H),0.),32.)*vascSpec*att;
   float sss=pow(max(-dot(N,L),0.),2.)*.3*att;
@@ -2051,40 +2206,129 @@ var patientData = {
   meta:     null,
   loaded:   false,
   patientId: null,
+  sourceKind: null,
+  sourceManifest: null,
+  sourceIntegrity: null,
+  ctVolume: null,
+  ctVolumeSha: null,
 };
 
 let meshMode='reference';
+let ctResearchHidden=null,ctResearchReturn=null,ctLobeAtlas=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
+  // The NIfTI-derived lung shell is not the procedural bronchial tree.
+  if(mode==='patient'&&patientData.sourceKind==='ct-airspace-research')mode='research';
+  if(mode==='research'&&(!patientData.gltf||patientData.sourceKind!=='ct-airspace-research')){
+    showToast('No verified CT research surface has been loaded','warn');return;
+  }
+  const enteringResearch=mode==='research'&&!ctResearchHidden;
+  if(enteringResearch){
+    ctResearchReturn={
+      position:camExt.position.clone(),quaternion:camExt.quaternion.clone(),
+      near:camExt.near,far:camExt.far,
+      previousView:viewMode,
+      extState:{mx:ext.mx,my:ext.my,rx:ext.rx,ry:ext.ry,sc:ext.sc,idle:ext.idle},
+      stage:{
+        background:scene.background,fog:scene.fog,
+        groundVisible:gnd.visible,vignetteVisible:vignPlane.visible,
+        ambient:{color:ambientLight.color.clone(),intensity:ambientLight.intensity},
+        key:{color:kL.color.clone(),intensity:kL.intensity},
+        fill:{color:fillL.color.clone(),intensity:fillL.intensity},
+        redScatter:sssL.intensity,heartRed:heartL.intensity,
+        exposure:rExt.toneMappingExposure
+      }
+    };
+  }
+  const returnState=ctResearchHidden&&mode!=='research'?ctResearchReturn:null;
+  if(ctResearchHidden&&mode!=='research'){
+    closeCTTerritoryAtlas();
+    ctResearchHidden.forEach((visible,object)=>{if(object)object.visible=visible});
+    ctResearchHidden=null;ctResearchReturn=null;
+  }
   meshMode=mode;
-
-  // Adjust ambient light intensity — scene default is tuned dark for procedural shaders.
-  // Boost it when showing patient mesh so the GLB is properly visible.
-  if(typeof ambientLight!=='undefined'){
-    ambientLight.intensity = (mode==='reference') ? 1.0 : (mode==='patient') ? 0.6 : 0.1;
+  const research=mode==='research';
+  document.body.classList.toggle('ct-source-mode',research);
+  if(typeof ambientLight!=='undefined')
+    ambientLight.intensity=mode==='reference'?1.0:research?1.25:mode==='patient'?.6:.1;
+  if(research){
+    // Neutral source stage: no simulated procedure atmosphere, dramatic
+    // lesion-red lights, decorative ground or photographic context.
+    // Nothing here changes the GLB or declares new anatomical structures.
+    if(enteringResearch){
+      scene.background=new THREE.Color(0x121c22);
+      scene.fog=null;
+      gnd.visible=false;vignPlane.visible=false;
+      ambientLight.color.setHex(0xc1cdd2);ambientLight.intensity=1.0;
+      kL.color.setHex(0xf0f4f2);kL.intensity=2.5;
+      fillL.color.setHex(0x9dafb9);fillL.intensity=1.1;
+      sssL.intensity=0;heartL.intensity=0;
+      rExt.toneMappingExposure=1.0;
+    }
+    // Keep only the loaded CT-derived source object in the model assembly.
+    // Reference heart/bronchi, lesions, anatomical decorations and tools
+    // cannot silently appear to be measured patient structures.
+    if(!ctResearchHidden){
+      ctResearchHidden=new Map();
+      mGrp.children.forEach(child=>{
+        if(child===patientData.gltf)return;
+        ctResearchHidden.set(child,child.visible);child.visible=false;
+      });
+    }
+    if(patientData.gltf)patientData.gltf.visible=true;
+    const status=window.PulmoCTResearchBridge?.describe(patientData.sourceManifest);
+    const node=document.getElementById('ct-source-warning');
+    if(node)node.textContent=(status?.warning||'NOT VALIDATED')+
+      ' · No CT-registered airway, lesion, or procedure';
+  }else{
+    const showProc=mode==='reference';
+    proceduralMeshes.forEach(m=>m.visible=showProc);
+    referenceMeshes.forEach(m=>{if(m)m.visible=showProc;});
+    if(patientData.gltf)patientData.gltf.visible=mode==='patient';
+    // A research airspace GLB cannot be used as a pathology source.
+    const patientGraph=mode==='patient'&&Boolean(patientData.meta?.segments?.length);
+    Object.values(pathoMeshes).forEach(p=>{if(p.mesh)p.mesh.visible=patientGraph});
   }
 
-  // Toggle buttons
   ['ref','pat','empty'].forEach(k=>{
-    const b=document.getElementById('vt-'+k);
-    if(b)b.classList.remove('vt-on');
+    document.getElementById('vt-'+k)?.classList.remove('vt-on');
   });
-  const activeId={reference:'vt-ref',patient:'vt-pat',empty:'vt-empty'}[mode];
-  const ab=document.getElementById(activeId);if(ab)ab.classList.add('vt-on');
+  const activeId={reference:'vt-ref',patient:'vt-pat',research:'vt-pat',empty:'vt-empty'}[mode];
+  document.getElementById(activeId)?.classList.add('vt-on');
 
-  // Show/hide procedural geometry
-  const showProc=(mode==='reference');
-  proceduralMeshes.forEach(m=>m.visible=showProc);
-  referenceMeshes.forEach(m=>{if(m)m.visible=showProc;});
-
-  // Show/hide patient GLB
-  if(patientData&&patientData.gltf) patientData.gltf.visible=(mode==='patient');
-
-  // Pathology meshes follow patient mode
-  Object.values(pathoMeshes).forEach(p=>{if(p.mesh)p.mesh.visible=(mode==='patient');});
-
-  showToast({reference:'Reference anatomy',patient:'Patient mesh',empty:'Empty canvas'}[mode],'info');
+  if(research){
+    setView('overview');
+    scope.velocity=0;
+    const label=document.getElementById('ext-label');
+    if(label)label.textContent='CT RESEARCH SURFACE · UNVALIDATED · DRAG ROTATE · SCROLL ZOOM';
+  }else{
+    const label=document.getElementById('ext-label');
+    if(label)label.textContent='BILATERAL LUNG · EXTERNAL VIEW · CLICK TELEPORT · DRAG ROTATE · SCROLL ZOOM';
+    if(returnState){
+      const old=returnState.stage;
+      if(old){
+        scene.background=old.background;scene.fog=old.fog;
+        gnd.visible=old.groundVisible;
+        vignPlane.visible=old.vignetteVisible;
+        ambientLight.color.copy(old.ambient.color);
+        ambientLight.intensity=old.ambient.intensity;
+        kL.color.copy(old.key.color);kL.intensity=old.key.intensity;
+        fillL.color.copy(old.fill.color);fillL.intensity=old.fill.intensity;
+        sssL.intensity=old.redScatter;heartL.intensity=old.heartRed;
+        rExt.toneMappingExposure=old.exposure;
+      }
+      camExt.position.copy(returnState.position);
+      camExt.quaternion.copy(returnState.quaternion);
+      camExt.near=returnState.near;camExt.far=returnState.far;
+      camExt.updateProjectionMatrix();
+      Object.assign(ext,returnState.extState);
+      applyExt();
+      setView(returnState.previousView);
+    }
+  }
+  showToast({reference:'Reference simulation',patient:'Patient pipeline mesh',
+    research:'CT-derived airspace surface · research only',empty:'Empty canvas'}[mode],'info');
 }
 window.setViewMode=setViewMode;
 
@@ -2354,6 +2598,10 @@ function detectGrab(){
 
 let viewMode='dual';
 function setView(m){
+  if(meshMode==='research'&&m!=='overview'){
+    showToast('CT study anatomy is external-only; open CT Source Laboratory for image planes','warn');
+    return;
+  }
   viewMode=m;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const map={overview:'tab-ov',dual:'tab-du',scope:'tab-br'};
@@ -2463,6 +2711,18 @@ function checkProx(pos){
 
 function advance(dt){
   const seg=SEG_MAP[scope.segId];
+  if(rBro.xr.isPresenting&&seg&&window.PulmoXR08&&dt>0){
+    try{
+      const clearance=window.PulmoXR08.assessLumenClearance({
+        segment:seg,t:Math.min(.999,scope.t+dt),
+        scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+      });
+      if(!clearance.canAdvance){
+        scope.velocity=0;
+        return; // source-estimated lumen too narrow; no wall physics implied
+      }
+    }catch(error){scope.velocity=0;console.warn('XR clearance gate',error.message);return}
+  }
   if(scope.t>=.96&&seg?.children?.length>0){showBranchSel();return;}
   // Resistance modulates advance speed (v17)
   const res=getScopeResistance();
@@ -2487,6 +2747,18 @@ function hideBranchSel(){scope.atBranch=false;scope._branchHold=null;document.ge
 function enterBranch(childIdx){
   const seg=SEG_MAP[scope.segId],ch=seg?.children||[];
   if(childIdx<0||childIdx>=ch.length)return;
+  if(rBro.xr.isPresenting&&window.PulmoXR08){
+    try{
+      const target=SEG_MAP[ch[childIdx]];
+      const clearance=window.PulmoXR08.assessLumenClearance({
+        segment:target,t:.01,scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+      });
+      if(!clearance.canAdvance){
+        scope.velocity=0;
+        showToast('XR · airway too narrow for selected instrument','warn');return;
+      }
+    }catch(error){scope.velocity=0;console.warn('XR branch gate',error.message);return}
+  }
   scope.history.push({segId:scope.segId,t:scope.t});scope.segId=ch[childIdx];scope.t=.01;
   hideBranchSel();showToast('▶ '+SEG_MAP[scope.segId]?.name);updateScope();
 }
@@ -2704,6 +2976,11 @@ function cancelHold(){
   g('hold-arc',el=>el.style.strokeDashoffset=188);
 }
 function fireAction(){
+  if(meshMode==='research'){
+    cancelHold();
+    showToast('No CT-registered airway or biopsy target: reference simulation only','warn');
+    return;
+  }
   cancelHold();const ar=document.getElementById('aring');
   if(ar){ar.classList.add('fire');setTimeout(()=>ar.classList.remove('fire','show'),650);}
   const seg=SEG_MAP[scope.segId];
@@ -2740,6 +3017,9 @@ function exportSession(){
 window.exportSession=exportSession;
 
 function jumpToPathology(id){
+  if(meshMode==='research'){
+    showToast('No CT-derived lesions have been identified or validated','warn');return;
+  }
   // Works for both procedural (seg.pathology.id) and loaded patient (pathoMeshes key)
   const p=pathoMeshes[id];
   if(p){jumpToPathoById(id);return;}
@@ -2752,35 +3032,193 @@ window.jumpToPathology=jumpToPathology;
 
 // ==================== CAMERA AUTO-FOCUS ====================
 function _focusCameraOnGLB(gltfScene){
-  // Compute bounding box in world space
-  const box = new THREE.Box3().setFromObject(gltfScene);
-  if(box.isEmpty()) return;
-
-  const center = new THREE.Vector3();
-  const size   = new THREE.Vector3();
-  box.getCenter(center);
-  box.getSize(size);
-
-  // mGrp is controlled by ext — don't move it, move camera instead.
-  // Reset ext to neutral so the group sits at origin.
-  ext.idle = false;
-  ext.mx   = 0;
-  ext.my   = 0;
-  ext.rx   = -10;
-  ext.ry   = 0;
-  ext.sc   = 1;
-  applyExt();
-
-  // Now the group is at origin. Fit camera distance to bounding box.
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const fovRad = THREE.MathUtils.degToRad(camExt.fov);
-  const dist   = (maxDim / 2) / Math.tan(fovRad / 2) * 1.8;
-
-  // Center mesh vertically in view — offset camera Y by mesh center Y
-  camExt.position.set(center.x, center.y + maxDim * 0.15, center.z + dist);
-  camExt.lookAt(center.x, center.y, center.z);
-  camExt.updateProjectionMatrix();
+  if(!gltfScene)return false;
+  // Reset transforms BEFORE measuring the bounds. Measuring the old
+  // scaled/rotated model was why a CT lung could open tiny or off-center.
+  ext.idle=false;ext.mx=0;ext.my=0;ext.rx=0;ext.ry=0;ext.sc=1;
+  applyExt();mGrp.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(gltfScene);
+  if(box.isEmpty())return false;
+  const center=new THREE.Vector3(),size=new THREE.Vector3();
+  box.getCenter(center);box.getSize(size);
+  const fov=THREE.MathUtils.degToRad(camExt.fov);
+  const aspect=Math.max(.3,camExt.aspect||1);
+  // Fit BOTH original surfaces in the visible aspect ratio, including
+  // their actual depth, with controlled margin for natural orbiting.
+  const viewHeight=Math.max(size.y,size.x/aspect,.005);
+  const distance=(viewHeight*.5)/Math.tan(fov*.5)*1.44+size.z*.65;
+  camExt.up.set(0,1,0);
+  camExt.position.set(center.x,center.y+size.y*.03,center.z+distance);
+  camExt.near=Math.max(.001,distance/2500);
+  camExt.far=Math.max(80,distance+size.z+20);
+  camExt.lookAt(center);camExt.updateProjectionMatrix();
+  return true;
 }
+window.resetCTResearchView=()=>{
+  if(meshMode==='research'&&patientData.gltf){
+    _focusCameraOnGLB(patientData.gltf);
+    showToast('CT surface · full bilateral view restored','info');
+  }
+};
+function _setResearchNeutralMaterial(enabled){
+  if(patientData.sourceKind!=='ct-airspace-research'||!patientData.gltf)return false;
+  if(ctLobeAtlas)closeCTTerritoryAtlas();
+  if(!patientData.researchMaterials)patientData.researchMaterials=new Map();
+  patientData.gltf.traverse(child=>{
+    if(!child.isMesh)return;
+    if(!patientData.researchMaterials.has(child)){
+      patientData.researchMaterials.set(child,child.material);
+    }
+    // Neutral technical inspection, NOT an approximation of living tissue
+    // and NOT a replacement for the source author's GLB materials.
+    if(enabled){
+      if(!child.userData.ctNeutralMaterial)
+        child.userData.ctNeutralMaterial=new THREE.MeshStandardMaterial({
+          color:0xb9b4aa,roughness:.91,metalness:0,side:THREE.DoubleSide
+        });
+      child.material=child.userData.ctNeutralMaterial;
+    }else child.material=patientData.researchMaterials.get(child);
+  });
+  patientData.researchNeutral=Boolean(enabled);
+  const btn=document.getElementById('research-material-toggle');
+  if(btn)btn.textContent=enabled?'Original material':'Neutral surface';
+  return true;
+}
+window.toggleCTResearchMaterial=()=>{
+  if(meshMode==='research')_setResearchNeutralMaterial(!patientData.researchNeutral);
+};
+// A2.3 annotation display lives outside the source mesh and is never a procedure object.
+let ctReviewPoints=[],ctReviewMarkers=[],ctReviewOwner=null;
+function clearCTReviewMarkers(){
+  for(const o of ctReviewMarkers){mGrp.remove(o);o.geometry.dispose();o.material.dispose();}
+  ctReviewMarkers=[];
+}
+function renderCTReviewPoints(){
+  clearCTReviewMarkers();
+  const label=document.getElementById('ct-review-state');
+  const list=document.getElementById('ct-review-list');
+  if(label)label.textContent=ctReviewPoints.length+' RAS-mm points · local research session';
+  if(list){list.replaceChildren();
+    ctReviewPoints.forEach((p,i)=>{
+      const line=document.createElement('div');
+      line.append(document.createTextNode((i+1)+'. '+p.type+' / '+p.ras_mm.join(', ')+' mm'));
+      const del=document.createElement('button');del.type='button';del.textContent='Remove';
+      del.setAttribute('aria-label','Remove point '+(i+1));
+      del.onclick=()=>{ctReviewPoints.splice(i,1);renderCTReviewPoints()};
+      line.append(del);list.append(line);
+    });
+  }
+  if(!ctLobeAtlas||!patientData.sourceManifest)return;
+  const manifest=patientData.sourceManifest;
+  const m=new THREE.Matrix4().set(...manifest.model_from_ras_mm.flat());
+  for(const p of ctReviewPoints){
+    const xyz=new THREE.Vector3(...p.ras_mm).applyMatrix4(m);
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(.0035,12,8),
+      new THREE.MeshBasicMaterial({color:0xe1ac76,depthTest:false}));
+    dot.position.copy(xyz);dot.renderOrder=12;mGrp.add(dot);ctReviewMarkers.push(dot);
+  }
+}
+function currentCTReview(){
+  if(!patientData.sourceManifest)throw Error('Verified CT manifest required');
+  const read=id=>Number(document.getElementById(id).value);
+  return window.PulmoCTReview.session(patientData.sourceManifest,{
+    rightMajor:read('ct-major-right'),rightMinor:read('ct-minor-right'),
+    leftMajor:read('ct-major-left'),selected:document.getElementById('ct-lobe-focus').value
+  },ctReviewPoints);
+}
+window.clearCTReview=()=>{ctReviewPoints=[];renderCTReviewPoints()};
+window.resetCTReviewAtlas=()=>{
+  for(const id of ['ct-major-right','ct-minor-right','ct-major-left'])
+    document.getElementById(id).value='0';
+  document.getElementById('ct-lobe-focus').value='all';window.updateCTTerritoryAtlas();
+};
+window.exportCTReview=()=>{
+  try{
+    const blob=new Blob([JSON.stringify(currentCTReview(),null,2)+'\n'],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='PulmoSIMU_A23_CT_Lobe_Review.json';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+  }catch(e){showToast('Cannot export: '+e.message,'error');}
+};
+window.importCTReviewFile=async input=>{
+  const file=input.files?.[0];input.value='';if(!file)return;
+  try{
+    if(file.size>160000)throw Error('Review JSON too large');
+    const review=window.PulmoCTReview.parse(await file.text(),patientData.sourceManifest);
+    for(const [id,key] of [['ct-major-right','rightMajor'],['ct-minor-right','rightMinor'],['ct-major-left','leftMajor']])
+      document.getElementById(id).value=review.atlas[key];
+    document.getElementById('ct-lobe-focus').value=review.atlas.selected;
+    ctReviewPoints=[...review.annotations];
+    window.updateCTTerritoryAtlas();renderCTReviewPoints();
+    showToast('Matched source review imported · '+ctReviewPoints.length+' points','success');
+  }catch(e){showToast('Review rejected: '+e.message,'error');}
+};
+document.getElementById('c-ext').addEventListener('click',event=>{
+  if(!event.shiftKey||!ctLobeAtlas||meshMode!=='research'||!patientData.gltf)return;
+  try{
+    const canvas=event.currentTarget,b=canvas.getBoundingClientRect();
+    const mouse=new THREE.Vector2(((event.clientX-b.left)/b.width)*2-1,
+      -((event.clientY-b.top)/b.height)*2+1);
+    const ray=new THREE.Raycaster();ray.setFromCamera(mouse,camExt);
+    const hits=ray.intersectObject(patientData.gltf,true).filter(h=>h.object.isMesh);
+    if(!hits.length){showToast('No source lung surface at pointer','warn');return;}
+    const modelPoint=mGrp.worldToLocal(hits[0].point.clone());
+    const inv=new THREE.Matrix4().set(...patientData.sourceManifest.model_from_ras_mm.flat()).invert();
+    const ras=modelPoint.applyMatrix4(inv);
+    const p=window.PulmoCTReview.point({
+      type:document.getElementById('ct-point-type').value,
+      ras_mm:[ras.x,ras.y,ras.z]
+    });
+    if(ctReviewPoints.length>=500)throw Error('Maximum 500 points');
+    ctReviewPoints.push(p);renderCTReviewPoints();
+    showToast('RAS point recorded · '+ctReviewPoints.length,'info');
+  }catch(e){showToast('Review point: '+e.message,'error');}
+});
+function closeCTTerritoryAtlas(){
+  clearCTReviewMarkers();
+  if(ctLobeAtlas){ctLobeAtlas.dispose();ctLobeAtlas=null;}
+  document.body.classList.remove('ct-lobe-open');
+  const btn=document.getElementById('ct-lobe-toggle');
+  if(btn)btn.textContent='Lobe study';
+}
+window.toggleCTTerritoryAtlas=()=>{
+  if(meshMode!=='research'||!patientData.gltf||!patientData.sourceManifest)return;
+  if(ctLobeAtlas){closeCTTerritoryAtlas();_setResearchNeutralMaterial(true);
+    showToast('Original source surface restored','info');return;}
+  try{
+    _setResearchNeutralMaterial(false);
+    ctLobeAtlas=window.PulmoCTLobeTerritories.create(
+      THREE,patientData.gltf,mGrp,patientData.sourceManifest);
+    const summary=ctLobeAtlas.enable();
+    const identity=window.PulmoCTReview.source(patientData.sourceManifest);
+    if(ctReviewOwner!==identity.ct_sha256+identity.mesh_sha256){
+      ctReviewPoints=[];ctReviewOwner=identity.ct_sha256+identity.mesh_sha256;
+    }
+    document.body.classList.add('ct-lobe-open');
+    renderCTReviewPoints();
+    document.getElementById('ct-lobe-toggle').textContent='Original surface';
+    showToast('Five-lobe atlas territories · '+summary.vertices+' source vertices','info');
+  }catch(error){
+    closeCTTerritoryAtlas();
+    showToast('Lobe workbench: '+String(error.message||error),'error');
+  }
+};
+window.updateCTTerritoryAtlas=()=>{
+  if(!ctLobeAtlas)return;
+  const read=(id)=>Number(document.getElementById(id)?.value||0);
+  const values={
+    rightMajor:read('ct-major-right'),rightMinor:read('ct-minor-right'),
+    leftMajor:read('ct-major-left'),
+    selected:document.getElementById('ct-lobe-focus')?.value||'all'
+  };
+  const summary=ctLobeAtlas.update(values);
+  for(const [control,out] of [
+    ['ct-major-right','ct-major-right-v'],
+    ['ct-minor-right','ct-minor-right-v'],
+    ['ct-major-left','ct-major-left-v']])
+    document.getElementById(out).textContent=read(control)+' mm';
+  return summary;
+};
 // ==================== END CAMERA AUTO-FOCUS ====================
 
 // ==================== SCOPE SIZE + LUMEN READOUT ====================
@@ -3113,7 +3551,8 @@ const ext={mx:0,my:0,rx:0,ry:0,sc:1,rot:{on:false,hx:0,hy:0},buf:{rx:[],ry:[]},i
 function dead(v,d){return Math.abs(v)<d?0:v-Math.sign(v)*d;}
 function smV(buf,v,n){buf.push(v);if(buf.length>n)buf.shift();return buf.reduce((a,b)=>a+b,0)/buf.length;}
 function applyExt(){
-  ext.mx=Math.max(-4,Math.min(4,ext.mx));ext.my=Math.max(-3,Math.min(3,ext.my));ext.sc=Math.max(.2,Math.min(4.5,ext.sc));
+  ext.mx=Math.max(-4,Math.min(4,ext.mx));ext.my=Math.max(-3,Math.min(3,ext.my));
+  ext.sc=Math.max(meshMode==='research'?.65:.2,Math.min(meshMode==='research'?2.4:4.5,ext.sc));
   mGrp.position.set(ext.mx,ext.my,0);
   mGrp.rotation.set(THREE.MathUtils.degToRad(ext.rx),THREE.MathUtils.degToRad(ext.ry),0);
   mGrp.scale.setScalar(ext.sc);
@@ -3402,36 +3841,59 @@ function animate(){
   const now=performance.now();
   if(now-lastFpsT>=1000){g('fps-v',el=>el.textContent=frames);frames=0;lastFpsT=now;}
 
-  // Update shaders
-  lungMats.forEach(m=>{m.uniforms.uT.value=time;m.uniforms.uBreath.value=time;});
-  mucoMats.forEach(m=>{m.uniforms.uT.value=time;m.uniforms.uBreath.value=time;});
-  if(patientData&&patientData._mat&&patientData._mat.uniforms) patientData._mat.uniforms.uT.value=time;
-  Object.values(bronchMatsMap).forEach(m=>m.uniforms.uT.value=time);
+  // The original desktop illustration keeps its authored animation.
+  // Immersive XR must not imply that uncalibrated shader oscillations,
+  // pathology glow or fixed-rate swelling are numerical tissue mechanics.
+  const illustrativeTime=rBro.xr.isPresenting?0:time;
+  lungMats.forEach(m=>{m.uniforms.uT.value=illustrativeTime;m.uniforms.uBreath.value=illustrativeTime;});
+  mucoMats.forEach(m=>{m.uniforms.uT.value=illustrativeTime;m.uniforms.uBreath.value=illustrativeTime;});
+  if(patientData&&patientData._mat&&patientData._mat.uniforms)
+    patientData._mat.uniforms.uT.value=illustrativeTime;
+  Object.values(bronchMatsMap).forEach(m=>m.uniforms.uT.value=illustrativeTime);
 
-  // Breathing scale
-  const bf=Math.sin(time*1.05)*.5+.5;
-  rUpperL.scale.setScalar(1+bf*.015);rMidL.scale.set(1+bf*.014,1+bf*.013,1+bf*.016);
-  rLowL.scale.setScalar(1+bf*.018);lUpperL.scale.setScalar(1+bf*.015);lLowL.scale.setScalar(1+bf*.019);
-
-  // Asthma wheeze
-  if(PAT.disease==='asthma'&&PAT.swellLevel>.1){
-    const wheeze=Math.sin(time*6)*PAT.swellLevel*.01;
-    rLowL.scale.setScalar(rLowL.scale.x+wheeze);lLowL.scale.setScalar(lLowL.scale.x+wheeze);
+  if(!rBro.xr.isPresenting){
+    // Desktop-only illustrative breathing, disease accent and lighting.
+    const bf=Math.sin(time*1.05)*.5+.5;
+    rUpperL.scale.setScalar(1+bf*.015);
+    rMidL.scale.set(1+bf*.014,1+bf*.013,1+bf*.016);
+    rLowL.scale.setScalar(1+bf*.018);
+    lUpperL.scale.setScalar(1+bf*.015);
+    lLowL.scale.setScalar(1+bf*.019);
+    if(PAT.disease==='asthma'&&PAT.swellLevel>.1){
+      const wheeze=Math.sin(time*6)*PAT.swellLevel*.01;
+      rLowL.scale.setScalar(rLowL.scale.x+wheeze);
+      lLowL.scale.setScalar(lLowL.scale.x+wheeze);
+    }
+    const hb=Math.pow(Math.max(0,Math.sin(time*2.62)),.5)*
+      Math.pow(Math.max(0,Math.sin(time*2.62-.75)),.5);
+    heartL.intensity=2.2+hb*5.5;
+    heartL.color.setHSL(.02,.9,.28+hb*.12);
+    sssL.intensity=4.2+hb*3.8;
+    Object.values(pathoMeshes).forEach(({mesh})=>{
+      mesh.traverse(c=>{
+        if(c.material?.emissiveIntensity!==undefined)
+          c.material.emissiveIntensity=.48+Math.sin(time*3.6)*.32;
+      });
+    });
+  }else{
+    // Stable source geometry: no invented pulsation/deformation in XR.
+    rUpperL.scale.setScalar(1);rMidL.scale.setScalar(1);
+    rLowL.scale.setScalar(1);lUpperL.scale.setScalar(1);lLowL.scale.setScalar(1);
+    heartL.intensity=2.2;sssL.intensity=4.2;
+    Object.values(pathoMeshes).forEach(({mesh})=>{
+      mesh.traverse(c=>{
+        if(c.material?.emissiveIntensity!==undefined)c.material.emissiveIntensity=.24;
+      });
+    });
   }
-
-  // Heartbeat
-  const hb=Math.pow(Math.max(0,Math.sin(time*2.62)),.5)*Math.pow(Math.max(0,Math.sin(time*2.62-.75)),.5);
-  heartL.intensity=2.2+hb*5.5;heartL.color.setHSL(.02,.9,.28+hb*.12);
-  sssL.intensity=4.2+hb*3.8;
-
-  // Pathology pulse
-  Object.values(pathoMeshes).forEach(({mesh})=>{mesh.traverse(c=>{if(c.material?.emissiveIntensity!==undefined)c.material.emissiveIntensity=.48+Math.sin(time*3.6)*.32;});});
 
   // Patient triggers
   // updatePatientTriggers removed — planning tool, no disease simulation
 
   // Velocity with resistance modulation (v17)
-  if(Math.abs(scope.velocity)>.0001){
+  // In immersive mode the headset XRFrame owns the same original scope
+  // engine. Do not double-step from a browser tab rAF (which may throttle).
+  if(!rBro.xr.isPresenting&&Math.abs(scope.velocity)>.0001){
     if(scope.velocity>0)advance(scope.velocity);else retract(-scope.velocity);
     scope.velocity*=scope.velocityDecay;
   }
@@ -3448,11 +3910,13 @@ function animate(){
   updateVitals(time);
   updateSurgicalPanel();
 
-  updateScope();
+  if(!rBro.xr.isPresenting)updateScope();
 
   const ev=document.getElementById('ext-view'),bv=document.getElementById('bro-view');
-  if(viewMode!=='scope'&&ev&&ev.clientWidth>1)rExt.render(scene,camExt);
-  if(viewMode!=='overview'&&bv&&bv.clientWidth>1)rBro.render(scene,camScope);
+  if(!rBro.xr.isPresenting){
+    if(viewMode!=='scope'&&ev&&ev.clientWidth>1)rExt.render(scene,camExt);
+    if(viewMode!=='overview'&&bv&&bv.clientWidth>1)rBro.render(scene,camScope);
+  }
 }
 animate();
 
@@ -3473,6 +3937,10 @@ const _sessionStart=Date.now();
 setInterval(()=>{const s=Math.floor((Date.now()-_sessionStart)/1000),m=Math.floor(s/60),ss=s%60;g('ses-t',el=>el.textContent=(m<10?'0':'')+m+':'+(ss<10?'0':'')+ss);},1000);
 
 document.addEventListener('keydown',e=>{
+  if(meshMode==='research'){
+    if(e.key==='Escape'||e.key==='0')window.resetCTResearchView();
+    return; // never trigger simulated pathology, biopsy or bronchoscopy keys
+  }
   if(e.key==='1')setView('overview');
   if(e.key==='2')setView('dual');
   if(e.key==='3')setView('scope');
@@ -3498,12 +3966,19 @@ const panelStates={};
 function togglePanel(id){const body=document.getElementById(id+'-body'),arr=document.getElementById(id+'-arr');if(!body)return;panelStates[id]=!panelStates[id];body.style.display=panelStates[id]?'none':'';if(arr)arr.classList.toggle('open',!panelStates[id]);}
 window.togglePanel=togglePanel;
 
-document.getElementById('sbtn')?.addEventListener('click',async()=>{
+async function openDesktopWorkstation({requestCamera=true}={}){
+  // A physical computer can open the ORIGINAL procedural workstation without
+  // a WebXR headset or granting webcam access. Camera gestures remain opt-in
+  // through the original INITIALISE SYSTEM button.
   document.getElementById('splash').style.display='none';
   document.getElementById('app').style.display='flex';
   setTimeout(()=>{onResize();setView('dual');setClinMode('nav');updateScope();drawMap();applyModeUI();rExt.render(scene,camExt);rBro.render(scene,camScope);},130);
   const dot=document.getElementById('sdot'),lbl=document.getElementById('sdot-l');
   if(dot)dot.className='sdot w';if(lbl)lbl.textContent='CAMERA';
+  if(!requestCamera){
+    if(dot)dot.className='sdot';if(lbl)lbl.textContent='DESKTOP';
+    return;
+  }
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}}});
     const vid=document.getElementById('cvid');vid.srcObject=stream;await vid.play();
@@ -3518,7 +3993,12 @@ document.getElementById('sbtn')?.addEventListener('click',async()=>{
     console.error(err);if(dot)dot.className='sdot r';if(lbl)lbl.textContent='NO CAM';
     showToast('No camera · ↑↓ navigate · IJKL deflect · click=teleport','warn');
   }
-});
+}
+document.getElementById('sbtn')?.addEventListener('click',()=>openDesktopWorkstation({requestCamera:true}));
+if(new URLSearchParams(location.search).get('entry')==='desktop'){
+  // No webcam prompt, no headset requirement, same clinical reference engine.
+  openDesktopWorkstation({requestCamera:false});
+}
 
 setTimeout(()=>{
   if(document.getElementById('app').style.display==='flex'||document.getElementById('patient-shell')?.classList.contains('show')){
@@ -3530,345 +4010,55 @@ setTimeout(()=>{
 
 
 // ================================================================
-// PHASE 2 — WebXR VR INTERACTION
-// Quest 2/3 · Controllers · Wrist Menu · Raycaster
+// XR-09 — Unified original-engine WebXR, reference-region context only.
+// Context never changes scope position, treatment or patient anatomy.
 // ================================================================
-
-// ── 1. Enable WebXR on rBro (the immersive renderer) ────────────
-rBro.xr.enabled = true;
-
-// VRButton — inject into DOM when XR is supported
-(async () => {
-  if (!navigator.xr) return;
-  const supported = await navigator.xr.isSessionSupported('immersive-vr').catch(()=>false);
-  if (!supported) return;
-  const btn = document.createElement('button');
-  btn.id = 'vr-btn';
-  btn.textContent = 'ENTER VR';
-  Object.assign(btn.style, {
-    position:'fixed', bottom:'20px', right:'20px',
-    zIndex:'800', background:'transparent',
-    border:'1px solid #0ecfb0', color:'#0ecfb0',
-    fontFamily:"'Syne',sans-serif", fontWeight:'700',
-    fontSize:'10px', letterSpacing:'5px',
-    padding:'12px 28px', borderRadius:'3px',
-    cursor:'pointer', transition:'all .2s'
-  });
-  btn.onmouseenter = () => { btn.style.background='#0ecfb0'; btn.style.color='#080c10'; };
-  btn.onmouseleave = () => { btn.style.background='transparent'; btn.style.color='#0ecfb0'; };
-  btn.onclick = async () => {
-    if (rBro.xr.isPresenting) {
-      await rBro.xr.getSession()?.end();
-    } else {
-      const session = await navigator.xr.requestSession('immersive-vr', {
-        optionalFeatures: ['local-floor','bounded-floor','hand-tracking']
-      });
-      await rBro.xr.setSession(session);
-      btn.textContent = 'EXIT VR';
-      showToast('VR SESSION STARTED · Use controllers to navigate', 'info');
-    }
-  };
-  rBro.xr.addEventListener('sessionend', () => { btn.textContent = 'ENTER VR'; });
-  document.body.appendChild(btn);
-})();
-
-// ── 2. VR camera — fixed position, headset tracking takes over ──
-const vrCam = new THREE.PerspectiveCamera(110, 1, 0.003, 8);
-vrCam.position.set(0, 1.6, 3);
-
-// ── 3. Controllers ──────────────────────────────────────────────
-const xrCtrl0 = rBro.xr.getController(0); // left  — scope nav
-const xrCtrl1 = rBro.xr.getController(1); // right — deflection / pointer
-scene.add(xrCtrl0);
-scene.add(xrCtrl1);
-
-// Controller grip spaces (physical hand position)
-const grip0 = rBro.xr.getControllerGrip(0);
-const grip1 = rBro.xr.getControllerGrip(1);
-scene.add(grip0);
-scene.add(grip1);
-
-// Simple controller visual — thin glowing rod
-function makeCtrlVisual(color) {
-  const g = new THREE.Group();
-  const rod = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.006, 0.008, 0.12, 8),
-    new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.6, metalness:0.7, roughness:0.3 })
-  );
-  rod.rotation.x = Math.PI / 2;
-  rod.position.z = -0.06;
-  g.add(rod);
-  // Ray line
-  const rayGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1.2)
-  ]);
-  const ray = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.35 }));
-  g.add(ray);
-  return g;
-}
-grip0.add(makeCtrlVisual(0x0ecfb0)); // teal — left
-grip1.add(makeCtrlVisual(0x8b5cf6)); // purple — right
-
-// ── 4. Raycaster for right controller ──────────────────────────
-const vrRaycaster = new THREE.Raycaster();
-const vrTempMatrix = new THREE.Matrix4();
-
-// ── 5. Input state ──────────────────────────────────────────────
-const vrInput = {
-  // thumbstick axes [0]=x [1]=y per controller
-  axes0: [0, 0], // left
-  axes1: [0, 0], // right
-  // buttons
-  trigger0: false, trigger1: false,
-  grip0: false,    grip1: false,
-  btnA: false,     btnX: false,
-  // grip hold timer for branch entry
-  gripHoldStart: null,
-};
-
-// Gamepad polling — called each frame while presenting
-function pollVRGamepads() {
-  const session = rBro.xr.getSession();
-  if (!session) return;
-  for (const src of session.inputSources) {
-    const gp = src.gamepad;
-    if (!gp) continue;
-    const hand = src.handedness; // 'left' | 'right'
-    if (hand === 'left') {
-      vrInput.axes0[0] = gp.axes[2] ?? 0; // thumbstick x
-      vrInput.axes0[1] = gp.axes[3] ?? 0; // thumbstick y
-      vrInput.grip0    = gp.buttons[1]?.pressed ?? false;
-      vrInput.btnX     = gp.buttons[4]?.pressed ?? false;
-      vrInput.trigger0 = gp.buttons[0]?.pressed ?? false;
-    } else {
-      vrInput.axes1[0] = gp.axes[2] ?? 0;
-      vrInput.axes1[1] = gp.axes[3] ?? 0;
-      vrInput.grip1    = gp.buttons[1]?.pressed ?? false;
-      vrInput.btnA     = gp.buttons[4]?.pressed ?? false;
-      vrInput.trigger1 = gp.buttons[0]?.pressed ?? false;
-    }
-  }
-}
-
-// ── 6. Apply controller input to scope state ────────────────────
-const VR_DEAD = 0.12; // thumbstick deadzone
-let _vrTrigger1Prev = false;
-let _vrBtnAPrev    = false;
-let _vrBtnXPrev    = false;
-let _vrGrip0Prev   = false;
-
-function applyVRInput() {
-  if (!rBro.xr.isPresenting) return;
-
-  // Left thumbstick Y → advance / retract
-  const ly = -vrInput.axes0[1]; // invert: push up = advance
-  if (Math.abs(ly) > VR_DEAD) {
-    scope.velocity = ly * CFG.scopeSpd / 900;
-  }
-
-  // Left thumbstick X → roll
-  const lx = vrInput.axes0[0];
-  if (Math.abs(lx) > VR_DEAD) {
-    scope.roll += lx * 0.04;
-  }
-
-  // Right thumbstick → deflection
-  const rx = vrInput.axes1[0];
-  const ry = -vrInput.axes1[1];
-  if (Math.abs(rx) > VR_DEAD) scope.deflH += (rx * CFG.deflMax / 180 - scope.deflH) * 0.18;
-  else scope.deflH *= 0.92;
-  if (Math.abs(ry) > VR_DEAD) scope.deflV += (ry * CFG.deflMax / 180 - scope.deflV) * 0.18;
-  else scope.deflV *= 0.92;
-  scope.deflH = Math.max(-1, Math.min(1, scope.deflH));
-  scope.deflV = Math.max(-1, Math.min(1, scope.deflV));
-
-  // Right trigger (rising edge) → confirm branch or fire action
-  if (vrInput.trigger1 && !_vrTrigger1Prev) {
-    if (scope.atBranch) enterBranch(1);
-    else fireAction();
-  }
-  _vrTrigger1Prev = vrInput.trigger1;
-
-  // Left trigger (rising edge) → enter left branch
-  if (vrInput.trigger0 && !_vrGrip0Prev) {
-    if (scope.atBranch) enterBranch(0);
-  }
-  _vrGrip0Prev = vrInput.trigger0;
-
-  // A button (rising edge) → cycle clinical mode
-  if (vrInput.btnA && !_vrBtnAPrev) {
-    const modes = ['nav','biopsy','measure','annotate'];
-    const idx = modes.indexOf(clinMode);
-    setClinMode(modes[(idx + 1) % modes.length]);
-  }
-  _vrBtnAPrev = vrInput.btnA;
-
-  // X button (rising edge) → full reset
-  if (vrInput.btnX && !_vrBtnXPrev) {
-    ext.mx=ext.my=ext.rx=ext.ry=0; ext.sc=1;
-    scope.segId=0; scope.t=.01; scope.roll=0;
-    scope.deflH=scope.deflV=0; scope.velocity=0;
-    scope.history=[{segId:0,t:.01}];
-    hideBranchSel(); applyExt(); updateScope();
-    showToast('FULL RESET','warn');
-  }
-  _vrBtnXPrev = vrInput.btnX;
-
-  // Right controller raycasting → pathology intersection
-  if (xrCtrl1.matrixWorld) {
-    vrTempMatrix.identity().extractRotation(xrCtrl1.matrixWorld);
-    vrRaycaster.ray.origin.setFromMatrixPosition(xrCtrl1.matrixWorld);
-    vrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(vrTempMatrix);
-    const targets = Object.values(pathoMeshes).map(p => p.mesh);
-    const hits = vrRaycaster.intersectObjects(targets, true);
-    if (hits.length > 0) {
-      const found = SEGS.find(s => s.pathology && pathoMeshes[s.pathology.id]?.mesh === hits[0].object.parent);
-      if (found && !PNEUMO.session.pathologiesFound.has(found.pathology.id)) {
-        PNEUMO.session.pathologiesFound.add(found.pathology.id);
-        showToast('PATHOLOGY FOUND · ' + found.pathology.label.split('\n')[0], 'success');
-      }
-    }
-  }
-}
-
-// ── 7. Wrist menu — 3D panel on left controller ─────────────────
-const WRIST_W = 0.22, WRIST_H = 0.10;
-const wristCanvas = document.createElement('canvas');
-wristCanvas.width = 512; wristCanvas.height = 230;
-const wristCtx = wristCanvas.getContext('2d');
-const wristTex = new THREE.CanvasTexture(wristCanvas);
-
-const wristMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(WRIST_W, WRIST_H),
-  new THREE.MeshBasicMaterial({ map: wristTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
-);
-// Attach to left grip — offset to face surgeon when palm up
-wristMesh.position.set(0, 0.05, -0.03);
-wristMesh.rotation.x = -Math.PI / 3;
-grip0.add(wristMesh);
-
-const VR_MODES = [
-  { id:'nav',      label:'NAVIGATE', color:'#0ecfb0' },
-  { id:'biopsy',   label:'BIOPSY',   color:'#f0364a' },
-  { id:'measure',  label:'MEASURE',  color:'#f5a623' },
-  { id:'annotate', label:'ANNOTATE', color:'#8b5cf6' },
-];
-
-function drawWristMenu() {
-  const W = wristCanvas.width, H = wristCanvas.height;
-  wristCtx.clearRect(0, 0, W, H);
-  // Background
-  wristCtx.fillStyle = 'rgba(8,12,16,0.92)';
-  roundRect(wristCtx, 0, 0, W, H, 16);
-  wristCtx.fill();
-  // Border
-  wristCtx.strokeStyle = 'rgba(14,207,176,0.3)';
-  wristCtx.lineWidth = 2;
-  roundRect(wristCtx, 0, 0, W, H, 16);
-  wristCtx.stroke();
-  // Title
-  wristCtx.fillStyle = 'rgba(14,207,176,0.5)';
-  wristCtx.font = '500 22px sans-serif';
-  wristCtx.letterSpacing = '4px';
-  wristCtx.textAlign = 'center';
-  wristCtx.fillText('CLINICAL MODE', W/2, 38);
-  // Mode buttons
-  const btnW = 110, btnH = 54, gap = 10;
-  const totalW = VR_MODES.length * btnW + (VR_MODES.length-1) * gap;
-  const startX = (W - totalW) / 2;
-  VR_MODES.forEach((m, i) => {
-    const bx = startX + i * (btnW + gap);
-    const by = 60;
-    const active = clinMode === m.id;
-    wristCtx.fillStyle = active ? m.color + '33' : 'rgba(255,255,255,0.04)';
-    roundRect(wristCtx, bx, by, btnW, btnH, 8);
-    wristCtx.fill();
-    wristCtx.strokeStyle = active ? m.color : 'rgba(255,255,255,0.1)';
-    wristCtx.lineWidth = active ? 2 : 1;
-    roundRect(wristCtx, bx, by, btnW, btnH, 8);
-    wristCtx.stroke();
-    wristCtx.fillStyle = active ? m.color : 'rgba(200,216,232,0.4)';
-    wristCtx.font = (active ? '700' : '500') + ' 20px sans-serif';
-    wristCtx.textAlign = 'center';
-    wristCtx.fillText(m.label, bx + btnW/2, by + btnH/2 + 7);
-  });
-  // Segment info
-  const seg = SEG_MAP[scope.segId];
-  wristCtx.fillStyle = 'rgba(200,216,232,0.3)';
-  wristCtx.font = '400 18px sans-serif';
-  wristCtx.textAlign = 'center';
-  wristCtx.fillText((seg?.name || 'TRACHEA').toUpperCase() + '  ·  ' + Math.round(scope.depth) + 'mm', W/2, H - 14);
-  wristTex.needsUpdate = true;
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.lineTo(x+w-r, y);
-  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
-  ctx.lineTo(x+w, y+h-r);
-  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-  ctx.lineTo(x+r, y+h);
-  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
-  ctx.lineTo(x, y+r);
-  ctx.quadraticCurveTo(x, y, x+r, y);
-  ctx.closePath();
-}
-
-// Only show wrist menu in VR
-rBro.xr.addEventListener('sessionstart', () => {
-  wristMesh.visible = true;
-  const vs = document.getElementById('vr-status');
-  const vl = document.getElementById('vr-status-lbl');
-  if (vs) vs.classList.add('active');
-  if (vl) vl.textContent = 'VR ACTIVE';
-  // Show controller hint for 6 seconds
-  const hint = document.getElementById('vr-hint');
-  if (hint) { hint.classList.add('show'); setTimeout(() => hint.classList.remove('show'), 6000); }
+const _refRegions=new Set(['RUL','RML','RLL','LUL','LLL']);
+const _refQuery=new URLSearchParams(location.search).get('focus');
+window.pulmoActiveReferenceRegion=_refRegions.has(_refQuery)?_refQuery:null;
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||event.source!==window.parent)return;
+  const value=event.data;
+  if(!value||value.channel!=='pulmosimu.reference-focus.v1'||
+    value.source!=='original-procedural-SEGS-snapshot-r2'||
+    value.type!=='anatomical-focus'||!_refRegions.has(value.regionId))return;
+  // Reference anatomical context is NOT the patient CT label or a scope instruction.
+  window.pulmoActiveReferenceRegion=value.regionId;
 });
-rBro.xr.addEventListener('sessionend', () => {
-  wristMesh.visible = false;
-  const vs = document.getElementById('vr-status');
-  const vl = document.getElementById('vr-status-lbl');
-  if (vs) vs.classList.remove('active');
-  if (vl) vl.textContent = 'VR READY';
-});
-wristMesh.visible = false;
-
-// ── 8. Override animate loop to use setAnimationLoop ────────────
-// Cancel existing rAF-based loop and replace with XR-compatible one
-// The original animate() is called once at the end of the script —
-// we patch the render calls here to use setAnimationLoop for rBro.
-const _origAnimate = animate; // keep reference
-let _xrLoopStarted = false;
-rBro.xr.addEventListener('sessionstart', () => {
-  if (_xrLoopStarted) return;
-  _xrLoopStarted = true;
-  rBro.setAnimationLoop((time, frame) => {
-    if (!rBro.xr.isPresenting) return;
-    pollVRGamepads();
-    applyVRInput();
-    drawWristMenu();
-    // Run scope physics (same as desktop animate — just the scope part)
-    const t = time * 0.001;
-    if (Math.abs(scope.velocity) > 0.0001) {
-      if (scope.velocity > 0) advance(scope.velocity);
-      else retract(-scope.velocity);
-      scope.velocity *= scope.velocityDecay;
-    }
-    updateScope();
-    // Render scene from VR camera (headset takes over projection)
-    rBro.render(scene, vrCam);
-  });
-});
-rBro.xr.addEventListener('sessionend', () => {
-  rBro.setAnimationLoop(null);
-  _xrLoopStarted = false;
-});
-
-console.log('PNEUMO·VR Phase 2 — WebXR controllers loaded');
 // ================================================================
-// END PHASE 2
+// XR-09 — Immersive bridge to ORIGINAL PNEUMO·VR procedural engine.
+// Single source of truth: this scene, lobes, pathologies and scope.
+// NOTE: This experimental adapter does not confer clinical validation.
+// ================================================================
+const xrProcedural=window.PulmoImmersiveXR?.install({
+  THREE, scene, rBro, rExt, camScope, mGrp,
+  vrCam:new THREE.PerspectiveCamera(76,1,.01,30),
+  scope, CFG, SEGS, SEG_MAP, pathCurves, patientData,
+  getMeshMode:()=>meshMode==='research'?'patient':meshMode,
+  getReferenceFocus:()=>meshMode==='reference'?window.pulmoActiveReferenceRegion:null,
+  getPatientAudit:()=>patientData.xrAudit||null,
+  getCTStudy:()=>meshMode==='research'&&patientData.ctVolume&&
+    patientData.sourceManifest&&patientData.sourceIntegrity?.verifiedBytes
+    ?{volume:patientData.ctVolume,manifest:patientData.sourceManifest,
+      ctSha:patientData.ctVolumeSha,meshSha:patientData.sourceIntegrity.sha256,
+      meshVerified:true}:null,
+  getMmPerSceneUnit:()=>mmPerUnit,
+  getScopeDiameterMm:()=>scopeDiamMm,
+  getAnatomyMeshes:()=>{
+    if((meshMode==='patient'||meshMode==='research')&&patientData.gltf)return [patientData.gltf];
+    if(meshMode!=='reference')return [];
+    return [...proceduralMeshes,...referenceMeshes,
+      ...Object.values(pathoMeshes).map(p=>p.mesh)];
+  },
+  pathoMeshes,
+  setClinMode,getClinMode:()=>clinMode,
+  fireAction,enterBranch,advance,retract,hideBranchSel,updateScope,onResize,showToast,
+  getExtIdle:()=>ext.idle,
+  setExtIdle:value=>{ext.idle=Boolean(value)}
+});
+if(!xrProcedural)console.warn('Procedural XR bridge missing; original desktop procedures remain available');
+// ================================================================
+// END XR-07
 // ================================================================
 
 
@@ -3886,6 +4076,35 @@ console.log('PNEUMO·VR Phase 2 — WebXR controllers loaded');
 // ── Single picker — select GLTF + JSON together ──────────────────
 // Browser blocks programmatic .click() on a second picker, so we use
 // one <input multiple> and sort files by extension client-side.
+async function loadResearchCTVolume(input){
+  const file=input.files?.[0];input.value='';
+  if(!file)return;
+  try{
+    if(meshMode!=='research'||!patientData.sourceManifest||
+       !patientData.sourceIntegrity?.verifiedBytes)
+      throw Error('First load the matching CT-derived GLB and source manifest');
+    if(!/\\.nii$/i.test(file.name))throw Error('Select an uncompressed NIfTI .nii');
+    if(!globalThis.crypto?.subtle)throw Error('Secure HTTPS or localhost is required');
+    const bytes=await file.arrayBuffer();
+    if(bytes.byteLength>750000000)throw Error('Volume exceeds 750 MB local limit');
+    const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),
+      x=>x.toString(16).padStart(2,'0')).join('');
+    if(sha.toLowerCase()!==patientData.sourceManifest.source_sha256.toLowerCase())
+      throw Error('CT SHA-256 does not match the loaded GLB study manifest');
+    const volume=window.PulmoNiftiSource.readNifti(bytes);
+    const match=window.PulmoNiftiSource.matchQA(volume,patientData.sourceManifest);
+    if(!match.valid)throw Error(match.reason);
+    patientData.ctVolume=volume;patientData.ctVolumeSha=sha;
+    const warning=document.getElementById('ct-source-warning');
+    if(warning)warning.textContent='Real NIfTI verified · '+volume.dims.join(' × ')+
+      ' · source anatomical segmentation UNVALIDATED';
+    showToast('Local CT verified for spatial XR MPR · '+volume.dims.join(' × '),'success');
+  }catch(error){
+    patientData.ctVolume=null;patientData.ctVolumeSha=null;
+    showToast('CT volume rejected · '+String(error.message||error),'error');
+  }
+}
+window.loadResearchCTVolume=loadResearchCTVolume;
 function triggerPatientLoad() {
   const picker = document.getElementById('patient-picker');
   picker.onchange = (e) => {
@@ -3915,18 +4134,33 @@ function triggerPatientLoad() {
       r.readAsText(jsonFile);
     });
 
-    Promise.all([readGLTF, readJSON]).then(([gltfBuf, jsonText]) => {
-      // Parse JSON first (fast) so it's ready when GLTF finishes
+    Promise.all([readGLTF, readJSON]).then(async ([gltfBuf, jsonText]) => {
       let meta;
       try { meta = JSON.parse(jsonText); }
       catch(err) { showToast('JSON parse error · ' + err.message, 'error'); return; }
-
-      // Load GLTF then apply meta
-      _loadGLTFFromArrayBuffer(gltfBuf, gltfFile.name, () => {
-        _applyPatientMeta(meta);
-      });
+      const research=window.PulmoCTResearchBridge;
+      if(research?.isResearchManifest(meta)){
+        // The CT airspace surface has no bronchial tree. Verify the exact
+        // binary first, then load in source-only mode: no simulation routes.
+        const integrity=await research.verifyGLB(gltfBuf,meta);
+        _loadGLTFFromArrayBuffer(gltfBuf,gltfFile.name,()=>{
+          patientData.sourceKind='ct-airspace-research';
+          patientData.sourceManifest=meta;
+          patientData.sourceIntegrity=integrity;
+          patientData.meta=null;patientData.xrAudit=null;
+          _setResearchNeutralMaterial(true);
+          setViewMode('research');
+          _focusCameraOnGLB(patientData.gltf);
+          _updateLoaderBanner(true);
+        },{deferFocus:true});
+      }else{
+        if(!Array.isArray(meta?.segments)||!meta?.version){
+          throw Error('Unsupported JSON: use a CT source manifest or matching airway pipeline sidecar');
+        }
+        _loadGLTFFromArrayBuffer(gltfBuf,gltfFile.name,()=>_applyPatientMeta(meta));
+      }
     }).catch(err => {
-      showToast('File read error · ' + err.message, 'error');
+      showToast('CT/GLB import rejected · '+String(err?.message||err),'error');
     });
 
     picker.value = ''; // reset for re-selection
@@ -3936,97 +4170,41 @@ function triggerPatientLoad() {
 window.triggerPatientLoad = triggerPatientLoad;
 
 // ── Load GLTF from ArrayBuffer ────────────────────────────────────
-function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
+function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={}) {
   const loader = new THREE.GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
 
-    // Hide all reference anatomy — keep in memory for REF toggle
-    proceduralMeshes.forEach(m=>m.visible=false);
-    referenceMeshes.forEach(m=>{if(m)m.visible=false;});
+    // Only pipeline-imported airway models supersede reference geometry.
+    // For research studies the dedicated view takes a full visibility
+    // snapshot *before* hiding reference scene elements.
+    if(!deferFocus){
+      proceduralMeshes.forEach(m=>m.visible=false);
+      referenceMeshes.forEach(m=>{if(m)m.visible=false;});
+    }
 
+    // Source-surface draft colours are disposed before a replacement
+    // study is mounted; no stale geometry or material remains.
+    if(ctLobeAtlas)closeCTTerritoryAtlas();
+    patientData.ctVolume=null;patientData.ctVolumeSha=null;
     // Remove previous patient GLB if reloading
     if (patientData.gltf) {
       mGrp.remove(patientData.gltf);
     }
 
-    // Patient GLB — anatomical bronchial tissue shader
-    // Target: warm salmon-pink tissue, visible cartilage rings, wet sheen, SSS
-    const PATIENT_V=`
-      varying vec3 vWP;varying vec3 vN;varying vec2 vUV;
-      void main(){
-        vN=normalize(mat3(modelMatrix)*normal);
-        vUV=uv;vWP=(modelMatrix*vec4(position,1.)).xyz;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
-      }`;
-    const PATIENT_F=`
-      precision highp float;
-      varying vec3 vWP;varying vec3 vN;varying vec2 vUV;
-      uniform float uT;
-      float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
-      float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
-        return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
-      float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<3;i++){v+=a*n2(p);p*=2.1;a*=.52;}return v;}
-      void main(){
-        vec3 N=normalize(vN);
-        vec3 viewDir=normalize(cameraPosition-vWP);
-        float u=vUV.x,v=vUV.y;
-
-        // ── Tissue base: warm salmon-pink, light variation ──
-        float noiseVal=fbm(vec2(u*4.,v*6.));
-        vec3 tissueLight=vec3(.92,.62,.50);  // highlight — light salmon
-        vec3 tissueDark =vec3(.82,.46,.36);  // shadow — warm rose
-        vec3 base=mix(tissueDark,tissueLight,noiseVal);
-
-        // ── Cartilage rings — C-shaped bands every ~14 uv units ──
-        float ring=fract(v*14.);
-        float inRing=smoothstep(.08,.14,ring)*smoothstep(.45,.38,ring);
-        // Posterior gap (trachealis membrane) — no cartilage at u≈0.5
-        float posterior=1.-smoothstep(.35,.5,abs(fract(u+.5)-.5)*2.);
-        float cartilage=inRing*(1.-posterior*.9);
-        vec3 cartCol=vec3(.80,.72,.58);  // pale yellowish cartilage
-        base=mix(base,cartCol,cartilage*.65);
-
-        // ── Vasculature — subtle arterial/venous threads ──
-        float art=smoothstep(.08,.0,abs(sin(v*22.+fbm(vec2(u*4.,v*2.))*2.5)));
-        float ven=smoothstep(.10,.0,abs(sin(v*17.+(u+.2)*3.+fbm(vec2(u*3.,v*3.))*2.)));
-        float pulse=sin(uT*2.6)*.5+.5;
-        base=mix(base,vec3(.82,.12,.08),art*.35*(1.+pulse*.2));
-        base=mix(base,vec3(.30,.08,.28),ven*.28);
-
-        // ── Multi-light diffuse — high ambient floor so nothing goes black ──
-        vec3 key =normalize(vec3( 2., 5., 4.));
-        vec3 fill=normalize(vec3(-3.,-1., 2.));
-        vec3 rim =normalize(vec3(-1., 2.,-4.));
-        vec3 back=normalize(vec3( 0.,-1.,-1.));
-        float diff= max(dot(N,key), 0.)*.65
-                  + max(dot(N,fill),0.)*.20
-                  + max(dot(N,rim), 0.)*.15
-                  + max(dot(N,back),0.)*.10
-                  + .48;  // strong ambient floor — no face goes black
-
-        // ── Wet specular ──
-        vec3 H=normalize(key+viewDir);
-        float spec=pow(max(dot(N,H),0.),60.)*.6;
-        float cartSpec=pow(max(dot(N,H),0.),120.)*cartilage*.5;
-
-        // ── Subsurface scatter — backlit warmth through thin tissue ──
-        float sss=pow(max(dot(viewDir,-N),0.),2.)*.28;
-
-        vec3 col=base*diff;
-        col+=vec3(.98,.96,.94)*(spec+cartSpec);
-        col+=vec3(.92,.30,.14)*sss;
-        col+=base*.18;  // emissive floor — always readable in dark scene
-
-        gl_FragColor=vec4(clamp(col,0.,1.),1.);
-      }`;
-    const patientMat = new THREE.ShaderMaterial({
-      uniforms:{ uT:{value:0} },
-      vertexShader: PATIENT_V,
-      fragmentShader: PATIENT_F,
-      side: THREE.DoubleSide,
+    // Source-fidelity rule: an imported CT/GLB is rendered with its
+    // authored material and actual mesh geometry. Do NOT paint invented
+    // cartilage rings, vessels, wet mucosa or pathology from noise functions.
+    // Those require their own measured/segmented inputs and provenance.
+    // Existing authored GLB material colors are preserved.
+    patientData._mat = null;
+    patientData.sourceKind=null;
+    patientData.sourceManifest=null;
+    patientData.sourceIntegrity=null;
+    patientData.researchMaterials=null;
+    patientData.researchNeutral=false;
+    const neutralFallback = new THREE.MeshStandardMaterial({
+      color:0xb19b94,roughness:.83,metalness:0,side:THREE.DoubleSide
     });
-    // Animate the shader uniform in the render loop
-    patientData._mat = patientMat;
     gltf.scene.traverse(child => {
       if (child.isMesh) {
         // Ensure smooth normals — compute if not in GLB
@@ -4034,7 +4212,9 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
           child.geometry.computeVertexNormals();
         }
         child.geometry.normalizeNormals();
-        child.material = patientMat;
+        // Keep source-defined segmentation colors/materials; a fallback is
+        // allowed only for malformed meshes lacking any material.
+        if(!child.material)child.material=neutralFallback;
         child.castShadow = false;
         child.receiveShadow = false;
       }
@@ -4042,14 +4222,19 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
 
     mGrp.add(gltf.scene);
     patientData.gltf = gltf.scene;
+    patientData.meta = null;patientData.xrAudit = null;
     patientData.loaded = true;
     patientData.patientId = filename.replace(/[.][^.]+$/, '');
 
-    // Auto-focus external camera onto loaded mesh
-    _focusCameraOnGLB(gltf.scene);
-    // Boost scene lighting for patient mesh visibility
-    kL.intensity = 5.5;
-    fillL.intensity = 2.2;
+    // The research loader captures the original camera BEFORE fitting,
+    // so returning to reference simulation restores its previous framing.
+    if(!deferFocus)_focusCameraOnGLB(gltf.scene);
+    // Research sources keep existing light settings, so switching back
+    // to the original procedure cannot inherit an exaggerated exposure.
+    if(!deferFocus){
+      kL.intensity=5.5;
+      fillL.intensity=2.2;
+    }
 
     // Update the loader banner
     _updateLoaderBanner(true);
@@ -4061,14 +4246,47 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone) {
   });
 }
 
+// ── Local geometry contract — mesh geometry relative to mGrp, never
+// viewport/world transformed by the currently selected desktop/XR view.
+function _xr08MeshBoundsLocal(root) {
+  if(!root||!root.isObject3D)throw Error('No CT mesh loaded');
+  mGrp.updateMatrixWorld(true);
+  const inv=new THREE.Matrix4().copy(mGrp.matrixWorld).invert();
+  const box=new THREE.Box3().makeEmpty(),relative=new THREE.Matrix4();
+  root.traverse(child=>{
+    if(!child.isMesh||!child.geometry)return;
+    if(!child.geometry.boundingBox)child.geometry.computeBoundingBox();
+    if(!child.geometry.boundingBox)return;
+    child.updateMatrixWorld(true);
+    relative.multiplyMatrices(inv,child.matrixWorld);
+    box.union(child.geometry.boundingBox.clone().applyMatrix4(relative));
+  });
+  if(box.isEmpty())throw Error('GLB contains no measurable mesh surface');
+  return {min:box.min.toArray(),max:box.max.toArray()};
+}
 // ── Apply JSON sidecar — rebuild segment graph ────────────────────
 function _applyPatientMeta(meta) {
-  if (!meta.segments || !meta.version) {
+  if (!meta?.segments || !meta.version) {
     showToast('Invalid meta JSON · missing segments', 'error');
-    return;
+    setViewMode('reference');return;
   }
 
+  // Critical: reject mismatched CT mesh/graph BEFORE replacing original
+  // bronchoscopy segments and pathology. This is a co-frame plausibility
+  // gate, not independently validated DICOM orientation/segmentation.
+  try {
+    patientData.xrAudit=window.PulmoXR08.assessRegistration(
+      meta,_xr08MeshBoundsLocal(patientData.gltf));
+  } catch(error) {
+    patientData.xrAudit=null;patientData.meta=null;
+    setViewMode('reference');
+    showToast('CT registration rejected · '+error.message,'error');
+    console.warn('PulmoSIMU XR-08 registration gate',error.message);
+    return;
+  }
   patientData.meta = meta;
+  patientData.sourceKind='registered-airway-pipeline';
+  patientData.sourceManifest=null;
 
   // ── Rebuild SEGS from meta ──────────────────────────────────────
   // Clear existing procedural curves and meshes from mGrp
@@ -4087,7 +4305,8 @@ function _applyPatientMeta(meta) {
       pts:      pts3,
       r0:       s.r0,
       r1:       s.r1,
-      children: s.children,
+      children: Array.isArray(s.children)?s.children:
+        meta.segments.filter(candidate=>candidate.parent===s.id).map(candidate=>candidate.id),
       parent:   s.parent ?? -1,
     };
     SEGS.push(seg);
@@ -4131,9 +4350,11 @@ function _applyPatientMeta(meta) {
   }
 
   // Reset scope to start of new tree
-  scope.segId = 0;
+  const ids=new Set(meta.segments.map(segment=>segment.id));
+  const rootSegment=meta.segments.find(segment=>!ids.has(segment.parent));
+  scope.segId = rootSegment.id;
   scope.t = 0.01;
-  scope.history = [{ segId: 0, t: 0.01 }];
+  scope.history = [{ segId: rootSegment.id, t: 0.01 }];
   hideBranchSel();
   updateScope();
   drawMap();
@@ -4141,10 +4362,10 @@ function _applyPatientMeta(meta) {
   // Calibrate mm scale from pipeline transform
   if(meta.transform?.is_synthetic){
     mmPerUnit = 100; // synthetic: 2.4 units span ≈ 240mm airway → 100mm/unit
-  } else if(meta.transform?.scale && meta.transform.scale > 1){
-    mmPerUnit = 1000 / meta.transform.scale;
   } else {
-    mmPerUnit = 100;
+    // Non-synthetic CT pipeline mapping: sceneUnitMetres = 1 / scale.
+    // This is source transform provenance, not independent CT registration.
+    mmPerUnit = 1000 / meta.transform.scale;
   }
 
   // Switch view to patient mode
@@ -4181,7 +4402,17 @@ function _updateLoaderBanner(loaded) {
   const banner = document.getElementById('patient-loader');
   if (!banner) return;
   if (loaded) {
-    const pid = patientData.patientId || 'Patient';
+    const pid = patientData.patientId || 'Imported model';
+    if(patientData.sourceKind==='ct-airspace-research'){
+      banner.innerHTML = `
+      <div class="pl-icon">◈</div>
+      <div class="pl-text">
+        <div class="pl-title">CT AIRSPACE · RESEARCH SOURCE</div>
+        <div class="pl-sub">Source GLB hash matched · No registered airway or pathology</div>
+      </div>
+      <div class="pl-action" onclick="triggerPatientLoad()">CHANGE</div>`;
+      return;
+    }
     banner.innerHTML = `
       <div class="pl-icon">✓</div>
       <div class="pl-text">

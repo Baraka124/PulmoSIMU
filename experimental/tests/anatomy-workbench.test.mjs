@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {loadAirwayGraph} from '../anatomy/airway-graph.js';
+import {createAnatomicalWorkbench,sectionalLocalPoint} from '../xr/anatomy-workbench.js';
+const data=JSON.parse(readFileSync(new URL('../anatomy/reference-airways.json',import.meta.url),'utf8'));
+const graph=loadAirwayGraph(data);
+test('uses original reference graph and never derives patient measurements',()=>{
+ const w=createAnatomicalWorkbench(graph),v=w.snapshot();
+ assert.equal(v.source,'pulmosimu-airway-reference-r2');
+ assert.equal(v.regionId,'RUL');assert.equal(v.calibrated,false);assert.equal(v.measurementsAllowed,false);
+ assert.ok(v.branchCount>=1&&v.branchId!==null);
+ assert.deepEqual(v.pathIds,graph.chain(v.branchId).map(n=>n.id));
+ assert.ok(v.pathIds.includes(0));
+});
+test('select branch preserves canonical source branch identifier and region',()=>{
+ const w=createAnatomicalWorkbench(graph);
+ const branch=graph.nodes.find(x=>graph.regionOf(x.id)==='LLL'&&x.children.length===0);
+ assert.equal(w.selectBranch(branch.id),true);
+ assert.equal(w.snapshot().regionId,'LLL');
+ assert.equal(w.snapshot().branchId,branch.id);
+ assert.equal(w.snapshot().branchName,branch.name);
+ assert.equal(w.selectBranch(-99),false);
+ assert.equal(w.selectBranch(0),false);
+ assert.equal(w.snapshot().regionId,'LLL');
+});
+test('step through real segment hierarchy and reset on lobe change',()=>{
+ const w=createAnatomicalWorkbench(graph,{initialRegion:'RML'});
+ const original=w.snapshot().branchId;
+ assert.equal(w.nextBranch(1)!==original,true);
+ assert.equal(graph.regionOf(w.snapshot().branchId),'RML');
+ assert.equal(w.nextBranch(-1),original);
+ assert.equal(w.selectRegion('LUL'),true);
+ assert.equal(w.snapshot().regionId,'LUL');
+ assert.equal(graph.regionOf(w.snapshot().branchId),'LUL');
+ assert.equal(w.selectRegion('NOPE'),false);
+ assert.throws(()=>w.nextBranch(0));
+});
+test('section fraction is bounded and reversible, not a cutting or physics operation',()=>{
+ const w=createAnatomicalWorkbench(graph);
+ w.setSection(true);
+ assert.equal(w.moveSection(2),1);
+ assert.equal(w.moveSection(-4),-1);
+ assert.deepEqual(sectionalLocalPoint({center:[1,2,3],depth:4,fraction:-1}),[1,2,1]);
+ assert.deepEqual(sectionalLocalPoint({center:[1,2,3],depth:4,fraction:1}),[1,2,5]);
+ assert.equal(w.resetSection().sectionActive,false);
+ assert.equal(w.snapshot().sectionFraction,0);
+ assert.throws(()=>w.moveSection(Infinity));
+ assert.throws(()=>sectionalLocalPoint({center:[1,2,3],depth:-5,fraction:.5}));
+});
