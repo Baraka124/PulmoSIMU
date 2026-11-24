@@ -15,9 +15,30 @@ main{max-width:1700px;margin:auto;padding:23px 27px 27px}.intro{display:flex;jus
 dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px solid #53707c;border-radius:5px;color:var(--ink);padding:25px}dialog::backdrop{background:#02090bd9}dialog h2{font-size:20px;margin:0 0 14px}dialog p{font-size:12px;color:var(--muted);line-height:1.7}dialog button{margin-top:12px}
 @media(max-width:900px){.workspace{grid-template-columns:1fr}.inspector{display:grid;grid-template-columns:1fr 1fr}.inspector .warning{grid-column:span 2}.stage{height:55vh;min-height:340px}.mpr-pane canvas{height:195px}}
 @media(max-width:640px){header{padding:0 16px;height:60px}main{padding:19px 16px}.intro{display:block}.sourcebar{gap:11px}.sourcebar .caption{width:100%}.push{margin-left:0}.fileinput .filename{max-width:150px}.stage{height:45vh;min-height:280px}.inspector{grid-template-columns:1fr 1fr;padding:15px}.mpr{grid-template-columns:1fr}.mpr-pane canvas{height:230px}.viewerbar{align-items:start}.slicecontrol{gap:7px}.headright{font-size:9px}}
+
+.review-panel{margin-top:20px;padding:19px 20px;background:#15242d;border:1px solid var(--edge);border-radius:4px}
+.review-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.review-heading h2{font-size:16px;font-weight:560;letter-spacing:-.02em;margin:0}
+.review-heading p{margin:2px 0 0;color:var(--muted);font-size:11px;max-width:640px}
+.review-status{font-size:11px;color:#c8b5a0}
+.review-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0}
+.review-controls select,.review-controls input[type=text]{background:#1b2c36;border:1px solid var(--edge);border-radius:3px;color:var(--ink);padding:8px 10px;min-height:36px}
+.review-controls select{max-width:190px}.review-controls input[type=text]{flex:1 1 180px;min-width:150px}
+.review-controls label{color:var(--fine);font-size:11px}
+.review-controls button{font-size:11px;padding:8px 11px}
+.review-list{max-height:226px;overflow-y:auto}
+.review-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #304650}
+.review-row .review-description{flex:1;color:#bdd0d8;font-size:11px;min-width:0;overflow-wrap:anywhere}
+.review-row .review-description strong{font-weight:600;color:#e4edf0;margin-right:8px}
+.review-row button{font-size:10px;padding:5px 8px;background:transparent}
+.review-import{border:1px solid var(--edge);padding:8px 10px;border-radius:3px;cursor:pointer;color:var(--ink)!important}
+.review-import:has(input:disabled){opacity:.35;cursor:not-allowed}
+.review-import input{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0)}
+.review-import:focus-within{outline:2px solid #bbdce5;outline-offset:3px}
+@media(max-width:640px){.review-panel{padding:15px}.review-controls select{flex:1}.review-row{flex-wrap:wrap}}
 </style>
 </head><body>
-<header><div class="brand">Pulmo<span>SIMU</span> <span style="font-weight:300;color:#698795"> / Source Anatomy</span></div><div class="headright">A1–A2 / CT SOURCE QA · UNVALIDATED</div></header>
+<header><div class="brand">Pulmo<span>SIMU</span> <span style="font-weight:300;color:#698795"> / Source Anatomy</span></div><div class="headright">A1–A2.3 / CT SOURCE QA · UNVALIDATED</div></header>
 <main>
   <div class="intro"><div><p class="eyebrow">Computational pulmonary anatomy</p><h1>Study the anatomical source.</h1><p class="subtitle">Compare CT-derived lung surfaces with the original image. All selected files stay in this browser session; no study is uploaded.</p></div><button id="offline-help" type="button">How to load a study</button></div>
   <section id="source-files" class="sourcebar" aria-label="Load source imaging files">
@@ -60,13 +81,27 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
     <div class="mpr-pane"><div class="mpr-title"><span>02 / Coronal</span><span id="plane-coronal">—</span></div><canvas id="mpr-coronal" width="512" height="550" aria-label="Coronal CT source; click to position crosshair"></canvas><div class="empty-slice">2 mm original through-plane spacing</div></div>
     <div class="mpr-pane"><div class="mpr-title"><span>03 / Sagittal</span><span id="plane-sagittal">—</span></div><canvas id="mpr-sagittal" width="512" height="550" aria-label="Sagittal CT source; click to position crosshair"></canvas><div class="empty-slice" id="ras-readout">RAS coordinates appear when CT is loaded</div></div>
   </section>
+  <section class="review-panel" aria-label="CT-linked source review observations">
+    <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
+    <div class="review-controls">
+      <label for="review-region">Territory</label><select id="review-region" aria-label="Proposed pulmonary lobe territory"><option value="unassigned">Unassigned</option><option value="RUL">Right upper</option><option value="RML">Right middle</option><option value="RLL">Right lower</option><option value="LUL">Left upper</option><option value="LLL">Left lower</option></select>
+      <label for="review-finding">Observation</label><select id="review-finding" aria-label="Review finding"><option value="fissure-proposal">Fissure proposal</option><option value="boundary-concern">Mask boundary concern</option><option value="source-artifact">Source artifact</option><option value="other">Other observation</option></select>
+      <input id="review-note" type="text" maxlength="280" placeholder="Optional observation note" aria-label="Manual source review note">
+      <button id="review-add" type="button" disabled>Mark CT point</button>
+      <label class="review-import" for="review-import">Import JSON<input id="review-import" type="file" accept=".json" disabled aria-label="Import exact-study review JSON"></label>
+      <button id="review-export" type="button" disabled>Export JSON</button>
+      <button id="review-clear" type="button" disabled>Clear session</button>
+    </div>
+    <div class="review-list" id="review-list" aria-label="Manual CT point observations"><div class="muted">No review marks. Select a source-verified CT position, then choose Mark CT point.</div></div>
+  </section>
   <div class="lower"><span>Source provenance: user-supplied, locally loaded study. Threshold-based surfaces may miss consolidation and fine airways; no clinical validation is implied. Registration is locked until matching image + manifest are supplied.</span><a href="../index.html?xr=procedural&amp;release=XR09-UNIFIED&amp;interaction=XR14">Open original procedural simulator</a></div>
 </main>
-<dialog id="help-dialog"><h2>Load source-derived anatomy</h2><p><strong>1.</strong> Select the CT-derived binary GLB to inspect its meshes. <strong>2.</strong> Select the original uncompressed NIfTI <code>.nii</code> CT to inspect its three source planes. <strong>3.</strong> Select its reconstruction manifest JSON to verify dimensions, sform transform and intensity scaling.</p><p>The study remains on your device. The gold 3D crosshair and section clipping become available only after source headers agree with the manifest. Those checks do not prove that the lung mask is clinically accurate. Browsers need internet access for the Three.js graphics libraries used by this research workstation.</p><p>For the bundled reference study, use the included GLB and manifest, then choose your original NLST NIfTI file. For a future study, its own separately documented coordinate transform is required.</p><button id="help-close" type="button">Close</button></dialog>
+<dialog id="help-dialog"><h2>Load source-derived anatomy</h2><p><strong>1.</strong> Select the CT-derived binary GLB to inspect its meshes. <strong>2.</strong> Select the original uncompressed NIfTI <code>.nii</code> CT to inspect its three source planes. <strong>3.</strong> Select its reconstruction manifest JSON to verify dimensions, sform transform and intensity scaling.</p><p>The study remains on your device. Manual A2.3 review marks are exported only when you select Export JSON and can be re-imported only for the exact same verified CT and GLB. The gold 3D crosshair and section clipping become available only after source headers agree with the manifest. Those checks do not prove that the lung mask is clinically accurate. Browsers need internet access for the Three.js graphics libraries used by this research workstation.</p><p>For the bundled reference study, use the included GLB and manifest, then choose your original NLST NIfTI file. For a future study, its own separately documented coordinate transform is required.</p><button id="help-close" type="button">Close</button></dialog>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="./anatomy/nifti-source.js"></script>
 <script src="./anatomy/a4-source-gate.js?v=A4-SOURCE"></script>
-<script src="./anatomy/inspector-app.js"></script>
+<script src="./anatomy/source-review.js?v=A23-REVIEW"></script>
+<script src="./anatomy/inspector-app.js?v=A23-REVIEW"></script>
 </body></html>
