@@ -9,7 +9,7 @@
 function install(ctx){
   const {THREE,scene,rBro,rExt,camScope,mGrp,vrCam,scope,CFG,
     SEGS,SEG_MAP,pathCurves,patientData,getMeshMode,getAnatomyMeshes,
-    getPatientAudit,getMmPerSceneUnit,getScopeDiameterMm,getReferenceFocus,
+    getPatientAudit,getCTStudy,getMmPerSceneUnit,getScopeDiameterMm,getReferenceFocus,
     setClinMode,getClinMode,fireAction,enterBranch,advance,retract,hideBranchSel,
     updateScope,onResize,showToast,getExtIdle,setExtIdle}=ctx;
   if(!THREE||!scene||!rBro||!mGrp||!scope)throw Error('Procedural XR bridge missing original clinical engine');
@@ -79,6 +79,7 @@ function install(ctx){
   let boundsCache=null,limitsApplied=0,scaleClamps=0,workspaceClamps=0;
   const viewHistory=global.PulmoXRViewHistory.create(24);
   let pivotMode='center',axisMode='yaw',analogChangedAt=0;
+  let orientationLocked=false,orientationAnchor=null,ctSpatial=null,ctAxis='axial';
   const viewPose=()=>({
     position:mGrp.position.toArray(),quaternion:mGrp.quaternion.toArray(),
     scale:mGrp.scale.x
@@ -95,6 +96,7 @@ function install(ctx){
     if(!pose)return false;
     mGrp.position.fromArray(pose.position);
     mGrp.quaternion.fromArray(pose.quaternion);
+    if(orientationLocked)orientationAnchor=mGrp.quaternion.clone();
     mGrp.scale.setScalar(pose.scale);
     constrainSizeAndFocus();grabFeedback=direction.toUpperCase()+' / ANATOMY VIEW RESTORED';
     paint();return true;
@@ -233,6 +235,7 @@ function install(ctx){
       .65/Math.max(.0001,bounds.size.y)),modelExtent());
     const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.1,0));
     mGrp.quaternion.identity();
+    if(orientationLocked)orientationAnchor=mGrp.quaternion.clone();
     mGrp.scale.setScalar(scale);scaleMode='comfort';
     mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale));
     mGrp.updateMatrixWorld(true);placed=true;
@@ -400,6 +403,12 @@ function install(ctx){
       effectiveGrip(i).updateMatrixWorld(true);
       const matrix=new THREE.Matrix4().multiplyMatrices(effectiveGrip(i).matrixWorld,grab[i].relative);
       matrix.decompose(mGrp.position,mGrp.quaternion,mGrp.scale);
+    }
+    // Keep intended grasp translation without controller-induced rotation.
+    if(orientationLocked&&orientationAnchor){
+      const proposedCenter=focusWorld();
+      mGrp.quaternion.copy(orientationAnchor);
+      mGrp.position.add(proposedCenter.sub(focusWorld()));
     }
     // Clamp the visible organ, not its arbitrary scene pivot. This prevents
     // giant scales and allows the grip to move farther within a safe workspace.
@@ -583,15 +592,42 @@ function install(ctx){
       grabFeedback='VIEW ROTATION PIVOT / '+pivotMode.toUpperCase();paint();return;
     }
     if(action==='axis'){
-      const axisList=['yaw','pitch','roll'];
+      const axisList=['yaw','pitch','roll','locked'];
       axisMode=axisList[(axisList.indexOf(axisMode)+1)%axisList.length];
-      grabFeedback='VIEW ROTATION AXIS / '+axisMode.toUpperCase();paint();return;
+      orientationLocked=axisMode==='locked';
+      orientationAnchor=orientationLocked?mGrp.quaternion.clone():null;
+      grabFeedback=orientationLocked?'ORIENTATION LOCKED / POSITION AND SCALE STILL ACTIVE':
+        'VIEW ROTATION AXIS / '+axisMode.toUpperCase();
+      paint();return;
+    }
+    if(action==='ct-axis'){
+      ctAxis=['axial','coronal','sagittal'][
+        (['axial','coronal','sagittal'].indexOf(ctAxis)+1)%3];
+      paint();return;
+    }
+    if(action==='ct-prev'||action==='ct-next'){
+      if(ctSpatial)ctSpatial.step(ctAxis,action==='ct-next'?1:-1);
+      paint();return;
+    }
+    if(action==='ct-sections'){
+      if(ctSpatial)ctSpatial.setVisible(!ctSpatial.snapshot().visible);
+      paint();return;
     }
     if(action==='anatomy')setMode('anatomy');
     if(action==='procedure')setMode('procedure');
     if(action==='reset')frameGroup();
     if(action==='scale'){
-      if(!setSourceScale())showToast('Source scale requires co-framed CT metadata (not synthetic)','warn');
+      const study=getCTStudy?.();
+      if(study&&getMeshMode()==='patient'){
+        try{
+          if(!ctSpatial)ctSpatial=global.PulmoXRCTSpatial.create(THREE,mGrp,study);
+          ctSpatial.setVisible(true);ctAxis='axial';menuPage='ct';
+          actionHitbox=panelLayouts.ct;
+          grabFeedback='VERIFIED CT VOXELS / MPR INSPECTION, NOT SEGMENTED TISSUE';
+        }catch(error){showToast('Spatial CT unavailable: '+String(error.message||error),'warn')}
+      }else if(!setSourceScale()){
+        showToast('Source scale requires eligible original co-framed metadata','warn');
+      }
     }
     if(action==='tool')setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
     if(action==='guide'){
@@ -640,7 +676,7 @@ function install(ctx){
     if(side==='right'){
       // Right stick: yaw around the visible anatomy centre and move along
       // the viewer's depth axis. It does not move the camera or the user.
-      if(Math.abs(x)>.02){
+      if(Math.abs(x)>.02&&!orientationLocked){
         if(!analogChangedAt)beginViewChange();
         const axes={yaw:new THREE.Vector3(0,1,0),
           pitch:new THREE.Vector3(1,0,0),roll:new THREE.Vector3(0,0,1)};
@@ -791,6 +827,14 @@ function install(ctx){
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
+    ct:[
+      {id:'ct-axis',label:'SELECT PLANE',u:.05,v:.54,w:.43,h:.12},
+      {id:'ct-sections',label:'HIDE / SHOW MPR',u:.52,v:.54,w:.43,h:.12},
+      {id:'ct-prev',label:'SLICE - 1',u:.05,v:.69,w:.43,h:.12},
+      {id:'ct-next',label:'SLICE + 1',u:.52,v:.69,w:.43,h:.12},
+      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
       {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
@@ -806,7 +850,9 @@ function install(ctx){
     const audit=getPatientAudit?.();
     const role=getMeshMode();
     const referenceFocus=role==='reference'?(getReferenceFocus?.()||null):null;
-    const source=role==='patient'&&audit?.status==='coframed'
+    const source=role==='patient'&&getCTStudy?.()
+      ?'VERIFIED NIFTI SOURCE / RAS-COFRAMED · ANATOMY UNVALIDATED'
+      :role==='patient'&&audit?.status==='coframed'
       ?(audit.source==='synthetic'?'SYNTHETIC · COFRAMED ONLY':'CT-DERIVED · COFRAMED / UNVERIFIED')
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
@@ -817,11 +863,14 @@ function install(ctx){
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
+      menuPage==='ct'?'Source CT / spatial sections':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
     c.fillText((mode==='procedure'
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
-      :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
+      :menuPage==='ct'&&ctSpatial
+        ?'CT '+ctAxis.toUpperCase()+' / slice '+ctSpatial.snapshot().sections[ctAxis]
+        :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
@@ -844,11 +893,15 @@ function install(ctx){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
       const hovered=hoverPanels.includes(a.id);
-      const available=(a.id!=='scale'||Boolean(audit?.sourceScaleEligible&&role==='patient')) &&
+      const available=(a.id!=='scale'||Boolean((audit?.sourceScaleEligible||getCTStudy?.())&&role==='patient')) &&
         (a.id!=='undo'||viewHistory.status().undo>0) &&
         (a.id!=='redo'||viewHistory.status().redo>0) &&
         (a.id!=='procedure'||role==='reference');
-      const label=a.id==='view'
+      const label=a.id==='scale'&&role==='patient'&&getCTStudy?.()?'CT SECTIONS':
+        a.id==='axis'&&orientationLocked?'ORIENTATION LOCKED':
+        a.id==='ct-axis'?'PLANE '+ctAxis.toUpperCase():
+        a.id==='ct-sections'&&ctSpatial?(ctSpatial.snapshot().visible?'HIDE MPR':'SHOW MPR'):
+        a.id==='view'
         ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
         a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
@@ -1207,6 +1260,8 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     viewHistory.clear();analogChangedAt=0;pivotMode='center';axisMode='yaw';
+    orientationLocked=false;orientationAnchor=null;ctAxis='axial';
+    if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     menuPage='primary';actionHitbox=panelLayouts.primary;
     stage.setMode('studio');
     physicsSnapshot=null;physicsError=null;
@@ -1296,10 +1351,12 @@ function install(ctx){
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
       controllerActions:{...attempts},
-      viewHistory:viewHistory.status(),pivotMode,axisMode
+      viewHistory:viewHistory.status(),pivotMode,axisMode,
+      orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
+    if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
     if(guidePlane)guidePlane.visible=false;
     // Restore the exact pre-session desktop scene and renderer blend state.
