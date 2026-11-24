@@ -25,8 +25,9 @@
 <script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
 <script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE"></script>
+<script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR15-VIEW-CONTROLS"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -2114,7 +2115,7 @@ void main(){
   mucosaBase=mix(mucosaBase,vec3(.80,.04,.02),uBleed*.6);
   vec3 col=mucosaBase*mucosaRegion;col=mix(col,cartCol,cartilagePresence*.78);col=mix(col,membraneCol,membraneStr*.6);
   vec3 L=normalize(uSP-vWP);float att=1./(1.+length(vWP-uSP)*length(vWP-uSP)*2.5);float diff=max(dot(N,L),0.)*att;
-  vec3 vD=normalize(-vWP);vec3 H=normalize(L+vD);
+  vec3 vD=normalize(cameraPosition-vWP);vec3 H=normalize(L+vD);
   float cartSpec=pow(max(dot(N,H),0.),120.)*cartilagePresence*.9*att;float wetSpec=pow(max(dot(N,H),0.),48.)*mucosaRegion*.5*att;
   float mucusSpec=pow(max(dot(N,H),0.),64.)*mucus*1.2*att;float vSpec=pow(max(dot(N,H),0.),32.)*vascSpec*att;
   float sss=pow(max(-dot(N,L),0.),2.)*.3*att;
