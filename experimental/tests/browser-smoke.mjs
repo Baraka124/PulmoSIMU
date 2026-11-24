@@ -610,6 +610,42 @@ try {
    assert.match(await legacy.title(),/PNEUMO/i,'Original surgical application title');
    assert.ok(await legacy.locator('#c-ext').count()>0,'Original external 3D procedure canvas exists');
    assert.ok(await legacy.locator('#c-bro').count()>0,'Original bronchoscopic procedure canvas exists');
+   const spatialSource=await legacy.evaluate(()=>{
+     const THREE=window.THREE,api=window.PulmoXRCTSpatial;
+     if(!THREE||!api||!window.PulmoNiftiSource)throw Error('E2 source XR scripts not loaded');
+     const affine=[[1,0,0,-4],[0,-1,0,2],[0,0,2,-20],[0,0,0,1]];
+     const volume={
+       dims:[4,3,2],affine,spacing:[1,1,2],slope:1,intercept:-1024,
+       ras:(i,j,k)=>[i-4,2-j,2*k-20],voxel:(i,j,k)=>i*100+j*20+k*10-1024
+     };
+     const manifest={
+       source_shape_vox:volume.dims,sform_RAS_mm:affine,
+       HU_stored_slope:1,HU_stored_intercept:-1024,
+       source_sha256:'a'.repeat(64),mesh_sha256:'b'.repeat(64),
+       model_from_ras_mm:[[.001,0,0,0],[0,0,.001,.39],[0,-.001,0,.12],[0,0,0,1]]
+     };
+     const study={volume,manifest,ctSha:'a'.repeat(64),meshSha:'b'.repeat(64),meshVerified:true};
+     const sceneGroup=new THREE.Group();
+     const initial=sceneGroup.children.length;
+     const view=api.create(THREE,sceneGroup,study);
+     view.setVisible(true);
+     const before=view.snapshot();
+     const after=view.step('axial',1);
+     const drawn=view.group.children.length;
+     const labels=view.group.children.map(x=>x.name).sort();
+     view.dispose();
+     const domain=window.PulmoXRScience.classify({modelRole:'patient',ctStudy:study,referenceSolverReady:true});
+     return {initial,drawn,labels,before:before.sections.axial,
+       after:after.sections.axial,remaining:sceneGroup.children.length,
+       physics:domain.respiratoryPhysics,procedure:domain.bronchoscopy};
+   });
+   assert.equal(spatialSource.initial,0);
+   assert.equal(spatialSource.drawn,3,'Source-backed anatomical CT has three real voxel sections');
+   assert.equal(spatialSource.remaining,0,'CT spatial resources disposed without changing original scene');
+   assert.notEqual(spatialSource.before,spatialSource.after,'CT slice control advances actual voxel index');
+   assert.equal(spatialSource.physics,'NOT_ATTACHED');
+   assert.equal(spatialSource.procedure,'CT_SPECIFIC_PROCEDURE_BLOCKED');
+   console.log('PASS E1–E4 XR: source MPR three-plane rendering, cleanup, source-science safety');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 
