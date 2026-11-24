@@ -39,7 +39,7 @@ test('XR15 runtime preserves original meshes and exposes functional controls',()
    assert.ok(runtime.includes(t),'Missing source-preserving precision interaction: '+t)
  }
  assert.ok(main.includes('view-history.js?v=XR15-UNDO'));
- assert.ok(main.includes('procedural-immersive.js?v=XR15-VIEW-CONTROLS'));
+ assert.ok(main.includes('procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING'));
  assert.ok(!source.includes('geometry.attributes.position.setXYZ'));
  assert.ok(!source.includes('mesh.geometry'));
 });
