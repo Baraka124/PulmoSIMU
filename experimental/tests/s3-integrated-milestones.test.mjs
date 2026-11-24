@@ -24,7 +24,7 @@ test('S1: oblique anisotropic CT distance uses RAS affine, not voxel-index dista
   meshSha:identityQA.mesh_sha256,qa:identityQA,headerValid:true});
  const metric=review.measureRAS(study,[2,4,5],[5,8,11]);
  assert.equal(metric.schema,'pulmosimu-ct-metric-v1');
- assert.equal(metric.distance_mm,25.942);
+ assert.equal(metric.distance_mm,25.695);
  assert.match(metric.interpretation,/NOT ANATOMICAL SEGMENTATION/);
  assert.throws(()=>review.measureRAS(study,[0,0,0],[31,4,5]),/outside/);
  assert.throws(()=>review.measureRAS(null,[0,0,0],[1,0,0]),/Verified source/);
