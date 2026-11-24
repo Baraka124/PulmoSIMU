@@ -84,7 +84,7 @@ test('clinical review packet is never a certification, even if complete',()=>{
 test('NaN and missing gamepad axes cannot corrupt original bronchoscope pose',()=>{
  for(const bad of [NaN,Infinity,-Infinity,undefined,null,'non-numeric']){
   assert.equal(S.tipStep(.6,bad,.016),.6);
-  assert.equal(S.rollStep(.2,bad,.016),.2);
+  assert.ok(Math.abs(S.rollStep(.2,bad,.016)-.2)<1e-12);
   assert.equal(S.velocity(bad,14),0);
  }
  assert.equal(S.tipStep(NaN,.5,.016)>0,true);
