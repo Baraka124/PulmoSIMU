@@ -42,6 +42,17 @@ test('Quest entry remains responsive, accessible and restrained',()=>{
  assert.match(launcher,/@media\(prefers-reduced-motion:reduce\)/);
  assert.match(launcher,/focus-visible/);
  assert.match(launcher,/aria-label="Choose an immersive experience"/);
- assert.match(launcher,/Not clinically validated/);
- assert.match(launcher,/Open desktop workstation/);
+ assert.match(launcher,/Quest validation pending/);
+ assert.match(launcher,/id="desktop-launch"/);
+ assert.match(launcher,/entry=desktop/);
+});
+
+test('Desktop entry never depends on Quest or camera permissions',()=>{
+ assert.match(launcher,/<section class="desktop-entry"/);
+ assert.match(launcher,/<a href="\.\.\/index\.html\?xr=procedural&amp;entry=desktop" id="desktop-launch">/);
+ const main=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+ assert.match(main,/function openDesktopWorkstation\(\{requestCamera=true\}=\{\}\)/);
+ assert.match(main,/if\(!requestCamera\)/);
+ assert.match(main,/get\('entry'\)==='desktop'/);
+ assert.ok(main.includes("openDesktopWorkstation({requestCamera:false})"));
 });
