@@ -18,6 +18,33 @@ aside{background:var(--side);border-right:1px solid var(--line);display:flex;fle
 iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1117}.frame{min-height:0;position:relative}
 .notice{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(13,23,29,.89);border:1px solid #31434d;color:#b9c9d0;padding:7px 12px;border-radius:3px;max-width:calc(100% - 24px);font-size:10px;text-align:center;pointer-events:none}
 @media(max-width:760px){.layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}aside{padding:10px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--line)}.brand{padding:3px}.brand strong{font-size:15px}.brand p,.eyebrow,.foot{display:none}.mode{margin:0;padding:8px;min-width:0}.mode strong{font-size:11px}.mode small{font-size:9px}.head{padding:0 12px}.context{display:none}.stage{min-height:0}}
+
+/* S3: A separate editorial guide, not instrumentation painted on a lung. */
+.guide-toggle{background:transparent;border:1px solid #506675;border-radius:3px;padding:6px 10px;color:#d5e5e8;font-size:11px;white-space:nowrap}
+.guide-toggle[aria-expanded=true]{background:#253844}
+.guide-panel{position:absolute;right:13px;top:13px;bottom:13px;width:min(376px,calc(100% - 26px));z-index:20;background:#15222b;box-shadow:0 12px 50px #02080bcc;border:1px solid #47616f;border-radius:5px;padding:21px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:13px}
+.guide-panel[hidden]{display:none!important}
+.guide-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.guide-kicker{font-size:10px;color:#a9c0cc;letter-spacing:.14em;font-weight:630;text-transform:uppercase}
+.guide-close{border:0;background:transparent;padding:4px 7px;font-size:17px;color:#a7bbc6}
+.guide-numbers{display:flex;gap:5px}
+.guide-numbers button{min-width:35px;min-height:30px;background:transparent;border:1px solid #344b55;border-radius:3px;color:#b7c8ce;font-size:10px;padding:4px}
+.guide-numbers button[aria-current=step]{background:#314b56;color:#f0f7f9;border-color:#6f939e}
+.guide-numbers button[data-done=true]::after{content:' ✓';color:#c5dcce}
+.guide-counter{color:#8cabb7;font-size:11px;font-variant-numeric:tabular-nums}
+.guide-panel h2{font-size:20px;letter-spacing:-.035em;line-height:1.15;margin:0;font-weight:570}
+.guide-panel p{color:#b7c8d0;font-size:12px;line-height:1.65;margin:0}
+.guide-action-row{display:flex;flex-wrap:wrap;gap:8px}
+.guide-panel button:not(.guide-close):not(.guide-numbers button){background:transparent;border:1px solid #50636e;border-radius:3px;padding:8px 10px;color:#e0eaec;font-size:11px}
+.guide-panel button:disabled{opacity:.4;cursor:default}
+.guide-panel button:hover:not(:disabled){background:#263c48}
+.guide-note{color:#8faab7!important;font-size:10px!important}
+.guide-science{padding:12px 0;border-top:1px solid #2e4451;border-bottom:1px solid #2e4451}
+.guide-science h3{font-size:12px;font-weight:590;margin:0 0 5px}
+.guide-science output{display:block;white-space:pre-line;font-size:11px;color:#d4e1e4;margin-top:8px;font-variant-numeric:tabular-nums}
+.guide-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:4px}
+.guide-foot .guide-export{border-color:#9bb6bc!important}
+@media(max-width:760px){.guide-panel{inset:6px 6px 6px auto;width:min(370px,calc(100% - 12px));padding:17px 14px}.head{gap:8px}.guide-toggle{font-size:10px;padding:5px 7px}}
 </style></head><body>
 <div class="layout">
 <aside aria-label="Research workspaces">
@@ -30,8 +57,18 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <a href="./index.html?xr=procedural&amp;release=XR09-UNIFIED" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open original-engine XR in new tab ↗</a>
 <div class="foot">Experimental research platform.<p>Procedural and immersive XR workspaces use the original application scene. Research focus transfers only as reference-region context, never as patient data, treatment state, or instrument commands. Physics and imported imaging require independent validation.</p>Not clinically validated.</div>
 </aside>
-<main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div></header>
-<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./procedural-workspace.html" allow="camera; fullscreen; xr-spatial-tracking" allowfullscreen referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">Original procedural engine preserved; work area controls are progressively disclosed.</div></div>
+<main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div style="display:flex;align-items:center;gap:11px"><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div><button id="guideToggle" class="guide-toggle" type="button" aria-controls="guidePanel" aria-expanded="false">Guided session</button></div></header>
+<div class="frame"><iframe id="workspaceFrame" title="PulmoSIMU procedural simulation" src="./procedural-workspace.html" allow="camera; fullscreen; xr-spatial-tracking" allowfullscreen referrerpolicy="no-referrer"></iframe><div class="notice" id="workspaceNote">Original procedural engine preserved; work area controls are progressively disclosed.</div><section id="guidePanel" class="guide-panel" hidden role="region" aria-label="Guided PulmoSIMU research session">
+  <div class="guide-top"><span class="guide-kicker">Research rehearsal · 3 milestones</span><button id="guideClose" class="guide-close" type="button" aria-label="Close guided session">×</button></div>
+  <div id="guideNumbers" class="guide-numbers" aria-label="Select research checkpoint"></div>
+  <div class="guide-counter" id="guideProgress">01 / 05</div>
+  <h2 id="guideTitle">Inspect the anatomical source</h2><p id="guideInstruction">Open a locally verified image study in the source inspector.</p>
+  <div class="guide-action-row"><button type="button" id="guideOpen">Open checkpoint workspace</button><button type="button" id="guideDone">Mark reviewed</button></div>
+  <p class="guide-note">Checkpoint completion is your own confirmation, not automatic VR instrumentation or clinical validation. Local CT files remain in their original viewer and are not sent to this panel.</p>
+  <div class="guide-science"><h3>R3 · numerical evidence</h3><p class="guide-note">Uncalibrated 18-branch reference graph. A reproducible 10-second solver run, not CT-based patient physiology.</p><button id="guideRunR3" type="button">Compute reference R3</button><output id="guidePhysics" aria-live="polite">No numerical run recorded</output></div>
+  <div class="guide-foot"><button id="guidePrevious" type="button">Previous</button><button id="guideNext" type="button">Next</button><button id="guideExport" class="guide-export" type="button">Export session JSON</button><button id="guideReset" type="button">Reset</button></div>
+  <p class="guide-note" id="guideStatus" role="status">Research only · no patient-specific data collected</p>
+</section></div>
 </main></div>
 <script>
 const modes={
@@ -69,6 +106,10 @@ document.getElementById('modeXR').addEventListener('click',()=>activate('xr'));
 <script type="module">
 import {readFocus,createFocus} from './experimental/shared/reference-focus.js';
 import {readWorkspaceLaunch,WORKSPACES} from './experimental/shared/workspace-route.js';
+import {STEPS,createGuidedSession,makeR3Evidence} from './experimental/shared/guided-session.js';
+import {fetchReferenceAirwayGraph} from './experimental/anatomy/airway-graph.js';
+import {createState} from './experimental/core/mechanistic-lung.js';
+import {buildNetwork,simulateBreathing} from './experimental/core/breathing-network.js';
 const frame=document.getElementById('workspaceFrame');
 const status=document.getElementById('workspaceContext');
 const xrLink=document.getElementById('launchXR');
@@ -105,4 +146,88 @@ window.addEventListener('message',event=>{
  updateQuestLink();
  transmit();
 });
+
+/* S3 cross-workspace research evidence: no image transfer, no fake headset telemetry. */
+const guide=createGuidedSession();
+const control=id=>document.getElementById(id);
+function showGuide(show){
+ control('guidePanel').hidden=!show;
+ control('guideToggle').setAttribute('aria-expanded',String(show));
+}
+function renderGuide(){
+ const state=guide.get(),currentStep=state.current;
+ control('guideProgress').textContent=String(state.step+1).padStart(2,'0')+' / '+String(STEPS.length).padStart(2,'0')+
+   ' · '+state.completed.length+' manually reviewed';
+ control('guideTitle').textContent=currentStep.title;
+ control('guideInstruction').textContent=currentStep.instruction;
+ control('guideDone').textContent=state.completed.includes(currentStep.id)?'Reviewed ✓':'Mark reviewed';
+ control('guidePrevious').disabled=state.step===0;
+ control('guideNext').disabled=state.step===STEPS.length-1;
+ const nav=control('guideNumbers');nav.replaceChildren();
+ STEPS.forEach((item,i)=>{
+  const b=document.createElement('button');b.type='button';b.textContent=String(i+1).padStart(2,'0');
+  b.title=item.title;b.setAttribute('aria-label','Checkpoint '+(i+1)+' '+item.title);
+  if(i===state.step)b.setAttribute('aria-current','step');
+  b.dataset.done=String(state.completed.includes(item.id));
+  b.addEventListener('click',()=>{guide.move(i);renderGuide()});nav.append(b);
+ });
+}
+control('guideToggle').addEventListener('click',()=>showGuide(control('guidePanel').hidden));
+control('guideClose').addEventListener('click',()=>showGuide(false));
+control('guidePrevious').addEventListener('click',()=>{
+ guide.move(Math.max(0,guide.get().step-1));renderGuide();
+});
+control('guideNext').addEventListener('click',()=>{
+ guide.move(Math.min(STEPS.length-1,guide.get().step+1));renderGuide();
+});
+control('guideDone').addEventListener('click',()=>{
+ guide.complete();renderGuide();
+ control('guideStatus').textContent='Checkpoint marked as manually reviewed; not hardware telemetry.';
+});
+control('guideOpen').addEventListener('click',()=>{
+ const target=guide.get().current.workspace;
+ // Source data and procedure state remain owned by their original workspaces.
+ // Switching iframe workspaces reloads them; no medical image persistence is implied.
+ activate(target);
+ control('guideStatus').textContent='Workspace opened · local viewer files reload on navigation.';
+});
+control('guideRunR3').addEventListener('click',async()=>{
+ const b=control('guideRunR3');b.disabled=true;
+ control('guidePhysics').textContent='Computing reference network…';
+ try{
+  const graph=await fetchReferenceAirwayGraph();
+  if(graph.schema!=='pulmosimu-airway-reference-r2'||graph.nodes.length!==18)
+   throw Error('Canonical 18-branch reference graph unavailable');
+  const network=buildNetwork(graph,createState('healthy'));
+  const seconds=10,numerical=simulateBreathing(network,seconds);
+  const evidence=makeR3Evidence(network,numerical,seconds);
+  guide.attachR3(evidence);
+  control('guidePhysics').textContent=
+   'Approx. model tidal volume  '+evidence.approximateTidalVolumeL.toFixed(3)+' L\n'+
+   'Peak inspiratory flow  '+evidence.peakInspiratoryFlowLPerS.toFixed(3)+' L/s\n'+
+   'Conservation residual  '+evidence.maxConservationResidualM3PerS.toExponential(2)+' m³/s\n'+
+   'Reference only · not calibrated to CT';
+  control('guideStatus').textContent='Numerical reference attached to the in-memory research report.';
+ }catch(error){
+  control('guidePhysics').textContent='R3 unavailable: '+String(error.message||error);
+  control('guideStatus').textContent='No result was recorded; source integrity preserved.';
+ }finally{b.disabled=false;renderGuide();}
+});
+control('guideExport').addEventListener('click',()=>{
+ try{
+  const data=JSON.stringify(guide.report(),null,2);
+  const href=URL.createObjectURL(new Blob([data+'\n'],{type:'application/json'}));
+  const a=document.createElement('a');a.href=href;a.download='PulmoSIMU_Research_Session_'+guide.get().id+'.json';
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(href),500);
+  control('guideStatus').textContent='Research evidence JSON exported locally; no CT images included.';
+ }catch(error){control('guideStatus').textContent='Export failed: '+String(error.message||error);}
+});
+control('guideReset').addEventListener('click',()=>{
+ guide.reset();control('guidePhysics').textContent='No numerical run recorded';
+ control('guideStatus').textContent='New in-memory rehearsal; all previous checkpoint state cleared.';
+ renderGuide();
+});
+window.PulmoStudioGuidedSession=Object.freeze({snapshot:()=>guide.get(),report:()=>guide.report()});
+renderGuide();
 </script></body></html>
