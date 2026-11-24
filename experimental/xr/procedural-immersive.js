@@ -27,8 +27,13 @@ function install(ctx){
     throw Error('XR-14 airway guidance runtime missing');
   if(!global.PulmoXRViewHistory?.create)
     throw Error('XR-15 reversible anatomy transform runtime missing');
+  if(!global.PulmoXRBronchoscopyStation?.create)
+    throw Error('XR-16 procedure station and instrument kinematics unavailable');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
+  const station=global.PulmoXRBronchoscopyStation.create();
+  const instrument=global.PulmoXRBronchoscopyStation;
+  const originalScopeFov=camScope.fov;
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
   // Meta Quest Browser may expose fixed foveation on its XR base layer.
@@ -184,6 +189,11 @@ function install(ctx){
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy')scope.velocity=0;
+    if(next==='procedure'){
+      camScope.fov=station.snapshot().fovDegrees;
+      camScope.updateProjectionMatrix();
+      positionPanels();
+    }
     paint();return true;
   }
   function headPose(frame){
@@ -280,25 +290,24 @@ function install(ctx){
   function positionPanels(){
     if(!viewerValid)return;
     if(worldMenu){
-      // Sit the interactive panel closer and slightly to the left of the model.
-      // This is spatial UI, not part of the lung assembly's transform.
-      worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.69);
+      // Independent world-space panel, placed only on intentional layout
+      // changes or recenter. It does not follow the viewer every XR frame.
+      worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.72);
       worldMenu.position.y-=.02;
       worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
     }
-    if(scopeScreen){
-      scopeScreen.position.copy(head).addScaledVector(forward,1.34).addScaledVector(right,.74);
-      scopeScreen.position.y-=.1;scopeScreen.lookAt(head);
+    const pose=station.snapshot().pose;
+    function place(object,spec){
+      if(!object)return;
+      object.position.copy(head).addScaledVector(forward,spec.depth)
+        .addScaledVector(right,spec.right);
+      object.position.y+=spec.y;
+      object.scale.setScalar(spec.scale);
+      object.lookAt(head);object.updateWorldMatrix(true,false);
     }
-    if(guidePlane){
-      // Compact but readable guidance immediately below the live scope feed.
-      // It never overlays the anatomical target or becomes head-locked.
-      guidePlane.position.copy(head).addScaledVector(forward,1.22)
-        .addScaledVector(right,.74);
-      guidePlane.position.y-=.56;guidePlane.lookAt(head);
-      guidePlane.updateWorldMatrix(true,false);
-    }
+    place(scopeScreen,pose.monitor);
+    place(guidePlane,pose.guide);
   }
   let lastContact=null;
   function surfaceContact(i,source='controller'){
@@ -473,8 +482,9 @@ function install(ctx){
     // not an assertion of mechanical shaft/knob or force-feedback realism.
     const delta=origin.clone().invert().multiply(orientation);
     const euler=new THREE.Euler().setFromQuaternion(delta,'YXZ');
-    scope.deflH=safe(-1,1,deflH+euler.y/0.65);
-    scope.deflV=safe(-1,1,deflV-euler.x/0.65);
+    scope.deflH=instrument.rateLimit(scope.deflH,safe(-1,1,deflH+euler.y/0.65),Math.min(.05,(performance.now()-(scopeSteering.lastUpdate||performance.now()))/1000));
+    scope.deflV=instrument.rateLimit(scope.deflV,safe(-1,1,deflV-euler.x/0.65),Math.min(.05,(performance.now()-(scopeSteering.lastUpdate||performance.now()))/1000));
+    scopeSteering.lastUpdate=performance.now();
   }
   function rayFrom(i){
     const source=hands[i];if(!source)return null;
@@ -581,8 +591,12 @@ function install(ctx){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
     if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){
       menuPage=action==='more'||action==='back-expert'?'advanced':
-        action==='precision'?'precision':'primary';
+        action==='precision'?(mode==='procedure'?'station':'precision'):'primary';
       actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);
+      paint();return;
+    }
+    if(action==='view'&&mode==='procedure'){
+      menuPage='station';actionHitbox=panelLayouts.station;hoverPanels.fill(null);
       paint();return;
     }
     if(action==='view'){
@@ -590,6 +604,22 @@ function install(ctx){
       stage.setMode(modeNext);
       grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
+      paint();return;
+    }
+    if(action==='station-layout'||action==='station-video'||
+       action==='station-optics'||action==='station-control'){
+      const key=action.split('-')[1];
+      station.next(key==='video'?'video':key);
+      const settings=station.snapshot();
+      if(key==='layout')positionPanels();
+      if(key==='video'){
+        scopeTarget.setSize(settings.capture.width,settings.capture.height);
+        lastFeed=0;
+      }
+      if(key==='optics'){
+        camScope.fov=settings.fovDegrees;camScope.updateProjectionMatrix();
+      }
+      grabFeedback='PROCEDURE STATION / '+key.toUpperCase()+' UPDATED';
       paint();return;
     }
     if(action==='undo'||action==='redo'){
@@ -752,13 +782,15 @@ function install(ctx){
       }
       if(mode!=='procedure')continue;
       if(side==='left'){
-        if(y)scope.velocity=-y*CFG.scopeSpd/900;
-        if(x)scope.roll+=x*.03;
-      }else if(side==='right'){
-        if(!scopeSteering){
-          scope.deflH=safe(-1,1,scope.deflH*.82+x*.18);
-          scope.deflV=safe(-1,1,scope.deflV*.82-y*.18);
-        }
+        // Insertion and shaft roll are independent. Neutral stick stops
+        // insertion immediately; no unintended scope drift after release.
+        scope.velocity=instrument.velocity(y,CFG.scopeSpd,station.snapshot().insertionMultiplier);
+        scope.roll=instrument.rollStep(scope.roll,x,dt);
+      }else if(side==='right'&&!scopeSteering){
+        // Tip bending is incremental and holds when the stick returns to
+        // centre. The original scope state and lumen gate remain in charge.
+        scope.deflH=instrument.tipStep(scope.deflH,x,dt);
+        scope.deflV=instrument.tipStep(scope.deflV,-y,dt);
       }
       if(side==='right'&&edge(5))activate('tool');
     }
@@ -844,6 +876,14 @@ function install(ctx){
       {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
+    station:[
+      {id:'station-layout',label:'LAYOUT',u:.05,v:.54,w:.43,h:.12},
+      {id:'station-video',label:'VIDEO DETAIL',u:.52,v:.54,w:.43,h:.12},
+      {id:'station-optics',label:'ENDOSCOPE VIEW',u:.05,v:.69,w:.43,h:.12},
+      {id:'station-control',label:'FINE CONTROL',u:.52,v:.69,w:.43,h:.12},
+      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
       {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
@@ -870,7 +910,8 @@ function install(ctx){
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
     c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
-    c.fillText(menuPage==='precision'?'Precision anatomy controls':
+    c.fillText(menuPage==='station'?'Bronchoscopy workstation':
+      menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
       menuPage==='ct'?'Source CT / spatial sections':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
@@ -882,7 +923,7 @@ function install(ctx){
         :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
-       ?'LEFT: ADVANCE · RIGHT GRIP: STEER · TRIGGER: ACT'
+       ?'L STICK: INSERT / ROLL · R STICK: TIP · R GRIP: STEER'
        :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
     c.fillText(source,48,274);
@@ -906,12 +947,18 @@ function install(ctx){
         (a.id!=='undo'||viewHistory.status().undo>0) &&
         (a.id!=='redo'||viewHistory.status().redo>0) &&
         (a.id!=='procedure'||role==='reference');
-      const label=a.id==='scale'&&role==='patient'&&getCTStudy?.()?'CT SECTIONS':
+      const settings=station.snapshot();
+      const label=a.id==='station-layout'?'LAYOUT '+settings.pose.label:
+        a.id==='station-video'?'VIDEO '+settings.capture.label:
+        a.id==='station-optics'?'VIEW '+settings.fovDegrees+' DEG':
+        a.id==='station-control'?(settings.control==='fine'?'FINE INSERTION':'STANDARD INSERTION'):
+        a.id==='scale'&&role==='patient'&&getCTStudy?.()?'CT SECTIONS':
         a.id==='axis'&&orientationLocked?'ORIENTATION LOCKED':
         a.id==='ct-axis'?'PLANE '+ctAxis.toUpperCase():
         a.id==='ct-sections'&&ctSpatial?(ctSpatial.snapshot().visible?'HIDE MPR':'SHOW MPR'):
         a.id==='view'
-        ?(stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
+        ?(mode==='procedure'?'PROCEDURE STATION':
+          stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
         a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
       c.fillStyle=hovered?'#476774':selected?'#345463':available?'#213641':'#1c2a32';
