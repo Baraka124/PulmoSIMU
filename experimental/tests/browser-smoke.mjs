@@ -481,6 +481,24 @@ try {
  try{
    await studio.goto(host+'/studio.html',{waitUntil:'domcontentloaded'});
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Procedural simulation');
+   // Guided session is a separate panel and R3 actually runs.
+   assert.equal(await studio.locator('#guidePanel').isHidden(),true);
+   await studio.locator('#guideToggle').click();
+   assert.equal(await studio.locator('#guidePanel').isVisible(),true);
+   assert.equal(await studio.locator('#guideToggle').getAttribute('aria-expanded'),'true');
+   await studio.locator('#guideDone').click();
+   assert.match(await studio.locator('#guideProgress').innerText(),/1 manually reviewed/);
+   await studio.locator('#guideNext').click();
+   assert.match(await studio.locator('#guideTitle').innerText(),/Rehearse reference bronchoscopy/);
+   await studio.locator('#guideRunR3').click();
+   await studio.waitForFunction(()=>document.getElementById('guidePhysics')?.textContent?.includes('Peak inspiratory flow'),null,{timeout:30000});
+   const report=await studio.evaluate(()=>window.PulmoStudioGuidedSession?.report());
+   assert.equal(report.schema,'pulmosimu-guided-research-session-v1');
+   assert.equal(report.studyDataIncluded,false);
+   assert.equal(report.r3Reference?.branchCount,18);
+   assert.equal(report.r3Reference?.clinicalValidated,false);
+   await studio.locator('#guideClose').click();
+   assert.equal(await studio.locator('#guidePanel').isHidden(),true);
    await studio.locator('#modeMechanisms').click();
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Mechanistic laboratory');
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')?.getAttribute('src')==='./experimental/lab.html');
@@ -537,6 +555,10 @@ try {
        'Missing A3.1-A4 source inspector '+control);
    assert.equal(await source.locator('#section-plane').isDisabled(),true);
    assert.equal(await source.locator('#surface-opacity').isDisabled(),true);
+   for(const id of ['#metric-a','#metric-b','#metric-clear','#metric-result'])
+     assert.equal(await source.locator(id).count(),1,'Missing CT metric '+id);
+   assert.equal(await source.locator('#metric-a').isDisabled(),true);
+   assert.equal(await source.locator('#metric-b').isDisabled(),true);
    // A2.3 review is strictly source-verified: without the three exact local
    // sources, none of the annotation/import/export controls can mutate state.
    for(const control of ['#review-region','#review-finding','#review-note',
