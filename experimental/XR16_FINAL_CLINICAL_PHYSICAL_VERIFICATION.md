@@ -3,7 +3,7 @@
 **Status:** software/bench instrumentation can be built and automatically tested. **Physical instrument acceptance, clinician evaluation, anatomical source validity and clinical use remain blocked without evidence.**
 
 **Primary software**: original reference procedure `index.html`; XR adapter `experimental/xr/procedural-immersive.js`; deterministic station `experimental/xr/bronchoscopy-station.js`.  
-**Physical bench**: `experimental/instrument-bench.html` and `experimental/xr/instrument-bench.js`.  
+**Unified clinical and physical review workspace**: `experimental/validation-lab.html`. `experimental/xr/physical-instrument-bench.js` assesses independently measured external traces; `experimental/xr/instrument-bench.js` inspects individual telemetry packets without controlling the simulator; `experimental/xr/clinical-review-gate.js` records reviewer evidence.  
 **Evidence format**: downloadable, local-only JSON. No remotely uploaded clinical records.
 
 ## XR-16 acceptance matrix — actual status
@@ -83,6 +83,6 @@ Log device/browser versions, frame timing percentiles, camera rendering cost, 10
 
 ## Evidence sign-off and release boundary
 
-The local bench has 12 named evidence gates: `source_graph_review`, `scope_mechanical_dimensions`, `centerline_navigation_accuracy`, `distal_tip_deflection_accuracy`, `shaft_rotation_accuracy`, `insertion_depth_accuracy`, `wall_contact_and_collision`, `task_completion_reproducibility`, `endoscopic_scene_fidelity`, `clinician_review`, `hardware_tracking_recovery`, and `privacy_and_data_governance`. The software requires an explicit `pass` and a nonblank evidence ID for every gate. Those are **bookkeeping checks, not cryptographic or third-party verification of truth**; the reviewer must inspect and sign the underlying evidence.
+The live packet-inspection layer has 12 named evidence gates: `source_graph_review`, `scope_mechanical_dimensions`, `centerline_navigation_accuracy`, `distal_tip_deflection_accuracy`, `shaft_rotation_accuracy`, `insertion_depth_accuracy`, `wall_contact_and_collision`, `task_completion_reproducibility`, `endoscopic_scene_fidelity`, `clinician_review`, `hardware_tracking_recovery`, and `privacy_and_data_governance`. The software requires an explicit `pass` and a nonblank evidence ID for every gate. Those are **bookkeeping checks, not cryptographic or third-party verification of truth**; the reviewer must inspect and sign the underlying evidence.
 
 **Release status when software CI is green:** XR-16 reference research software ready for device-specific test; physical instrument integration and clinically validated simulation **not approved**. The next milestone XR-17 is separate from independent clinical and benchtop source/device assessment.
