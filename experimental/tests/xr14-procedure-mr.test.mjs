@@ -78,15 +78,15 @@ test('XR14 spatial guide drives original enterBranch and instruments, not duplic
 test('XR14 real MR entry is browser-feature gated and restores opaque desktop/VR',()=>{
  assert.ok(main.includes('alpha:true,powerPreference:'));
  for(const token of [
-  "isSessionSupported('immersive-ar')",
-  "navigator.xr.requestSession(desired",
-  "presentation==='ar'?'immersive-ar':'immersive-vr'",
+  "xrCapabilities.request(presentation)",
+  "xrCapabilities.bind(session,presentation)",
+  "arButton.style.display=q.mr==='supported'?'block':'none'",
   "scene.background=null;scene.fog=null",
   "rBro.setClearColor(0x000000,0)",
   "room.visible=xrPresentation!=='ar'",
   "scene.background=backgroundBeforeXR;scene.fog=fogBeforeXR",
   "if(clearBeforeXR)rBro.setClearColor(clearBeforeXR,clearAlphaBeforeXR)",
-  "arButton.style.display=ok?'block':'none'",
+  "xrCapabilities.end()",
   "xrPresentation='vr'"
  ]) assert.ok(xr.includes(token),'Missing passthrough safety/restore '+token);
  assert.ok(entry.includes('Mixed Reality · Quest 2 passthrough preview'));
