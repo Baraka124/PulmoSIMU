@@ -37,6 +37,8 @@ function install(ctx){
     throw Error('XR-17C read-only measured instrument review unavailable');
   if(!global.PulmoXRDisplayPath?.create)
     throw Error('XR-17C display compositor assessment unavailable');
+  if(!global.PulmoXRTrackedToolProxy?.create)
+    throw Error('XR-17C right-controller tracked visual instrument proxy unavailable');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   const station=global.PulmoXRBronchoscopyStation.create();
@@ -48,6 +50,7 @@ function install(ctx){
   const displayPath=global.PulmoXRDisplayPath.create({
     bindingConstructor:global.XRWebGLBinding||null
   });
+  const toolProxy=global.PulmoXRTrackedToolProxy.create();
   let mrReticle=null,originalModelVisibility=true,mrMenuPositioned=false;
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
@@ -694,6 +697,20 @@ function install(ctx){
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
     }
+    if(action==='tool-proxy'){
+      const current=toolProxy.snapshot().enabled;
+      toolProxy.set(!current);
+      grabFeedback=!current?
+        '6DOF CONTROLLER PROXY / NOT A CALIBRATED INSTRUMENT':
+        'CONTROLLER PROXY HIDDEN';
+      paint();return;
+    }
+    if(action==='trace-clear'){
+      replay.clear();
+      traceButton.textContent='LOAD INSTRUMENT TRACE';
+      grabFeedback='LOCAL MEASUREMENT TRACE CLEARED';
+      paint();return;
+    }
     if(action==='trace-open'){
       replay.pause(performance.now());
       menuPage='trace';actionHitbox=panelLayouts.trace;hoverPanels.fill(null);
@@ -1024,12 +1041,14 @@ function install(ctx){
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     trace:[
-      {id:'trace-play',label:'PLAY TRACE',u:.05,v:.54,w:.43,h:.12},
-      {id:'trace-pause',label:'PAUSE',u:.52,v:.54,w:.43,h:.12},
-      {id:'trace-prev',label:'PREV SAMPLE',u:.05,v:.69,w:.43,h:.12},
-      {id:'trace-next',label:'NEXT SAMPLE',u:.52,v:.69,w:.43,h:.12},
-      {id:'trace-back',label:'BACK TO STATION',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+      {id:'trace-play',label:'PLAY TRACE',u:.05,v:.54,w:.43,h:.095},
+      {id:'trace-pause',label:'PAUSE',u:.52,v:.54,w:.43,h:.095},
+      {id:'trace-prev',label:'PREV SAMPLE',u:.05,v:.65,w:.43,h:.095},
+      {id:'trace-next',label:'NEXT SAMPLE',u:.52,v:.65,w:.43,h:.095},
+      {id:'tool-proxy',label:'TRACKED TOOL PROXY',u:.05,v:.76,w:.43,h:.095},
+      {id:'trace-clear',label:'CLEAR TRACE',u:.52,v:.76,w:.43,h:.095},
+      {id:'trace-back',label:'BACK TO STATION',u:.05,v:.87,w:.43,h:.095},
+      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
@@ -1480,6 +1499,7 @@ function install(ctx){
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
     XR17CInstrumentTrace:traceSummary(),
+    XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
       requestedIntervalMs:station.snapshot().capture.intervalMs,
@@ -1501,8 +1521,6 @@ function install(ctx){
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames,
       retryFailures:monitorFailures,recoveries:monitorRecoveries},
     videoBudget:monitorBudget.snapshot(),
-    XR17CDisplayPath:displayPath.snapshot(),
-    XR17CInstrumentTrace:traceSummary(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     integration:'Unified original-engine XR, verified local CT MPR and reference-only R3; CT-specific bronchoscopy and physical/clinical certification remain blocked'
   });
@@ -1832,14 +1850,13 @@ function install(ctx){
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     monitorRetryFailures:monitorFailures,monitorRecoveries,
     videoBudget:monitorBudget.snapshot(),
-    XR17CDisplayPath:displayPath.snapshot(),
-    XR17CInstrumentTrace:traceSummary(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     monitorResolution:[scopeTarget.width,scopeTarget.height],
     physicalInstrumentBench:physicalBench?.snapshot(performance.now())||null,
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
     XR17CInstrumentTrace:traceSummary(),
+    XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
     activeControllerSides:controllerSide.slice(),
