@@ -3,6 +3,13 @@
   "version": 2,
   "routes": [
     {
+      "src": "^/(quest|quest4)\\.html$",
+      "status": 308,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    {
       "src": "^/quest-short/?$",
       "status": 308,
       "headers": {
