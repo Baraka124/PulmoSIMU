@@ -330,7 +330,7 @@ try {
       requestHitTestSource:async()=>({cancel(){}})
     });
     const frame={getHitTestResults:()=>[{
-      getPose:()=>({transform:{position:{x:.65,y:0,z:-.8}}})
+      getPose:()=>({transform:{position:{x:.65,y:0,z:-.8},orientation:{x:0,y:0,z:0,w:1}}})
     }]};
     const ref={kind:'reference'};
     const target=m.scan(frame,ref);
