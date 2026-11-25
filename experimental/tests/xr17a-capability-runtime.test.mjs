@@ -36,7 +36,7 @@ test('XR17A supports VR without inventing MR or a room mesh',async()=>{
  assert.equal(calls.length,1);
  assert.equal(calls[0].mode,'immersive-vr');
  assert.deepEqual(Array.from(calls[0].options.optionalFeatures),
-  ['local-floor','bounded-floor','hand-tracking']);
+  ['local-floor','bounded-floor','hand-tracking','layers']);
  let v=r.bind(session,'vr');
  assert.equal(v.activeMode,'vr');
  assert.equal(v.actualFeatures['local-floor'],'enabled');
