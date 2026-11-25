@@ -57,6 +57,8 @@ function install(ctx){
   const respiratoryMotion=global.PulmoXRRespiratoryMotion.create();
   let motionEnabled=true,motionEvidence=respiratoryMotion.reset(),motionReport=null;
   let radialEnabled=false,radialCoupling='air',radialLast=-Infinity,radialEvidence=null,radialRange=20;
+  const registrationObserver=global.PulmoXRRegistration.createObserver();
+  let registrationEvidence=registrationObserver.snapshot(),contactEvidence=global.PulmoXRContactInterface.evaluate();
   const procedureMetrics=global.PulmoXRProcedureMetrics.create({sampleHz:20});
   procedureMetrics.reset(SEGS);
   const insertedShaft=deviceLab.createShaft(THREE,mGrp);
@@ -1790,6 +1792,8 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
+    spatialRegistration:registrationEvidence,
+    passiveContactInterface:contactEvidence,
     respiratoryMotion:motionReport||motionEvidence,
     radialImaging:radialEvidence?{...radialEvidence,rays:undefined}:null,
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
@@ -2027,6 +2031,7 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
+    registrationObserver.reset();registrationEvidence=registrationObserver.snapshot();contactEvidence=global.PulmoXRContactInterface.evaluate();
     motionEnabled=true;motionEvidence=respiratoryMotion.reset();motionReport=null;ctx.setReferenceMotion?.(1);
     radialEnabled=false;radialCoupling='air';radialLast=-Infinity;radialRange=20;radialEvidence=null;
     toolProxy.reset();toolProxyOverlay.visible=false;
@@ -2081,6 +2086,7 @@ function install(ctx){
       health.startFrame(time);
       if(!headPose(frame)){
         // Tracking loss: never continue the last object or instrument command.
+        registrationEvidence=registrationObserver.step({tracked:false});contactEvidence=global.PulmoXRContactInterface.evaluate();
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
@@ -2168,6 +2174,8 @@ function install(ctx){
       updateScope();updateRouteOverlay();updateRadial(time);
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
+      registrationEvidence=registrationObserver.step({tracked:viewerValid&&mode==='procedure'&&getMeshMode()==='reference',timeMs:time,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit())});
+      contactEvidence=global.PulmoXRContactInterface.evaluate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure'});
       procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;

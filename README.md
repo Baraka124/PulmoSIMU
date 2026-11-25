@@ -87,3 +87,6 @@ R3 net-volume-driven bounded affine reference motion uses the existing 18-branch
 
 ## XR-30 / HIL-04
 Optional side-by-side radial interface view uses the reference lumen's signed field in the scope transverse plane, with a 2 Hz update budget and idealized interface echo only under explicitly selected fluid coupling. No tissue acoustic map, diagnosis, clinical EBUS fidelity or patient data. HIL-04 adds a preliminary passive fixture CAD and dissipative resistance numerical analysis, with no hardware commands or actuation. Hardware design and validation remain incomplete.
+
+## XR-31 / HIL-05–06
+Three-landmark rigid registration CLI with independent check landmarks; local XR pose continuity observation without invented uncertainty. Numerical geometric contact risk is dimensionless, never a force or actuator command. HIL-06 documents the remaining independent headset and physical acceptance gates. No actual physical registration, sensor fusion, live bridge, calibrated forces or hardware acceptance.
