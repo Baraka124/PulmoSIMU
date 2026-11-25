@@ -57,6 +57,14 @@ The separate laboratory entry is `/experimental/validation-lab.html`; it runs en
 - `BENCH_TARGET_NOT_MET`: structurally valid physical trace but preliminary engineering target missed.
 - `BENCH_ENGINEERING_TARGET_MET`: submitted measured trace met preliminary checks. **No proof of authenticity, mechanical equivalence, clinical performance or device certification.**
 
+### P9. Live packet input inspection (isolated acquisition gate)
+
+The same `experimental/validation-lab.html` now exposes the optional read-only live-packet diagnostic. This is deliberately **separate** from the independently measured trace validator above. `experimental/xr/instrument-bench.js` exports `PulmoXRInstrumentTelemetry`, and never calls the original scope's motion/biopsy commands.
+
+Protocol: `PULMOSIMU-BENCH/1` with a monotonically increasing non-negative integer `seq` and finite `insertionMm`, `shaftRollDeg`, `tipPitchDeg`, `tipYawDeg` fields. The generic parser rejects frames over 512 characters, missing fields, replayed sequence numbers, stale samples and out-of-range values. A sample must remain under 250 ms old to be considered fresh. Read-only zero-reference offsets are operator-entered and **not** certified sensor calibration. The software records `clinicalUse:false` and `deviceToScopeCoupled:false`; it does not request Bluetooth, serial or any other physical device pairing.
+
+This packet verifier is intended for bench protocol development and measurement-quality debugging. **It does not replace** the external-trace comparison, clinician review or headset tests.
+
 ## D. Quest XR-16 final physical acceptance matrix
 
 | Scenario | Capture and failure criteria |
@@ -89,6 +97,7 @@ The last column of the physical acceptance record must list the exact operator, 
 XR-16 software can be frozen independently once its unit/browser suite passes, but **scientific, physical instrument and clinical acceptance remain explicit external gates**. This avoids indefinite new feature phases without inventing certificates from simulation-only evidence.
 
 The independent evidence schema and local UI are source-controlled under:
+- `experimental/xr/instrument-bench.js` (read-only individual telemetry packet checks)
 - `experimental/xr/physical-instrument-bench.js`
 - `experimental/xr/clinical-review-gate.js`
 - `experimental/validation-lab.html`
