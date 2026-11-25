@@ -694,6 +694,37 @@ function install(ctx){
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
     }
+    if(action==='trace-open'){
+      replay.pause(performance.now());
+      menuPage='trace';actionHitbox=panelLayouts.trace;hoverPanels.fill(null);
+      grabFeedback=replay.snapshot().loaded?'EXTERNAL TRACE / READ-ONLY INSPECTION':
+        'IMPORT A MEASURED TRACE BEFORE ENTERING XR';
+      paint();return;
+    }
+    if(action==='trace-back'){
+      replay.pause(performance.now());
+      menuPage='station';actionHitbox=panelLayouts.station;hoverPanels.fill(null);
+      paint();return;
+    }
+    if(action==='trace-play'||action==='trace-pause'||
+       action==='trace-prev'||action==='trace-next'){
+      if(!replay.snapshot().loaded){
+        grabFeedback='NO INDEPENDENT MEASURED TRACE LOADED';
+        paint();return;
+      }
+      if(action==='trace-play')replay.play(performance.now());
+      if(action==='trace-pause')replay.pause(performance.now());
+      if(action==='trace-prev')replay.step(-1);
+      if(action==='trace-next')replay.step(1);
+      grabFeedback='READ-ONLY TRACE / ORIGINAL BRONCHOSCOPE UNCHANGED';
+      paint();return;
+    }
+    if(action==='display-path'){
+      const evidence=displayPath.snapshot();
+      grabFeedback='DISPLAY / '+evidence.actualDisplayPath+' / '+evidence.reason;
+      showToast('XR display: '+evidence.reason+' · safe source-image fallback','info');
+      paint();return;
+    }
     if(action==='station-layout'||action==='station-video'||
        action==='station-optics'||action==='station-control'){
       const key=action.split('-')[1];
@@ -1431,6 +1462,10 @@ function install(ctx){
     background:'#13212a',color:'#c6d8de',font:'500 11px system-ui',
     cursor:'pointer',borderRadius:'3px',display:'none'});
   global.document.body.appendChild(reportButton);
+  const traceSummary=()=>{
+    const {observation,...evidence}=replay.snapshot();
+    return evidence; // No raw external trace rows in XR session reports.
+  };
   const scienceSnapshot=()=>global.PulmoXRScience?.classify({
     modelRole:getMeshMode(),ctStudy:getCTStudy?.()||null,
     referenceSolverReady:Boolean(global.PulmoXRReferencePhysics?.step),
@@ -1443,6 +1478,8 @@ function install(ctx){
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
+    XR17CDisplayPath:displayPath.snapshot(),
+    XR17CInstrumentTrace:traceSummary(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
       requestedIntervalMs:station.snapshot().capture.intervalMs,
@@ -1749,6 +1786,8 @@ function install(ctx){
     monitorResolution:[scopeTarget.width,scopeTarget.height],
     physicalInstrumentBench:physicalBench?.snapshot(performance.now())||null,
     procedureStation:station.snapshot(),
+    XR17CDisplayPath:displayPath.snapshot(),
+    XR17CInstrumentTrace:traceSummary(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
     activeControllerSides:controllerSide.slice(),
