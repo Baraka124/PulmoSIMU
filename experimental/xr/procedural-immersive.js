@@ -1513,6 +1513,47 @@ function install(ctx){
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   });
   global.pulmoXRSessionReport=localSessionReport;
+  // Import research trace on the original desktop page, BEFORE entering XR.
+  // All measured records remain local; a headset file chooser is never
+  // launched while the user is inside an immersive procedure.
+  const traceFile=document.createElement('input');
+  traceFile.type='file';traceFile.accept='.json,application/json';
+  traceFile.id='pulmo-xr-trace-file';traceFile.style.display='none';
+  document.body.appendChild(traceFile);
+  const traceButton=document.createElement('button');
+  traceButton.type='button';traceButton.id='pulmo-xr-trace-import';
+  traceButton.textContent='LOAD INSTRUMENT TRACE';
+  Object.assign(traceButton.style,{position:'fixed',bottom:'126px',right:'18px',
+    zIndex:10019,padding:'8px 12px',border:'1px solid #49626d',
+    background:'#14222b',color:'#b6d0d7',font:'500 11px system-ui',
+    cursor:'pointer',borderRadius:'3px',display:'none'});
+  document.body.appendChild(traceButton);
+  traceButton.addEventListener('click',()=>{if(!rBro.xr.isPresenting)traceFile.click()});
+  traceFile.addEventListener('change',async()=>{
+    const file=traceFile.files?.[0];
+    if(!file)return;
+    try{
+      if(file.size>8_000_000)throw Error('TRACE_FILE_TOO_LARGE');
+      const measured=JSON.parse(await file.text());
+      const result=replay.load(measured);
+      if(!result.ok)throw Error(result.reason);
+      traceButton.textContent='TRACE LOADED / '+result.total+' SAMPLES';
+      showToast('Independent instrument measurements ready for read-only XR review','info');
+    }catch(error){
+      showToast('Trace rejected: '+String(error?.message||error).slice(0,100),'warn');
+    }finally{traceFile.value=''}
+  });
+  const syncTraceButton=()=>{
+    const splash=document.getElementById('splash');
+    traceButton.style.display=!rBro.xr.isPresenting&&splash?.style.display==='none'
+      ?'block':'none';
+  };
+  const splash=document.getElementById('splash');
+  if(splash&&typeof MutationObserver!=='undefined'){
+    new MutationObserver(syncTraceButton).observe(splash,
+      {attributes:true,attributeFilter:['style']});
+  }
+  syncTraceButton();
   // AR is an explicit, capability-gated alternative session for the SAME
   // original engine. Quest 2 displays grayscale camera passthrough. Browser
   // alpha compositing reveals the room; no fabricated room scan or occlusion.
