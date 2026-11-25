@@ -7,9 +7,7 @@
 // Existing bookmarks resolve to the canonical original-engine XR. Legacy
 // experiments require deliberate ?archive=1 and remain nonclinical fixtures.
 if(new URLSearchParams(location.search).get('archive')!=='1'){
- const canonical=new URL('../index.html',location.href);
- canonical.searchParams.set('xr','procedural');
- canonical.searchParams.set('release','XR09-UNIFIED');
+ const canonical=new URL('../',location.href);
  location.replace(canonical.toString());
 }
 </script>
