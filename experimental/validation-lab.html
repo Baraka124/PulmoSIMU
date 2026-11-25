@@ -41,6 +41,7 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 <script defer src="./xr/physical-instrument-bench.js"></script>
 <script defer src="./xr/instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH"></script>
 <script defer src="./xr/instrument-serial.js?v=XR16F-READONLY-SERIAL"></script>
+<script defer src="./xr/physical-calibration.js?v=XR18-FAIL-CLOSED-CALIBRATION"></script>
 <script defer src="./xr/clinical-review-gate.js"></script>
 </head>
 <body>
@@ -95,6 +96,29 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 <button id="zeroPacket" type="button">Record reference offset</button>
 <pre id="packetReport">No live sample inspected. Uncalibrated.</pre>
 </section>
+<section id="physical-calibration">
+<h2>Physical instrument / measured coordinate mapping</h2>
+<p class="desc">Import actual laboratory reference points for every axis before mapping samples. Three points per axis are needed: two endpoints plus a separate verification measurement. The values shown below are <strong>illustrative software fixtures, not measured hardware calibration</strong>. Mapping remains read-only, requires manual arming and stops on stale, replayed or out-of-range input.</p>
+<label for="calibrationJson">Calibration reference measurements · PULMOSIMU-CALIBRATION/1</label>
+<textarea id="calibrationJson" spellcheck="false" style="min-height:210px">{
+  "protocol":"PULMOSIMU-CALIBRATION/1",
+  "calibrationId":"TEST_ONLY_REPLACE",
+  "axes":{
+    "insertionMm":{"unit":"mm","points":[{"reading":0,"reference":0},{"reading":1000,"reference":1000},{"reading":500,"reference":500}]},
+    "shaftRollDeg":{"unit":"deg","points":[{"reading":-150,"reference":-150},{"reading":150,"reference":150},{"reading":0,"reference":0}]},
+    "tipPitchDeg":{"unit":"deg","points":[{"reading":-60,"reference":-60},{"reading":60,"reference":60},{"reading":0,"reference":0}]},
+    "tipYawDeg":{"unit":"deg","points":[{"reading":-60,"reference":-60},{"reading":60,"reference":60},{"reading":0,"reference":0}]}
+  }
+}</textarea>
+<div class="actions">
+<button id="configureMapping" type="button">Assess three-point mapping</button>
+<button id="armMapping" type="button">Arm bench preview</button>
+<button id="mapPacket" type="button">Inspect mapped sample</button>
+<button id="stopMapping" type="button">Safety stop</button>
+</div>
+<pre id="mappingReport" aria-live="polite">NO CALIBRATION · Device-to-virtual-scope coupling disabled.</pre>
+<div class="note">Engineering preview only. This process cannot certify the sensors, transform the physical bronchoscope into a medical device, activate haptics or move the simulated instrument. Evidence must be independently reviewed.</div>
+</section>
 <section>
 <h2>Evidence & readiness</h2>
 <p class="desc">One report for engineering and clinical researchers. The outputs deliberately keep model validation, physical hardware verification and regulatory status separate.</p>
@@ -121,6 +145,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  const bench=window.PulmoXRInstrumentBench;
  const telemetry=window.PulmoXRInstrumentTelemetry;
  const liveBench=telemetry?.create?.()||null;
+ const calibration=window.PulmoXRPhysicalCalibration?.create({parseFrame:telemetry?.parseFrame})||null;
  const clinical=window.PulmoXRClinicalReview;
  const serial=window.PulmoXRReadOnlySerial?.create({
   navigatorObject:navigator,
@@ -128,6 +153,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   onLine:(line,t)=>{if(liveBench){const result=liveBench.ingest(line,t);
     $('packet').value=line;
     $('packetReport').textContent=JSON.stringify(liveBench.snapshot(t),null,2)+(result.accepted?'':'\\nREJECTED '+result.reason);
+    if(calibration?.snapshot(t).armed){
+      calibration.ingest(line,t);
+      $('mappingReport').textContent=JSON.stringify(calibration.snapshot(t),null,2);
+    }
   }},
   onState:state=>{if($('serialStatus'))$('serialStatus').textContent=
     'SERIAL / '+state.state+' · '+state.frames+' packet(s) · '+state.bytes+' bytes'+
@@ -141,21 +170,51 @@ document.addEventListener('DOMContentLoaded',()=>{
    const result=liveBench.ingest($('packet').value,performance.now());
    showLive();
    if(!result.accepted)$('packetReport').textContent+='\\nREJECTED: '+result.reason;
+   if(calibration?.snapshot(performance.now()).armed){
+     calibration.ingest($('packet').value,performance.now());
+     $('mappingReport').textContent=JSON.stringify(calibration.snapshot(performance.now()),null,2);
+   }
   });
-  $('resetPacket').addEventListener('click',()=>{liveBench.reset();showLive()});
+  $('resetPacket').addEventListener('click',()=>{liveBench.reset();calibration?.stop('INPUT_RESET');showLive()});
   $('connectSerial').addEventListener('click',()=>{
    if(!serial){$('serialStatus').textContent='Web Serial unavailable in this browser';return}
    void serial.connect().catch(e=>{
     $('serialStatus').textContent='Connection unavailable: '+String(e?.message||e);
    });
   });
-  $('disconnectSerial').addEventListener('click',()=>{if(serial)void serial.disconnect()});
-  window.addEventListener('pagehide',()=>{if(serial)void serial.disconnect()});
+  $('disconnectSerial').addEventListener('click',()=>{
+    calibration?.stop('DEVICE_DISCONNECTED');
+    if(serial)void serial.disconnect();
+    if(calibration)$('mappingReport').textContent=JSON.stringify(calibration.snapshot(performance.now()),null,2);
+  });
+  window.addEventListener('pagehide',()=>{
+    calibration?.stop('PAGE_CLOSED');
+    if(serial)void serial.disconnect();
+  });
   $('zeroPacket').addEventListener('click',()=>{
    try{const result=liveBench.calibrate(JSON.parse($('packetReference').value),performance.now());
     showLive();if(!result.ok)$('packetReport').textContent+='\\n'+result.reason;
    }catch(e){$('packetReport').textContent='Reference invalid: '+String(e.message||e)}
   });
+ }
+ if(calibration){
+  const paintMapping=()=>{
+    $('mappingReport').textContent=JSON.stringify(calibration.snapshot(performance.now()),null,2);
+  };
+  $('configureMapping').addEventListener('click',()=>{
+    try{calibration.configure(JSON.parse($('calibrationJson').value));paintMapping()}
+    catch(error){calibration.stop('CALIBRATION_REJECTED');$('mappingReport').textContent='Calibration rejected: '+String(error.message||error)}
+  });
+  $('armMapping').addEventListener('click',()=>{
+    try{calibration.arm();paintMapping()}
+    catch(error){$('mappingReport').textContent='Not armed: '+String(error.message||error)}
+  });
+  $('mapPacket').addEventListener('click',()=>{
+    const result=calibration.ingest($('packet').value,performance.now());
+    paintMapping();
+    if(!result.accepted)$('mappingReport').textContent+='\\nREJECTED '+result.reason;
+  });
+  $('stopMapping').addEventListener('click',()=>{calibration.stop('OPERATOR_STOP');paintMapping()});
  }
  if(!bench||!clinical){report.textContent='Verification modules unavailable; no clinical claims are possible.';return}
  clinical.checks.forEach((item,index)=>{
@@ -203,6 +262,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   clinicalResult=clinical.assess(packet());reviewReport.textContent=summary(clinicalResult);
   const data={version:'pulmosimu-xr16f-evidence/1',exportedAt:new Date().toISOString(),
     bench:benchResult,clinical:clinicalResult,clinicalPacket:packet(),
+    physicalCalibrationPreview:calibration?.snapshot(performance.now())||null,
     release:'ORIGINAL_REFERENCE_ONLY',clinicalValidated:false,patientUseApproved:false};
   const link=document.createElement('a'),url=URL.createObjectURL(new Blob([summary(data)],{type:'application/json'}));
   link.href=url;link.download='pulmosimu-xr16f-local-evidence.json';link.click();
