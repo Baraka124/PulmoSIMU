@@ -4,11 +4,11 @@ import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 const source=readFileSync(new URL('../xr/procedural-immersive.js',import.meta.url),'utf8');
 const original=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
-test('XR-09 runtime is browser-valid classic JavaScript compatible with original Three r128',()=>{
+test('XR-09 runtime is browser-valid classic JavaScript compatible with Three r147',()=>{
  const r=spawnSync(process.execPath,['--check'],{input:source,encoding:'utf8'});
  assert.equal(r.status,0,r.stderr);
  assert.match(source,/global\.PulmoImmersiveXR=\{install\}/);
- assert.match(original,/three@0\.128\.0/);
+ assert.match(original,/three@0\.147\.0/);
  assert.match(original,/procedural-immersive\.js\?v=XR16-BRONCHOSCOPY-ENGINEERING/);
 });
 test('only original clinical scene, geometry and procedural state drive headset experience',()=>{
@@ -66,8 +66,8 @@ test('XR-08 live endoscopy is rendered in the original VR GPU context, not copie
    'Do not upload another WebGL context canvas into Quest texture');
  assert.ok(!source.includes('rExt.render(scene,camScope)'),
    'VR monitor never depends on original desktop renderer capture');
- assert.ok(source.includes('rBro.state.bindXRFramebuffer(layer.framebuffer)'),
-   'XR r128 must restore headset base-layer framebuffer after endoscope target');
+ assert.ok(source.includes('rBro.setRenderTarget(previousTarget)'),
+   'Restore the actual r147 XR render target after endoscope capture');
  assert.ok(source.includes("monitorStatus='unavailable'"),
    'A failed offscreen render must be reported, not faked');
 });

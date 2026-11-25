@@ -1,5 +1,5 @@
 /* PulmoSIMU · Procedural Immersive XR
- * Three.js r128 classic-script adapter for the ORIGINAL PNEUMO·VR scene.
+ * Three.js r147 projection-layer-capable classic-script adapter for the ORIGINAL PNEUMO·VR scene.
  * The original mGrp, lobar geometry, pathology and scope functions remain the
  * sole source of truth. No second anatomy, procedural state, or tissue solver.
  * Physical scale is a COMFORT DISPLAY scale, not calibrated patient anatomy.
@@ -50,6 +50,7 @@ function install(ctx){
   const displayPath=global.PulmoXRDisplayPath.create({
     bindingConstructor:global.XRWebGLBinding||null
   });
+  const nativeQuad=global.PulmoXRNativeQuad?.create();
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   let mrReticle=null,originalModelVisibility=true,mrMenuPositioned=false;
   const instrument=global.PulmoXRBronchoscopyStation;
@@ -767,7 +768,7 @@ function install(ctx){
       paint();return;
     }
     if(action==='display-path'){
-      const evidence=displayPath.snapshot();
+      const evidence=nativeQuad?.snapshot()||displayPath.snapshot();
       grabFeedback='DISPLAY / '+evidence.actualDisplayPath+' / '+evidence.reason;
       showToast('XR display: '+evidence.reason+' · safe source-image fallback','info');
       paint();return;
@@ -1367,19 +1368,12 @@ function install(ctx){
         monitorError=String(error?.message||error).slice(0,140);
       }
       rBro.xr.enabled=previousXR;
-      // THREE r128 WebXRManager binds the XR base-layer framebuffer only at
-      // the start of its frame callback. setRenderTarget(null) can replace
-      // that binding while this callback is still active. Explicitly restore
-      // the real headset framebuffer before the stereo render below.
+      // r147 owns the XR render target for both base and projection layers.
+      // Restore the exact frame target before the stereo pass.
       if(previousXR&&rBro.xr.isPresenting&&previousTarget===null){
-        const layer=rBro.xr.getSession()?.renderState?.baseLayer;
-        if(layer?.framebuffer&&rBro.state?.bindXRFramebuffer)
-          rBro.state.bindXRFramebuffer(layer.framebuffer);
-        else{
-          monitorStatus='unavailable';
-          monitorError='Unable to restore XR framebuffer after scope pass';
-          monitorImage.visible=false;
-        }
+        monitorStatus='unavailable';
+        monitorError='XR frame target unavailable after scope pass';
+        monitorImage.visible=false;
       }
       camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
       scene.background=originalBg;
@@ -1529,6 +1523,7 @@ function install(ctx){
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
+    nativeQuadEvidence:endedXRGeometry?.nativeQuadEvidence||nativeQuad?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
@@ -1683,6 +1678,7 @@ function install(ctx){
     health.begin(rBro.xr.getSession()?.frameRate??null);
     displayPath.inspect({session:rBro.xr.getSession(),renderer:rBro,
       gl:rBro.getContext?.()||null});
+    nativeQuad?.bind(rBro);
     replay.pause(performance.now());
     traceButton.style.display='none';
     qualityStatus=configureComfortRendering();
@@ -1738,6 +1734,7 @@ function install(ctx){
       if(!headPose(frame)){
         // Tracking loss: never continue the last object or instrument command.
         health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
+        nativeQuad?.update({visible:false});
         viewerValid=false;scope.velocity=0;release(0);release(1);
         toolProxyOverlay.visible=false;
         if(mrReticle)mrReticle.visible=false;
@@ -1817,6 +1814,15 @@ function install(ctx){
           }
         }
       }
+      // Native compositor gets only the original source render target.
+      // The mesh remains visible until a real XR subimage copy succeeds.
+      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr';
+      const p=monitorImage.getWorldPosition(new THREE.Vector3());
+      const q=monitorImage.getWorldQuaternion(new THREE.Quaternion());
+      const nativeActive=nativeQuad?.update({renderer:rBro,frame,target:scopeTarget,
+        space:rBro.xr.getReferenceSpace(),position:{x:p.x,y:p.y,z:p.z},
+        orientation:{x:q.x,y:q.y,z:q.z,w:q.w},visible:nativeVisible});
+      monitorImage.visible=mode==='procedure'&&monitorStatus==='live'&&!nativeActive;
       // Stereoscopic source render. CPU call time is NOT a GPU timing.
       const renderStarted=performance.now();
       try{rBro.render(scene,vrCam)}
@@ -1835,6 +1841,7 @@ function install(ctx){
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
       procedureStation:station.snapshot(),
+      nativeQuadEvidence:nativeQuad?.snapshot()||null,
       xrCapabilityEvidence:xrCapabilities.snapshot(),
       mrPlacementEvidence:mrPlacement.snapshot(),
       instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
@@ -1843,6 +1850,7 @@ function install(ctx){
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
     // Capture status before disposal; no raw room/headset coordinates.
+    nativeQuad?.reset();
     mrPlacement.reset();
     mrReticle.visible=false;
     replay.pause(performance.now());
@@ -1890,6 +1898,7 @@ function install(ctx){
     physicalInstrumentBench:physicalBench?.snapshot(performance.now())||null,
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
+    nativeQuadEvidence:endedXRGeometry?.nativeQuadEvidence||nativeQuad?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},

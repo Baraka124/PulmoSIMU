@@ -1,9 +1,9 @@
 /* PulmoSIMU XR-17C — evidence-based immersive display-path negotiation.
- * Three.js r128 currently owns XRWebGLLayer/baseLayer. Replacing its
+ * This compatibility-only probe does not own the XR framebuffer. Replacing its
  * framebuffer with a compositor quad layer without a compatible projection
  * renderer would black-screen the headset. Therefore this module never
  * mutates XRSession.updateRenderState or WebGL framebuffer bindings.
- * A genuine compositor path is reported as a separate future integration gate.
+ * Actual compositor activation is separately reported by native-quad.js.
  */
 (function(root){
 'use strict';
