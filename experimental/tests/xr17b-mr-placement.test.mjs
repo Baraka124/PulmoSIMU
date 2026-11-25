@@ -6,7 +6,7 @@ import {runInNewContext} from 'node:vm';
 const source=readFileSync(new URL('../xr/mr-placement.js',import.meta.url),'utf8');
 const context={window:{}};runInNewContext(source,context);
 const MR=context.window.PulmoXRMRPlacement;
-const position=(x,y,z)=>({position:{x,y,z}});
+const position=(x,y,z)=>({position:{x,y,z},orientation:{x:0,y:0,z:0,w:1}});
 const makeSession=({anchor=false}={})=>{
  let cancelled=0,anchorDeleted=0;
  const hit={
@@ -86,6 +86,19 @@ test('XR17B optional genuine anchor applies only frame-supplied anchor deltas',a
  m.reposition();
  assert.equal(e.events().anchorDeleted,1);
  assert.equal(m.snapshot().anchorStatus,'none');
+});
+test('XR17B rejects a vertical wall while accepting a genuine horizontal result',async()=>{
+ const m=MR.create();const e=makeSession();await m.start(e.session);
+ const wall={getPose:()=>({transform:{
+  position:{x:0,y:1,z:-.5},
+  orientation:{x:Math.SQRT1_2,y:0,z:0,w:Math.SQRT1_2}}})};
+ assert.equal(m.scan({getHitTestResults:()=>[wall]},e.ref),null);
+ assert.equal(m.snapshot().surfaceStatus,'NON_HORIZONTAL_OR_UNVERIFIED');
+ assert.equal(m.confirm().accepted,false);
+ const table={getPose:()=>({transform:position(.7,.1,-.6)})};
+ assert.equal(m.scan({getHitTestResults:()=>[wall,table]},e.ref).kind,'candidate');
+ assert.equal(m.snapshot().surfaceStatus,'HORIZONTAL_VERIFIED_BY_HIT_POSE');
+ assert.equal(m.confirm().accepted,true);
 });
 test('XR17B actual XR hit-test failure loses target, never fabricates placement',async()=>{
  const e=makeSession();
