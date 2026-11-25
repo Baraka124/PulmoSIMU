@@ -4002,8 +4002,11 @@ async function openDesktopWorkstation({requestCamera=true}={}){
   }
 }
 document.getElementById('sbtn')?.addEventListener('click',()=>openDesktopWorkstation({requestCamera:true}));
-if(new URLSearchParams(location.search).get('entry')==='desktop'){
-  // No webcam prompt, no headset requirement, same clinical reference engine.
+const entryMode=new URLSearchParams(location.search).get('entry');
+if(['desktop','vr','mr'].includes(entryMode)){
+  // All three entries open the SAME original model without camera permission.
+  // VR/MR session entry stays on a deliberate user click in the app,
+  // preserving WebXR's required transient user activation.
   openDesktopWorkstation({requestCamera:false});
 }
 
