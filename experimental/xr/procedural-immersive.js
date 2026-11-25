@@ -29,9 +29,12 @@ function install(ctx){
     throw Error('XR-15 reversible anatomy transform runtime missing');
   if(!global.PulmoXRBronchoscopyStation?.create)
     throw Error('XR-16 procedure station and instrument kinematics unavailable');
+  if(!global.PulmoXRCapabilities?.create)
+    throw Error('XR-17A capability-negotiated XR runtime unavailable');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   const station=global.PulmoXRBronchoscopyStation.create();
+  const xrCapabilities=global.PulmoXRCapabilities.create({xr:navigator.xr||null});
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
   // External instrument inputs are evidence only, never scope control.
@@ -1318,6 +1321,7 @@ function install(ctx){
       requestedIntervalMs:station.snapshot().capture.intervalMs,
       framesRendered:monitorFrames},
     sessionType:xrPresentation==='ar'?'mixed-reality-passthrough-preview':'immersive-vr',
+    xrCapabilityEvidence:endedXRGeometry?.xrCapabilityEvidence||xrCapabilities.snapshot(),
     lastInteractionResult:grabFeedback,
     xrGeometryAtExit:endedXRGeometry,
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
@@ -1357,18 +1361,23 @@ function install(ctx){
   document.body.appendChild(arButton);
   async function enterXR(presentation){
     if(rBro.xr.isPresenting){await rBro.xr.getSession()?.end();return}
-    const desired=presentation==='ar'?'immersive-ar':'immersive-vr';
     try{
       const splash=document.getElementById('splash'),app=document.getElementById('app');
       if(splash)splash.style.display='none';if(app)app.style.display='flex';
       onResize();
-      const session=await navigator.xr.requestSession(desired,{
-        optionalFeatures:['local-floor','bounded-floor','hand-tracking']
-      });
+      // invoke request synchronously from this click: do NOT await probe()
+      // before XR requestSession, or transient browser activation may expire.
+      const session=await xrCapabilities.request(presentation);
       xrPresentation=presentation;
+      xrCapabilities.bind(session,presentation);
       try{await rBro.xr.setSession(session)}
-      catch(error){try{await session.end()}catch{}throw error}
+      catch(error){
+        xrCapabilities.end('three-session-rejected');
+        try{await session.end()}catch{}
+        throw error;
+      }
     }catch(error){
+      xrCapabilities.failure(error);
       xrPresentation='vr';
       showToast((presentation==='ar'?'MR passthrough':'Quest XR')+
         ' unavailable: '+String(error?.message||error),'warn');
@@ -1377,16 +1386,34 @@ function install(ctx){
   }
   button.addEventListener('click',()=>enterXR('vr'));
   arButton.addEventListener('click',()=>enterXR('ar'));
-  if(!navigator.xr){
-    button.disabled=true;button.textContent='PROCEDURAL XR · QUEST REQUIRED';
-  }else{
-    navigator.xr.isSessionSupported('immersive-vr').then(ok=>{
-      if(!ok){button.disabled=true;button.textContent='PROCEDURAL XR · QUEST REQUIRED'}
-    }).catch(()=>{button.disabled=true;button.textContent='PROCEDURAL XR UNAVAILABLE'});
-    navigator.xr.isSessionSupported('immersive-ar').then(ok=>{
-      arButton.style.display=ok?'block':'none';
-    }).catch(()=>{arButton.style.display='none'});
+  const runtimeStatus=document.createElement('div');
+  runtimeStatus.id='pulmo-xr-runtime-status';
+  runtimeStatus.setAttribute('role','status');
+  Object.assign(runtimeStatus.style,{position:'fixed',bottom:'114px',right:'18px',
+    zIndex:10019,maxWidth:'350px',textAlign:'right',font:'11px/1.6 system-ui',
+    color:'#d0e1e6',background:'#14232bcf',padding:'7px 10px',
+    border:'1px solid #49636f',borderRadius:'3px',display:'none'});
+  document.body.appendChild(runtimeStatus);
+  function refreshXRAvailability(info){
+    const caps=info||xrCapabilities.snapshot(),q=caps.sessions;
+    button.disabled=q.vr==='unsupported'||q.vr==='unavailable'||q.vr==='error';
+    if(button.disabled)button.textContent='PROCEDURAL VR · UNAVAILABLE';
+    else button.textContent='ENTER PROCEDURAL XR';
+    // MR is passthrough only; room anchors and physical occlusion are
+    // NOT supported merely because immersive-ar is available.
+    arButton.style.display=q.mr==='supported'?'block':'none';
+    const wantsMR=new URLSearchParams(location.search).get('entry')==='mr';
+    runtimeStatus.style.display=wantsMR?'block':'none';
+    if(wantsMR)runtimeStatus.textContent=q.mr==='supported'
+      ?'MR passthrough available · room anchors and physical occlusion not verified'
+      :q.mr==='checking'
+        ?'Checking mixed-reality support · desktop remains available'
+        :'MR passthrough unavailable in this browser · use desktop or supported headset';
   }
+  refreshXRAvailability();
+  void xrCapabilities.probe().then(refreshXRAvailability).catch(error=>{
+    xrCapabilities.failure(error);refreshXRAvailability();
+  });
   rBro.xr.addEventListener('sessionstart',()=>{
     // Preserve ordinary opaque 2D/VR rendering and fully restore it at exit.
     backgroundBeforeXR=scene.background;fogBeforeXR=scene.fog;
@@ -1514,11 +1541,13 @@ function install(ctx){
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
       procedureStation:station.snapshot(),
+      xrCapabilityEvidence:xrCapabilities.snapshot(),
       instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
       controllerActions:{...attempts},
       viewHistory:viewHistory.status(),pivotMode,axisMode,
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
+    xrCapabilities.end();
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
@@ -1565,7 +1594,9 @@ function install(ctx){
     spatialMenuVisible:Boolean(worldMenu.visible),
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
-    xrPresentation,procedureGuideVisible:Boolean(guidePlane?.visible),
+    xrPresentation,
+    xrCapabilityEvidence:xrCapabilities.snapshot(),
+    procedureGuideVisible:Boolean(guidePlane?.visible),
     viewHistory:viewHistory.status(),pivotMode,axisMode,
     orientationLocked,spatialCT:ctSpatial?.snapshot()||null,
     scienceIntegrity:scienceSnapshot(),
