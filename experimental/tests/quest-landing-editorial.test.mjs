@@ -22,15 +22,14 @@ test('Quest launch URLs still reach the canonical original-engine VR and feature
   .map(x=>x[1].replaceAll('&amp;','&'));
  assert.equal(links.length,2);
  const urls=links.map(x=>new URL(x,'https://current-deployment.example/quest-short/'));
- assert.ok(links.every(x=>x.startsWith('../index.html?')), 'Immersive URLs stay on deployed origin');
+ assert.ok(links.every(x=>x.startsWith('../index.html?entry=')), 'Immersive URLs stay on deployed origin');
  for(const u of urls){
    assert.equal(u.hostname,'current-deployment.example');
    assert.equal(u.pathname,'/index.html');
-   assert.equal(u.searchParams.get('xr'),'procedural');
-   assert.equal(u.searchParams.get('release'),'XR09-UNIFIED');
-   assert.equal(u.searchParams.get('interaction'),'XR14');
+   assert.equal(u.searchParams.get('release'),null);
+   assert.equal(u.searchParams.get('interaction'),null);
  }
- assert.equal(urls[0].searchParams.get('entry'),null);
+ assert.equal(urls[0].searchParams.get('entry'),'vr');
  assert.equal(urls[1].searchParams.get('entry'),'mr');
  assert.match(launcher,/grayscale/);
  assert.match(launcher,/Quest hardware anchoring and drift are not yet tested/);
@@ -46,11 +45,12 @@ test('Quest entry remains responsive, accessible and restrained',()=>{
  assert.match(launcher,/Quest validation pending/);
  assert.match(launcher,/id="desktop-launch"/);
  assert.match(launcher,/entry=desktop/);
+ assert.doesNotMatch(launcher,/XR09-UNIFIED|interaction=XR14/);
 });
 
 test('Desktop entry never depends on Quest or camera permissions',()=>{
  assert.match(launcher,/<section class="desktop-entry"/);
- assert.match(launcher,/<a href="\.\.\/index\.html\?xr=procedural&amp;entry=desktop" id="desktop-launch">/);
+ assert.match(launcher,/<a href="\.\.\/index\.html\?entry=desktop" id="desktop-launch">/);
  const main=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
  assert.match(main,/function openDesktopWorkstation\(\{requestCamera=true\}=\{\}\)/);
  assert.match(main,/if\(!requestCamera\)/);
