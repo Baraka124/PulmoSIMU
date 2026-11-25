@@ -1,0 +1,40 @@
+{
+  "schema": "pulmosimu-hil-design/0.1",
+  "status": "PRELIMINARY_UNPRINTED_PASSIVE_REPLICA",
+  "units": "mm",
+  "housing": {
+    "length": 166,
+    "width": 62,
+    "depth": 54,
+    "wall": 3,
+    "split": "x=0",
+    "screwClearanceDiameter": 3.4,
+    "shaftPortDiameter": 8,
+    "leverPivotDiameter": 4.2
+  },
+  "shaft": {
+    "nominalOuterDiameter": 4.1,
+    "distalReferenceDiameter": 4.2,
+    "workingLength": 600,
+    "channelReferenceDiameter": 2,
+    "source": "generic dimensional reference from XR23, not OEM CAD"
+  },
+  "interfaces": {
+    "electronicsBay": "envelope to be checked against selected board",
+    "angleSensor": "Hall sensor + magnet, bracket pending component selection",
+    "shaft": "commercial flexible nonclinical tube; replaceable port insert",
+    "power": "USB low voltage, read-only telemetry initially"
+  },
+  "actuation": {
+    "poweredMovement": false,
+    "brakeInstalled": false,
+    "hardwareWrite": false
+  },
+  "validation": [
+    "dimensional coupon",
+    "shell closure and fastener fit",
+    "lever free movement",
+    "sensor calibration",
+    "passive shaft retention and force measurement"
+  ]
+}

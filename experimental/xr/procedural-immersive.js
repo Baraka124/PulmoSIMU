@@ -54,6 +54,8 @@ function install(ctx){
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
+  const procedureMetrics=global.PulmoXRProcedureMetrics.create({sampleHz:20});
+  procedureMetrics.reset(SEGS);
   const insertedShaft=deviceLab.createShaft(THREE,mGrp);
   const channel=deviceLab.createChannel();
   const accessory=deviceLab.createAccessory(THREE,scene);
@@ -362,7 +364,7 @@ function install(ctx){
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -1520,7 +1522,8 @@ function install(ctx){
     c.fillText(route.labels.join(' > ').slice(0,73),42,337);
     c.fillStyle=state.clearance.includes('BLOCKING')?'#e8b99d':'#93adba';
     c.font='23px system-ui';
-    c.fillText('ROUTE '+Math.round(route.distanceMm)+' MM · '+state.clearance.slice(0,47),42,378);
+    const observed=procedureMetrics.snapshot();
+    c.fillText('ROUTE '+Math.round(route.distanceMm)+' MM · VISITED '+observed.visitedSegments+'/'+observed.totalSegments+' SEGMENTS',42,378);
     const branches=Array.from({length:Math.max(2,state.branches.length)},(_,i)=>({id:'guide-branch'+i,label:state.branches[i]?.label||'NO SOURCE BRANCH',disabled:!state.branches[i]?.enabled,u:.04+i*.92/Math.max(2,state.branches.length),v:.60,w:.88/Math.max(2,state.branches.length),h:.14}));
     guideHitboxes=[
       ...branches,
@@ -1750,6 +1753,7 @@ function install(ctx){
     release:'E1–E4 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
     session:health.snapshot(),
     interactionAttempts:{...attempts},
+    quantitativeProcedure:procedureMetrics.snapshot(),
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
@@ -1984,7 +1988,7 @@ function install(ctx){
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
-    station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;
+    station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
     toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
@@ -2037,7 +2041,7 @@ function install(ctx){
       health.startFrame(time);
       if(!headPose(frame)){
         // Tracking loss: never continue the last object or instrument command.
-        health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
+        procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
         viewerValid=false;scope.velocity=0;release(0);release(1);
@@ -2122,6 +2126,7 @@ function install(ctx){
       updateScope();updateRouteOverlay();
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
+      procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
       if(mode==='procedure'){
@@ -2190,7 +2195,7 @@ function install(ctx){
     insertedShaft.hide();channel.reset();accessory.group.visible=false;
     toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
-    health.end();reportButton.style.display='block';
+    procedureMetrics.suspend();health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
@@ -2224,6 +2229,7 @@ function install(ctx){
   paint();
   const diagnostics=()=>({source:'original-pneumovr-scene',modelRole:getMeshMode(),
     mode,active,placed,viewerValid,monitor:scopeScreen.visible,
+    quantitativeProcedure:procedureMetrics.snapshot(),
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,

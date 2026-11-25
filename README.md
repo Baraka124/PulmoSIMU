@@ -74,3 +74,7 @@ Manufacturer reference also specifies 2–50 mm depth of field; this release rec
 ## XR24–26 device research pass
 
 XR24 adds a depth-texture-driven focus approximation (reference 2–50 mm), bounded radial distortion and static luminance response in the XR monitor, with original image fallback on non-WebGL2 devices. XR25 displays an inserted shaft constrained to the original source route, and reports source-field geometric margin and estimated curvature. It does not solve forces or tissue deformation; the original navigation remains authoritative. XR26 adds a 2 mm reference working-channel visual mechanism for forceps, brush and suction indication. Deployment and jaw movement are bounded; no actual biopsy, fluid removal or clinical sampling is performed. Headset acceptance and bench calibration remain outstanding.
+
+## XR-27 / HIL-01 parallel start
+
+Local 20 Hz bounded procedure observation records reference segment bins, within-segment travel, movement-speed summaries and estimated shaft-state sample counts. No visual surface coverage, clinical score, contact force or raw trajectory export. HIL-01 preliminary passive training handle concept is stored in hardware/hil-01 with parametric OpenSCAD, dimensional design manifest and manufacturing gates. CAD not yet rendered or printed.
