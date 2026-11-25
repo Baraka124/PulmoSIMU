@@ -5,26 +5,25 @@ const read=file=>readFileSync(new URL('../../'+file,import.meta.url),'utf8');
 const studio=read('studio.html');
 const main=read('index.html');
 const gateway=read('quest-short/index.html');
-const entrances=['quest.html','quest4.html'].map(read);
+const routing=JSON.parse(read('vercel.json'));
 const originalXR=read('experimental/xr/procedural-immersive.js');
 const legacy=read('experimental/vr.html');
 
-test('unified official Quest/Studio routes point only to original procedural WebXR',()=>{
- assert.ok(studio.includes("src:'./index.html?xr=procedural&release=XR09-UNIFIED'"));
- assert.ok(studio.includes("new URL('./index.html?xr=procedural&release=XR09-UNIFIED'"));
+test('one canonical root launcher reaches the original procedural engine',()=>{
+ assert.ok(studio.includes("src:'./index.html?entry=vr'"));
+ assert.ok(studio.includes("new URL('./index.html?entry=vr'"));
  assert.ok(!studio.includes("src:'./experimental/vr.html'"));
  assert.ok(gateway.includes('Anatomy, in space.')&&gateway.includes('Virtual laboratory'));
  assert.ok(gateway.includes('hold trigger or grip'));
- assert.ok(gateway.includes('E1–E4')&&gateway.includes('interaction=XR14'), 'E1–E4 uses original XR-14 interaction integration');
- assert.ok(gateway.includes('href="../index.html?'), 'Quest launcher stays on current deployment');
- assert.ok(gateway.includes('release=XR09-UNIFIED'));
- assert.ok(!gateway.includes('experimental/vr.html'),'Schematic viewer is archived, not prominently linked');
- for(const page of entrances){
-  assert.ok(page.includes("url=new URL('./index.html',location.href)"));
-  assert.ok(!page.includes("new URL('./experimental/vr.html'"));
-  assert.ok(page.includes('XR09-UNIFIED'));
- }
- assert.ok(legacy.includes('XR-06'),'Historical experiments are still source-preserved');
+ assert.ok(gateway.includes('href="../index.html?entry=vr'));
+ assert.ok(gateway.includes('href="../index.html?entry=mr'));
+ assert.ok(!gateway.includes('XR09-UNIFIED'));
+ assert.ok(!gateway.includes('interaction=XR14'));
+ assert.ok(!gateway.includes('experimental/vr.html'));
+ assert.ok(routing.routes.some(x=>x.src==='^/$'&&x.dest==='/quest-short/index.html'));
+ assert.ok(routing.routes.some(x=>x.src==='^/quest-short/?$'&&x.headers?.Location==='/'));
+ assert.ok(routing.routes.some(x=>x.src==='^/(quest|quest4)\\.html$'&&x.headers?.Location==='/'));
+ assert.ok(legacy.includes('XR-06'),'Historical archived experiment remains source-preserved');
 });
 test('procedural origin owns one scene plus shared R3 reduced-order solver',()=>{
  assert.ok(main.includes('window.PulmoImmersiveXR?.install('));
