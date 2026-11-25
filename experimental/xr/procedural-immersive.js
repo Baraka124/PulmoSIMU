@@ -534,6 +534,13 @@ function install(ctx){
         const a=p.transform.position,b=q.transform.position;
         const pA=new THREE.Vector3(a.x,a.y,a.z),pB=new THREE.Vector3(b.x,b.y,b.z);
         const proxy=handProxies[i];
+        // Use this frame's real target-ray pose, even if the runtime did
+        // not emit a Three controller-connected event for hand input.
+        const targetPose=source.targetRaySpace&&frame.getPose?.(source.targetRaySpace,space)?.transform;
+        if(targetPose?.position&&targetPose?.orientation){
+          const h=hands[i];h.position.set(targetPose.position.x,targetPose.position.y,targetPose.position.z);
+          h.quaternion.set(targetPose.orientation.x,targetPose.orientation.y,targetPose.orientation.z,targetPose.orientation.w);h.updateMatrixWorld(true);
+        }
         proxy.position.copy(pA).add(pB).multiplyScalar(.5);
         const wrist=source.hand.get('wrist');
         const w=wrist?frame.getJointPose(wrist,space):null;
@@ -1438,7 +1445,7 @@ function install(ctx){
     for(let i=0;i<2;i++){
       const laser=laserLines[i],tip=laserTips[i];
       if(!laser||!tip)continue;
-      const available=Boolean(controllerSources[i])&&(placed||xrPresentation==='ar');
+      const available=Boolean(controllerSources[i]||handSeen[i])&&(placed||xrPresentation==='ar');
       laser.visible=Boolean(available);
       tip.visible=false;aimTargets[i]=null;
       if(!available){
