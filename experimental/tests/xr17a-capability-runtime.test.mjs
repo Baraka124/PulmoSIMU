@@ -61,7 +61,9 @@ test('XR17A MR preview never fabricates spatial anchors or optional grants',asyn
  const v=r.bind(s,'ar');
  assert.equal(v.activeMode,'mr');
  assert.equal(v.actualFeatures['local-floor'],'not-reported');
- assert.equal(v.actualFeatures['anchors'],'not-requested');
+ assert.equal(v.actualFeatures['anchors'],'not-reported');
+ assert.ok(v.requestedFeatures.includes('hit-test'));
+ assert.ok(v.requestedFeatures.includes('anchors'));
  assert.equal(v.spatialRegistration,'NOT_IMPLEMENTED');
  assert.equal(v.physicalOcclusion,'NOT_IMPLEMENTED');
  assert.equal(v.featureReporting,'runtime-did-not-report-enabled-features');
