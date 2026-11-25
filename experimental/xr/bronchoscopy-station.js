@@ -98,6 +98,6 @@ function videoCostGovernor(){
  });
 }
 root.PulmoXRBronchoscopyStation=Object.freeze({
- create:make,LAYOUTS,VIDEO,OPTICS,tipStep,rollStep,velocity,rateLimit,videoCostGovernor
+ create:make,LAYOUTS,VIDEO,OPTICS,tipStep,rollStep,velocity,rateLimit,videoCostGovernor,inputAxis:stick
 });
 })(typeof window!=='undefined'?window:globalThis);

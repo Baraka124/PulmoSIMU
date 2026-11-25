@@ -133,6 +133,9 @@ function install(ctx){
   let guidePlane=null,guideTex=null,guideCtx=null,guideHitboxes=[];
   let guideVisible=true,guideStep=0,guideLastState=null,guideActions=0;
   let xrPresentation='vr',backgroundBeforeXR=null,fogBeforeXR=null;
+  // Physical acceptance prioritizes a reliable monitor; native layers remain
+  // opt-in for a separate measured compositor session.
+  const nativeLayersOptIn=false;
   let clearBeforeXR=null,clearAlphaBeforeXR=1,arButton=null;
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
@@ -320,7 +323,7 @@ function install(ctx){
     grabFeedback='MR SURFACE CONFIRMED / '+mrPlacement.snapshot().anchorStatus.toUpperCase();
     positionPanels();paint();return true;
   }
-  function frameGroup(distance=1.05,width=.68){
+  function frameGroup(distance=.76,width=.52){
     if(!viewerValid)return false;
     if(placed){finishViewChange();beginViewChange();}
     summonGeneration++;summonTween=null;
@@ -329,7 +332,7 @@ function install(ctx){
     const bounds=sourceBounds();boundsCache=bounds;
     const scale=limits.clampScale(Math.min(width/Math.max(.0001,bounds.size.x),
       .65/Math.max(.0001,bounds.size.y)),modelExtent());
-    const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.1,0));
+    const center=head.clone().addScaledVector(forward,distance).add(new THREE.Vector3(0,-.20,0));
     mGrp.quaternion.identity();
     if(orientationLocked)orientationAnchor=mGrp.quaternion.clone();
     mGrp.scale.setScalar(scale);scaleMode='comfort';
@@ -441,8 +444,8 @@ function install(ctx){
     const near=surfaceContact(i,source);
     // If the anatomy is beyond arm's reach, pointing + holding either
     // trigger or grip also acquires the ORIGINAL mesh via triangle raycast.
-    const remote=source==='controller'&&!near.hit
-      ?chosen.organ:null;
+    const remote=!near.hit
+      ?(source==='controller'?chosen.organ:global.PulmoXRRemoteTarget.pick(THREE,hands[i],surfaceTarget(),{maxDistance:2.5})):null;
     if(!near.hit&&!remote?.hit){
       attempts.rejected++;
       grabFeedback=remote?.reason==='no-anatomy-source'
@@ -546,8 +549,16 @@ function install(ctx){
         }
         const pinchDistance=pA.distanceTo(pB);
         const pressed=handPinched[i]?pinchDistance<.055:pinchDistance<=.026;
-        if(pressed&&!handPinched[i]&&mode==='anatomy')startGrab(i,'hand');
-        else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
+        if(pressed&&!handPinched[i]){
+          const hit=panelIntersection(rayFrom(i));
+          if(hit?.action){attempts.menuActions++;activate(hit.action);}
+          else if(mode==='anatomy'){
+            if(xrPresentation==='ar'&&!placed){confirmOrManualMR();}
+            else startGrab(i,'hand');
+          }else if(mode==='procedure'&&scope.atBranch){
+            enterBranch(source.handedness==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
+          }
+        }else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
         handPinched[i]=pressed;
       }
     }
@@ -657,6 +668,18 @@ function install(ctx){
     if(mode==='anatomy')summon();
     return true;
   }
+  function confirmOrManualMR(){
+    const result=mrPlacement.confirm();
+    if(result.accepted){grabFeedback='SURFACE CONFIRMATION / ALIGNING NEXT FRAME';paint();return true;}
+    // A deliberate trigger/pinch places a visibly unregistered model if
+    // hit-testing is unsupported. Never equate it with a detected surface.
+    const state=mrPlacement.snapshot().state;
+    if(state==='unsupported'||state==='scanning'){
+      mrPlacement.preview();mGrp.visible=true;frameGroup();
+      grabFeedback='MANUAL MR PLACEMENT / UNREGISTERED';paint();return true;
+    }
+    grabFeedback='MR INITIALIZING / TRY AGAIN';paint();return false;
+  }
   function onTrigger(i){
     if(!active||!rayFrom(i))return;
     const chosen=choosePointer(i);
@@ -671,10 +694,7 @@ function install(ctx){
       return;
     }
     if(mode==='anatomy'&&xrPresentation==='ar'&&!placed){
-      const result=mrPlacement.confirm();
-      grabFeedback=result.accepted?'SURFACE CONFIRMATION / ALIGNING NEXT FRAME':
-        'NO VERIFIED SURFACE / OPEN MR WORKSPACE';
-      paint();return;
+      confirmOrManualMR();return;
     }
     if(mode==='anatomy'){
       // The SELECT trigger is an actual hold-to-manipulate action.
@@ -772,7 +792,7 @@ function install(ctx){
       paint();return;
     }
     if(action==='display-path'){
-      const evidence=nativeQuad?.snapshot()||displayPath.snapshot();
+      const evidence=nativeLayersOptIn?(nativeQuad?.snapshot()||displayPath.snapshot()):{actualDisplayPath:'SAME_CONTEXT_OFFSCREEN_WEBGL_RENDER_TARGET',reason:'PHYSICAL_ACCEPTANCE_COMPATIBILITY_MODE'};
       grabFeedback='DISPLAY / '+evidence.actualDisplayPath+' / '+evidence.reason;
       showToast('XR display: '+evidence.reason+' · safe source-image fallback','info');
       paint();return;
@@ -848,6 +868,8 @@ function install(ctx){
       if(guidePlane)guidePlane.visible=mode==='procedure'&&guideVisible;
     }
     if(action==='guide-hide'){guideVisible=false;if(guidePlane)guidePlane.visible=false}
+    if(mode==='procedure'&&!physicalControl?.snapshot().armed&&action==='scope-forward'){advance(.045);scope.velocity=0;}
+    if(mode==='procedure'&&!physicalControl?.snapshot().armed&&action==='scope-back'){retract(.045);scope.velocity=0;}
     if(action==='guide-next')guideStep=Math.min(4,guideStep+1);
     if(action==='guide-prev')guideStep=Math.max(0,guideStep-1);
     if(action==='guide-tool'){
@@ -922,7 +944,9 @@ function install(ctx){
     let leftControllerAvailable=false;
     for(const src of session.inputSources){
       if(!src.gamepad)continue;
-      const i=controllerSources.indexOf(src);
+      // Gamepad commands depend on handedness, not a connected-event slot.
+      const mapped=controllerSources.indexOf(src);
+      const i=mapped>=0?mapped:src.handedness==='left'?0:src.handedness==='right'?1:-1;
       if(i<0)continue;
       // Input-source array slots are connection order, NOT left/right.
       const side=src.handedness||controllerSide[i];
@@ -944,7 +968,9 @@ function install(ctx){
       }
       const axes=Array.from(src.gamepad.axes||[]);
       const n=axes.length>=4?2:0;
-      const x=Math.abs(axes[n]||0)<.13?0:axes[n],y=Math.abs(axes[n+1]||0)<.13?0:axes[n+1];
+      const ax=Number.isFinite(axes[n])?axes[n]:0,ay=Number.isFinite(axes[n+1])?axes[n+1]:0;
+      const fallback=n===2&&Math.abs(ax)<.13&&Math.abs(ay)<.13;
+      const x=instrument.inputAxis(fallback?axes[0]:ax),y=instrument.inputAxis(fallback?axes[1]:ay);
       if(side==='right'&&edge(4))setMode(mode==='anatomy'?'procedure':'anatomy');
       if(side==='left'&&edge(4))frameGroup();
       // Quest left-controller Y: restore/hide the spatial menu. This avoids
@@ -1308,10 +1334,12 @@ function install(ctx){
     ];
     guideHitboxes=[
       ...branches,
-      {id:'guide-prev',label:'PREVIOUS',disabled:guideStep===0,u:.04,v:.79,w:.20,h:.11},
-      {id:'guide-next',label:'NEXT STEP',disabled:guideStep===4,u:.27,v:.79,w:.20,h:.11},
-      {id:'guide-tool',label:'TOOL MODE',disabled:false,u:.50,v:.79,w:.21,h:.11},
-      {id:'guide-hide',label:'HIDE',disabled:false,u:.74,v:.79,w:.22,h:.11}
+      {id:'scope-back',label:'RETRACT',disabled:false,u:.04,v:.76,w:.43,h:.10},
+      {id:'scope-forward',label:'ADVANCE',disabled:false,u:.52,v:.76,w:.43,h:.10},
+      {id:'guide-prev',label:'PREVIOUS',disabled:guideStep===0,u:.04,v:.88,w:.20,h:.08},
+      {id:'guide-next',label:'NEXT STEP',disabled:guideStep===4,u:.27,v:.88,w:.20,h:.08},
+      {id:'guide-tool',label:'TOOL MODE',disabled:false,u:.50,v:.88,w:.21,h:.08},
+      {id:'guide-hide',label:'HIDE',disabled:false,u:.74,v:.88,w:.22,h:.08}
     ];
     for(const a of guideHitboxes){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
@@ -1332,7 +1360,7 @@ function install(ctx){
     c.fillStyle='#c7d7dc';c.font='23px system-ui';
     c.fillText('TIP H '+Math.round(scope.deflH*CFG.deflMax)+'°  /  V '+
       Math.round(scope.deflV*CFG.deflMax)+'°   ·   SHAFT '+
-      Math.round(scope.roll*180/Math.PI)+'°',42,523);
+      Math.round(scope.roll*180/Math.PI)+'°',42,505);
     guideTex.needsUpdate=true;
     paintMonitorChrome();
   }
@@ -1410,7 +1438,7 @@ function install(ctx){
     for(let i=0;i<2;i++){
       const laser=laserLines[i],tip=laserTips[i];
       if(!laser||!tip)continue;
-      const available=placed&&controllerSources[i]&&!controllerSources[i].hand;
+      const available=Boolean(controllerSources[i])&&(placed||xrPresentation==='ar');
       laser.visible=Boolean(available);
       tip.visible=false;aimTargets[i]=null;
       if(!available){
@@ -1681,6 +1709,9 @@ function install(ctx){
       // invoke request synchronously from this click: do NOT await probe()
       // before XR requestSession, or transient browser activation may expire.
       const session=await xrCapabilities.request(presentation);
+      // local-floor is not guaranteed for passthrough. A local space is
+      // sufficient for hit-test placement and avoids a rejected XR setup.
+      rBro.xr.setReferenceSpaceType(presentation==='ar'?'local':'local-floor');
       xrPresentation=presentation;
       xrCapabilities.bind(session,presentation);
       try{await rBro.xr.setSession(session)}
@@ -1780,7 +1811,11 @@ function install(ctx){
     mrMenuPositioned=false;
     if(xrPresentation==='ar'){
       mGrp.visible=false; // Never auto-place unregistered geometry over passthrough.
-      void mrPlacement.start(rBro.xr.getSession()).then(()=>paint());
+      void mrPlacement.start(rBro.xr.getSession()).then(()=>{
+        const state=mrPlacement.snapshot().state;
+        grabFeedback=state==='unsupported'?'MR HIT TEST UNAVAILABLE / TRIGGER OR PINCH TO PLACE MANUALLY':'LOOK AT SURFACE / TRIGGER OR PINCH TO PLACE';
+        paint();
+      });
       grabFeedback='MR SCAN / FIND A REAL SURFACE OR CHOOSE PREVIEW';
     }else mrPlacement.reset();
     mrReticle.visible=false;
@@ -1788,7 +1823,9 @@ function install(ctx){
     room.position.copy(head).setY(-.02);
     button.textContent='EXIT PROCEDURAL XR';
     arButton.textContent='EXIT MR PREVIEW';
-    setMode('anatomy');paint();
+    setMode('anatomy');
+    if(xrPresentation==='ar'){menuPage='mr';actionHitbox=panelLayouts.mr;grabFeedback='MR / LOOK AT SURFACE OR USE FLOATING PREVIEW';}
+    paint();
     rBro.setAnimationLoop((time,frame)=>{
       if(!active||!rBro.xr.isPresenting)return;
       health.startFrame(time);
@@ -1829,7 +1866,10 @@ function install(ctx){
           }
         }
         if(!placed&&viewerValid&&!mrMenuPositioned){
-          positionPanels();mrMenuPositioned=true;
+          positionPanels();
+          worldMenu.position.copy(head).addScaledVector(forward,.86).add(new THREE.Vector3(0,-.12,0));
+          worldMenu.lookAt(head);worldMenu.updateWorldMatrix(true,false);
+          mrMenuPositioned=true;
         }
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
@@ -1898,7 +1938,7 @@ function install(ctx){
       }
       // Native compositor gets only the original source render target.
       // The mesh remains visible until a real XR subimage copy succeeds.
-      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr';
+      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr'&&nativeLayersOptIn;
       const p=monitorImage.getWorldPosition(new THREE.Vector3());
       const q=monitorImage.getWorldQuaternion(new THREE.Quaternion());
       const nativeActive=nativeQuad?.update({renderer:rBro,frame,target:scopeTarget,

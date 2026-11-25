@@ -15,7 +15,7 @@ test('XR17A desktop always available; missing WebXR fails closed',async()=>{
  assert.equal(v.sessions.mr,'unavailable');
  assert.equal(v.worldAnchor,'NOT_IMPLEMENTED');
  assert.equal(v.physicalOcclusion,'NOT_IMPLEMENTED');
- assert.throws(()=>r.request('vr'),/WEBXR_NOT_AVAILABLE/);
+ assert.throws(()=>r.request('vr',{nativeLayers:true}),/WEBXR_NOT_AVAILABLE/);
  assert.equal(r.snapshot().sessionActive,false);
 });
 test('XR17A supports VR without inventing MR or a room mesh',async()=>{

@@ -60,7 +60,7 @@ function create({xr=null}={}){
   }
   probed=true;return snapshot();
  }
- function request(mode){
+ function request(mode,{nativeLayers=false}={}){
   mode=validMode(mode);
   const spec=MODES[mode];
   if(!spec)throw Error('UNKNOWN_XR_PRESENTATION');
@@ -70,7 +70,7 @@ function create({xr=null}={}){
   // Deliberately invoke requestSession synchronously in the user's gesture.
   // A preliminary await can consume transient activation on Quest Browser.
   requestedMode=mode;
-  requestedFeatures=spec.optionalFeatures.slice();
+  requestedFeatures=spec.optionalFeatures.filter(f=>f!=='layers'||nativeLayers);
   lastError=null;
   let outcome;
   try{outcome=xr.requestSession(spec.sessionMode,{

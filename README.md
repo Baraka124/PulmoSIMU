@@ -52,3 +52,7 @@ Historical Vercel aliases are not release targets; use only the canonical entran
 ## XR-19 renderer and simulator input integration
 
 The original workstation now pins Three.js r147 for WebXR projection-layer support. The native quad adapter copies the original endoscopy render target to a granted XR quad layer; the same-context mesh remains the fallback. Native pixels are only reported active after a successful GPU copy. Actual Quest acceptance remains required. The original workstation also offers optional local serial setup and measured calibration import, manually armed simulator-only control and a left-grip dead-man. No physical commands, patient-specific control, or clinical certification are provided. Device sampling, axis orientation, latency and calibration must be independently measured before acceptance. Use the official root domain only.
+
+## XR-20 physical acceptance recovery
+
+Corrected the original clearance gate's undefined diameter variable, added explicit forward/retract controls to the spatial guide, hand pinch menu actions and remote/near anatomical grabs, closer default anatomy, MR local-space entry and explicit manual placement when real hit testing is unavailable. Native compositor activation is disabled for this compatibility test release; source endoscopy remains available. Physical retesting is mandatory.

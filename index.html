@@ -25,7 +25,7 @@
 <script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
 <script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE"></script>
-<script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION"></script>
+<script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 <script src="./experimental/xr/mr-placement.js?v=XR17B-SURFACE-PLACEMENT"></script>
 <script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
 <script src="./experimental/xr/instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH"></script>
@@ -38,7 +38,7 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR20"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -2726,7 +2726,7 @@ function advance(dt){
     try{
       const clearance=window.PulmoXR08.assessLumenClearance({
         segment:seg,t:Math.min(.999,scope.t+dt),
-        scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+        scopeDiameterMm:scopeDiamMm,mmPerSceneUnit:mmPerUnit
       });
       if(!clearance.canAdvance){
         scope.velocity=0;
@@ -2762,7 +2762,7 @@ function enterBranch(childIdx){
     try{
       const target=SEG_MAP[ch[childIdx]];
       const clearance=window.PulmoXR08.assessLumenClearance({
-        segment:target,t:.01,scopeDiameterMm,mmPerSceneUnit:mmPerUnit
+        segment:target,t:.01,scopeDiameterMm:scopeDiamMm,mmPerSceneUnit:mmPerUnit
       });
       if(!clearance.canAdvance){
         scope.velocity=0;
