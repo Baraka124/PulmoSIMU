@@ -75,7 +75,7 @@ test('XR17B optional genuine anchor applies only frame-supplied anchor deltas',a
  m.confirm();
  const placed=m.scan(e.frame,e.ref);
  assert.equal(placed.kind,'placed');
- await Promise.resolve();
+ await new Promise(resolve=>setImmediate(resolve));
  assert.equal(m.snapshot().anchorStatus,'anchor-acquired');
  const delta=m.scan(e.frame,e.ref);
  assert.equal(delta.kind,'anchor-delta');
