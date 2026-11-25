@@ -34,6 +34,8 @@ function install(ctx){
   const station=global.PulmoXRBronchoscopyStation.create();
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
+  // External instrument inputs are evidence only, never scope control.
+  const physicalBench=global.PulmoXRInstrumentBench?.create?.()||null;
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
   // Meta Quest Browser may expose fixed foveation on its XR base layer.
@@ -1401,6 +1403,7 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();
+    physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
     camScope.fov=station.snapshot().fovDegrees;camScope.updateProjectionMatrix();
     viewHistory.clear();analogChangedAt=0;pivotMode='center';axisMode='yaw';
@@ -1484,7 +1487,7 @@ function install(ctx){
         if(monitorStatus==='live'&&monitorFrames>beforeFrames){
           const recommended=monitorBudget.note(monitorCpuMs,station.snapshot().video);
           if(recommended&&station.snapshot().video!==recommended){
-            station.next('video'); // detail -> balanced -> economy
+            station.set('video',recommended); // deterministic quality step
             const video=station.snapshot().capture;
             scopeTarget.setSize(video.width,video.height);
             lastFeed=0;
@@ -1553,6 +1556,7 @@ function install(ctx){
     videoBudget:monitorBudget.snapshot(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     monitorResolution:[scopeTarget.width,scopeTarget.height],
+    physicalInstrumentBench:physicalBench?.snapshot(performance.now())||null,
     procedureStation:station.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     contact:lastContact,grabFeedback,grabAttempts:{...attempts},
