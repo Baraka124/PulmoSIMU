@@ -8,7 +8,7 @@ PulmoSIMU is an integrated pulmonary research and spatial procedure laboratory b
 
 - **PulmoSIMU launcher:** https://pulmosimu-xr-preview.vercel.app/quest-short/
 - **Desktop procedural workstation (no Quest or webcam required):** https://pulmosimu-xr-preview.vercel.app/index.html?xr=procedural&entry=desktop
-- **CT source / MPR inspector:** https://pulmosimu-xr-preview.vercel.app/experimental/anatomy-inspector.html
+- **CT source / MPR inspector:** https://pulmosimu-xr-preview.vercel.app/experimental/anatomy-inspector.html\n- **Clinical & physical verification lab:** https://pulmosimu-xr-preview.vercel.app/experimental/validation-lab.html
 - **Clinical review and physical instrument bench evidence (local-only):** https://pulmosimu-xr-preview.vercel.app/experimental/validation-lab.html
 
 Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.vercel.app`, are historical compatibility addresses, not separate release targets. The single production project is **`pulmosimu-xr-preview`**. The earlier `pulmovr` project is obsolete and subject to permanent deletion in the Vercel dashboard.
