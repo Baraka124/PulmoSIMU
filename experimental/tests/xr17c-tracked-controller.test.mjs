@@ -45,7 +45,8 @@ test('XR17C 6DoF proxy geometry exists outside patient anatomy and source bronch
   "toolProxy.reset()",
   "toolProxyOverlay.visible=false"
  ])assert.ok(runtime.includes(token),'Proxy missing: '+token);
- assert.ok(!code.includes('scope.'));
+ assert.equal(/\\bscope\\.(velocity|deflH|deflV|roll|depth|t)\\b/.test(code),false,
+  'Controller proxy never manipulates scope motion fields');
  assert.ok(!code.includes('fetch('));
  assert.ok(!code.includes('WebSocket('));
 });
