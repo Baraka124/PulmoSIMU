@@ -1,0 +1,58 @@
+{
+  "schema": "pulmosimu-hil-sensor-interface/0.2",
+  "status": "DRAFT_UNMEASURED_UNASSEMBLED",
+  "units": "mm",
+  "interfaces": [
+    {
+      "id": "angle",
+      "technology": "magnetic absolute angle sensor",
+      "mount": "lever_sensor",
+      "pivotDiameter": 4.2,
+      "calibration": "mechanical zero and independently measured angle sweep"
+    },
+    {
+      "id": "board",
+      "technology": "ESP32-class 3.3V MCU",
+      "mount": "tray",
+      "envelope": [
+        22,
+        34
+      ],
+      "mountPitch": [
+        16,
+        26
+      ],
+      "note": "generic envelope only; not matched to a chosen board"
+    },
+    {
+      "id": "shaft",
+      "technology": "commercial flexible tube",
+      "mount": "shaft_insert",
+      "nominalOuterDiameter": 4.1,
+      "bore": 4.4,
+      "note": "guide only; retention must be designed and tested"
+    },
+    {
+      "id": "insertion",
+      "technology": "independent encoder",
+      "mount": "external desktop rig pending"
+    },
+    {
+      "id": "rotation",
+      "technology": "independent encoder",
+      "mount": "external desktop rig pending"
+    },
+    {
+      "id": "force",
+      "technology": "load cell",
+      "mount": "external desktop rig pending"
+    }
+  ],
+  "telemetry": {
+    "rawProtocol": "PULMOSIMU-RAW/0.1",
+    "calibratedProtocol": "PULMOSIMU-BENCH/1",
+    "publishCalibratedOnlyAfter": "traceable zero, scale and independent measurement",
+    "hardwareWrite": false,
+    "actuation": false
+  }
+}

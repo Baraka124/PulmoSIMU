@@ -2124,7 +2124,7 @@ function install(ctx){
         scope.velocity*=Math.pow(scope.velocityDecay,step);
       }
       updateScope();updateRouteOverlay();
-      if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
+      if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
       procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}

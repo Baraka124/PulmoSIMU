@@ -79,21 +79,32 @@ function assessShaft(points,{field,radius,mmPerUnit,curvatureLimit=.055}){
 function createShaft(THREE,parent){
  const mat=new THREE.MeshStandardMaterial({color:0x25333b,roughness:.64,metalness:.05});
  const mesh=new THREE.Mesh(new THREE.BufferGeometry(),mat);mesh.visible=false;mesh.name='XR25 source constrained inserted shaft';parent.add(mesh);
- let key=null,evidence={state:'UNAVAILABLE'};
+ let key=null,evidence={state:'UNAVAILABLE'},lastUpdate=-Infinity;
  function update(args){
   const next=[args.id,Math.round(args.t*200),args.diameterMm,args.mmPerUnit].join('/');
-  if(next===key)return evidence;key=next;
+  if(next===key)return evidence;
+  const now=Number.isFinite(args.timeMs)?args.timeMs:0;
+  if(now>=lastUpdate&&now-lastUpdate<100)return evidence;
+  key=next;lastUpdate=now;
   const s=shaftSamples(THREE,args);const radius=args.diameterMm/2/args.mmPerUnit;
-  mesh.visible=s.points.length>=2;
+  let solved=null,display=s.points;
+  if(s.points.length>=3&&args.field&&root.PulmoXRElasticRod){try{
+   solved=root.PulmoXRElasticRod.solve({points:s.points.map(p=>p.toArray().map(v=>v*args.mmPerUnit)),field:p=>args.field(p.map(v=>v/args.mmPerUnit))*args.mmPerUnit,radiusMm:args.diameterMm/2});
+   const candidate=solved.points.map(p=>new THREE.Vector3(...p).multiplyScalar(1/args.mmPerUnit));
+   // Keep the established centerline on any sampled interference or excess length change.
+   if(solved.minMarginMm>=0&&Math.abs(solved.lengthMm-solved.referenceLengthMm)<Math.max(.5,solved.referenceLengthMm*.03))display=candidate;
+  }catch(error){solved={state:'SOLVER_FALLBACK',reason:String(error?.message||error).slice(0,80)};}}
+  mesh.visible=display.length>=2;
   if(mesh.visible){
-   const curve=new THREE.CatmullRomCurve3(s.points,false,'centripetal');
+   const curve=new THREE.CatmullRomCurve3(display,false,'centripetal');
    const g=new THREE.TubeGeometry(curve,Math.min(180,Math.max(8,s.points.length*2)),radius,10,false);
    mesh.geometry.dispose();mesh.geometry=g;
   }
-  evidence={...assessShaft(s.points,{field:args.field,radius,mmPerUnit:args.mmPerUnit}),insertedLengthMm:s.lengthMm};
+  const {points:discardedPoints,...rodEvidence}=solved||{};
+  evidence={...assessShaft(display,{field:args.field,radius,mmPerUnit:args.mmPerUnit}),insertedLengthMm:s.lengthMm,elasticRod:{...rodEvidence,displayed:display!==s.points,model:'DISCRETE_ELASTIC_CENTERLINE',hardwareCommand:false}};
   return evidence;
  }
- return {mesh,update,hide(){mesh.visible=false;key=null},snapshot(){return evidence}};
+ return {mesh,update,hide(){mesh.visible=false;key=null;lastUpdate=-Infinity},snapshot(){return evidence}};
 }
 const TOOLS=Object.freeze([{id:'none',label:'EMPTY CHANNEL',od:0},{id:'forceps',label:'BIOPSY FORCEPS',od:1.8},{id:'brush',label:'SAMPLING BRUSH',od:1.5},{id:'suction',label:'SUCTION INDICATOR',od:0}]);
 function createChannel(){
