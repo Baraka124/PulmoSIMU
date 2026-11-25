@@ -55,7 +55,7 @@ test('S2: guided session records self-attested checkpoints without claiming hard
   assert.ok(guideHtml.includes(item),'Missing guided interaction '+item);
  assert.ok(guideHtml.includes('activate(target)'),'guide must use original workspace routes');
  assert.ok(guideHtml.includes("src:'./procedural-workspace.html'"),'original procedure must stay canonical');
- assert.ok(guideHtml.includes("src:'./index.html?xr=procedural&release=XR09-UNIFIED'"),
+ assert.ok(guideHtml.includes("src:'./index.html?entry=vr'"),
   'XR source must remain canonical');
 });
 test('S3: R3 evidence comes from original 18-branch numerical solver, with exact provenance',()=>{
