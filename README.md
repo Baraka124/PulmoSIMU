@@ -6,8 +6,8 @@ PulmoSIMU is an integrated pulmonary research and spatial procedure laboratory b
 
 ## Canonical entries
 
-- **PulmoSIMU launcher:** https://pulmosimu-xr-preview.vercel.app/quest-short/
-- **Desktop procedural workstation (no Quest or webcam required):** https://pulmosimu-xr-preview.vercel.app/index.html?xr=procedural&entry=desktop
+- **One canonical PulmoSIMU entrance:** https://pulmosimu-xr-preview.vercel.app/ (the old `/quest-short/`, `/quest.html` and `/quest4.html` shortcuts redirect here)
+- **Original desktop procedural workstation (no Quest or webcam required):** https://pulmosimu-xr-preview.vercel.app/index.html?entry=desktop
 - **CT source / MPR inspector:** https://pulmosimu-xr-preview.vercel.app/experimental/anatomy-inspector.html
 - **Clinical and physical verification lab (local-only):** https://pulmosimu-xr-preview.vercel.app/experimental/validation-lab.html
 
@@ -15,11 +15,13 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 
 ## Authoritative implementation
 
-- `index.html`: original airway, clinical reference procedure, scope state, desktop controls and WebXR adapter installation.
+- `vercel.json` routes `/` to the retained original launcher at `quest-short/index.html`, with the legacy Quest shortcuts redirected to `/`. The launcher no longer carries XR09/XR14 query labels.
+- `index.html`: the single original airway, clinical reference procedure, scope state, desktop controls and WebXR adapter installation. Desktop/VR/MR choices open this same engine directly without a webcam prompt.
 - `experimental/xr/procedural-immersive.js`: original-engine VR/MR session lifecycle, controller/hand tracking, spatial UI, original scope camera feed and procedure station.
 - `experimental/xr/xr-capabilities.js`: XR-17A capability registry distinguishing desktop availability, VR/MR support, requested optional session features and verified grants. MR requests optional hit-test and anchors without assuming availability.
 - `experimental/xr/mr-placement.js`: XR-17B original-scene spatial MR placement from actual WebXR hit-test results, explicitly confirmed surface placement, optional in-session anchor pose correction and manual unregistered preview. No physical depth occlusion, cross-session persistence or patient CT registration.
 - `experimental/xr/instrument-replay.js`: XR-17C local, read-only external trace comparison and timeline. The clinical reference scope is never driven by imported measurements.
+- `experimental/xr/physical-calibration.js`: fail-closed, operator-armed three-point physical-sensor reference mapping. No coupling to the original scope and no metrological or clinical certification.
 - `experimental/xr/tracked-tool-proxy.js`: XR-17C optional right WebXR controller 6DoF visual marker, strictly illustrative and uncalibrated.
 - `experimental/xr/display-path.js`: XR-17C compatibility evidence for WebXR compositor layers; the original same-renderer endoscopic feed remains the active display.
 - `experimental/xr/bronchoscopy-station.js`: bounded XR-16F reference instrument controls, dynamic source-video CPU safeguard, configurable monitor quality and spatial layouts.
@@ -30,6 +32,7 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 - `experimental/UNIFIED_SIMULATION_ARCHITECTURE.md`: core source and scientific boundaries.
 - `experimental/XR16F_CLINICAL_PHYSICAL_INSTRUMENT_ACCEPTANCE.md`: explicit review and physical bench measurements still required before hardware/clinical claims.
 - `experimental/XR17_REALITY_CONTINUUM_ARCHITECTURE.md`: XR-17A, XR-17B and XR-17C software integration and finite acceptance gates. Real Quest/device acceptance and clinical validity remain unverified.
+- `experimental/XR18_CONSOLIDATION_ACCEPTANCE.md`: release inventory, native-compositor renderer limitation, physical-instrument test plan and Quest acceptance sign-off.
 
 ## Development and release policy
 
@@ -42,6 +45,6 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 
 ## Current release
 
-**Desktop/Quest software baseline:** XR-16F. **Capability-negotiated runtime:** XR-17A implemented. **Spatial MR surface placement:** XR-17B implemented in software. **Advanced procedure/input research:** XR-17C read-only trace review, tracked-controller visual proxy and compositor capability assessment implemented in software. Physical headset acceptance and clinically calibrated instrument coupling remain pending. The physical-instrument evidence reader and clinical review checklist are software, not measured proof. Hardware-validated device claims, stable physical MR anchoring, depth-based room occlusion and verified patient-specific endoscopy are **not available**.
+**Desktop/Quest software baseline:** XR-16F. **Canonical entry + calibration preview:** XR-18 software changes integrated. **Capability-negotiated runtime:** XR-17A implemented. **Spatial MR surface placement:** XR-17B implemented in software. **Advanced procedure/input research:** XR-17C read-only trace review, tracked-controller visual proxy and compositor capability assessment implemented in software. Physical headset acceptance and clinically calibrated instrument coupling remain pending. The physical-instrument evidence reader and clinical review checklist are software, not measured proof. Hardware-validated device claims, stable physical MR anchoring, depth-based room occlusion and verified patient-specific endoscopy are **not available**.
 
 **Cleanup status:** The duplicate development branch was deleted after proving it contained no unique commits. The obsolete `pulmovr` Vercel project remains paused and requires its owner's Delete Project confirmation; GitHub Pages depublication also requires repository settings because the automation token received HTTP 403. Compatibility aliases all resolve to canonical production, not competing builds. GitHub automatic deployment in the remaining Vercel project must still be verified in the Vercel Git settings.
