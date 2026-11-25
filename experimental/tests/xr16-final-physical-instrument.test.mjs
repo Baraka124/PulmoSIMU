@@ -49,7 +49,7 @@ test('XR16-FINAL module is source-isolated, never streams or actuates the scope'
  const source=load('../xr/instrument-bench.js');
  const xr=load('../xr/procedural-immersive.js');
  const root=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
- const bench=readFileSync(new URL('../instrument-bench.html',import.meta.url),'utf8');
+ const bench=readFileSync(new URL('../validation-lab.html',import.meta.url),'utf8');
  assert.ok(root.includes('instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH'));
  assert.ok(xr.includes('const physicalBench=global.PulmoXRInstrumentTelemetry?.create?.()||null'));
  assert.ok(xr.includes("station.set('video',recommended)"));
@@ -57,6 +57,6 @@ test('XR16-FINAL module is source-isolated, never streams or actuates the scope'
  for(const keyword of ['fetch(', 'WebSocket(', 'navigator.serial.requestPort(', 'navigator.bluetooth.requestDevice('])
    assert.ok(!source.includes(keyword),'Bench must not perform remote IO or hardware pairing: '+keyword);
  assert.ok(!source.includes('advance(')&&!source.includes('fireAction(')&&!source.includes('scope.velocity'));
- assert.ok(bench.includes('API.acceptance(evidence)'));
- assert.ok(bench.includes("id=\"download\""));
+ assert.ok(bench.includes('PulmoXRClinicalReview'));
+ assert.ok(bench.includes('id="inspectPacket"'));
 });
