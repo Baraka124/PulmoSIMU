@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-11-24  
 **Repository / release authority:** `Baraka124/PulmoSIMU`, `main`  
-**Status:** architectural proposal, **not** a claim that the advanced modes are implemented.  
+**Status (2026-11-25):** **XR-17A software capability registry integrated in `main`**. XR-17B physical MR anchoring and XR-17C physical input/layer improvements remain **planned**. Hardware acceptance remains pending.  
 **Product principle:** ONE source-grounded pulmonary simulation engine, several presentation and interaction modes. Never fork anatomy, clinical procedure or numerical solvers by headset modality.
 
 ## 1. Technical vocabulary and intended value
@@ -53,13 +53,23 @@ Measure on a real headset: frame interval percentiles, display readability, shad
 
 ## 4. Finite implementation plan (not endless phases)
 
-**XR-17A — Capability registry + entry correctness.** `main` CI tests capability gating and consistent mode labels; default desktop remains unconditional. Deliver: source-preserving capability snapshot, reliable reason for unavailable features, no fake MR.
+**XR-17A — Capability registry + entry correctness.** Implemented in `experimental/xr/xr-capabilities.js`, original-engine `experimental/xr/procedural-immersive.js`, and the canonical `quest-short/index.html` launcher. Runtime queries `isSessionSupported` for VR/MR, invokes `requestSession` directly from the user's click, records **requested** optional features separately from `XRSession.enabledFeatures` (when exposed), and exports runtime evidence with the original session report. Desktop remains unconditional. `local-floor`, `bounded-floor`, and `hand-tracking` are still optional; anchors, depth-sensing, hit-test, and layers are **not** claimed or requested by this stage. Node and Chromium regressions are the software acceptance gate; actual Quest validation is pending.
 
 **XR-17B — Physical MR workbench.** Only on devices supporting required AR APIs: confirmed hit-test placement, optional persisted anchor, explicit reset/reposition, legible independent monitor. Deliver: device-observed placement errors and drift; downgrade cleanly when unavailable.
 
 **XR-17C — Advanced VR/AV procedure station.** Evaluate XR layers for monitor and optional calibrated tracked instrument inputs; improve ergonomics and measured refresh while retaining original bronchoscopy state. Deliver: independently repeatable controller/device calibration and performance test.
 
 **Freeze gate:** all three software tests pass; actual device run supplies minimum comfort, persistence, error recovery and measured source/pose behavior. Record per-device unsupported features, not 'universal XR support'. The patient-specific medical/tissue/device validation program is separate.
+
+### XR-17A concrete integrity contracts
+
+- `desktop:'available'` even when `navigator.xr` is absent.
+- `sessions.vr` and `sessions.mr` are determined independently from each browser's `immersive-vr` and `immersive-ar` support checks; a successful VR support check never implies MR support.
+- Only the browser can grant optional WebXR session features. A missing `session.enabledFeatures` is reported as `not-reported`, **not** treated as enabled.
+- Headset runtime entry is gesture-bound; a separate asynchronous capability probe must not consume the activation required to request a session.
+- Without a trusted physical depth source, `physicalOcclusion:'NOT_IMPLEMENTED'`; without placement/anchor implementation, `worldAnchor:'NOT_IMPLEMENTED'` and `spatialRegistration:'NOT_IMPLEMENTED'`.
+- The procedural reference `scope` and `SEG_MAP` remain owned by the original engine. No patient CT-specific bronchoscopy is implied by a successful VR/MR entry.
+- Each session's capability snapshot is included in the local export and debug diagnostics for reproducibility. It does not include head or controller poses, private CT data or a remote telemetry endpoint.
 
 ## 5. External standards and implementation references
 
