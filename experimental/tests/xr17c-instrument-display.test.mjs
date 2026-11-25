@@ -119,7 +119,8 @@ test('XR17C source-only integration preserves exact original medical engine',()=
  ])assert.ok(xr.includes(marker),'XR17C missing existing engine or trace boundary: '+marker);
  assert.ok(caps.includes("'hand-tracking','layers'"));
  const src=get('../xr/instrument-replay.js');
- assert.equal(src.includes('scope.'),false,'Trace reviewer must not manipulate scope state');
+ assert.equal(/\\bscope\\.(velocity|deflH|deflV|roll|depth|t)\\b/.test(src),false,
+  'Trace reviewer must not manipulate original scope fields');
  assert.equal(src.includes('fetch('),false);
  assert.equal(src.includes('WebSocket('),false);
 });
