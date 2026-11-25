@@ -92,6 +92,41 @@ function install(ctx){
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
   const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
+  // Render only actually tracked WebXR joints. No avatar or fabricated poses.
+  const fingerChains=[
+    ['wrist','thumb-metacarpal','thumb-phalanx-proximal','thumb-phalanx-distal','thumb-tip'],
+    ...['index','middle','ring','pinky'].map(f=>['wrist',f+'-finger-metacarpal',f+'-finger-phalanx-proximal',f+'-finger-phalanx-intermediate',f+'-finger-phalanx-distal',f+'-finger-tip'])
+  ];
+  const jointNames=[...new Set(fingerChains.flat())];
+  const handVisuals=[0,1].map(()=>{
+    const group=new THREE.Group();group.visible=false;scene.add(group);
+    const pts=new THREE.BufferGeometry();
+    const bones=new THREE.BufferGeometry();
+    pts.setAttribute('position',new THREE.BufferAttribute(new Float32Array(jointNames.length*3),3));
+    bones.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fingerChains.reduce((n,a)=>n+a.length-1,0)*6),3));
+    const joints=new THREE.Points(pts,new THREE.PointsMaterial({color:0xc0e8e5,size:.012,transparent:true,opacity:.9,depthTest:true}));
+    const links=new THREE.LineSegments(bones,new THREE.LineBasicMaterial({color:0x8fbac2,transparent:true,opacity:.72}));
+    joints.frustumCulled=false;links.frustumCulled=false;group.add(joints,links);
+    return {group,pts,bones,joints};
+  });
+  function updateHandVisual(i,source,frame,space){
+    const v=handVisuals[i],poses=new Map();
+    for(const name of jointNames){
+      const joint=source.hand.get(name);
+      const p=joint&&frame.getJointPose(joint,space)?.transform?.position;
+      if(p&&[p.x,p.y,p.z].every(Number.isFinite))poses.set(name,p);
+    }
+    let n=0;for(const p of poses.values())v.pts.attributes.position.setXYZ(n++,p.x,p.y,p.z);
+    v.pts.setDrawRange(0,n);v.pts.attributes.position.needsUpdate=true;
+    let k=0;for(const chain of fingerChains)for(let j=1;j<chain.length;j++){
+      const a=poses.get(chain[j-1]),b=poses.get(chain[j]);if(!a||!b)continue;
+      v.bones.attributes.position.setXYZ(k++,a.x,a.y,a.z);
+      v.bones.attributes.position.setXYZ(k++,b.x,b.y,b.z);
+    }
+    v.bones.setDrawRange(0,k);v.bones.attributes.position.needsUpdate=true;
+    v.joints.material.color.setHex(grabSource[i]==='hand'?0x86edd4:0xc0e8e5);
+    v.group.visible=n>0;
+  }
   // A slender, opt-in reference marker attached to the *actual* right
   // WebXR controller grip. It is not a physical bronchoscope model,
   // calibration, haptic device or anatomical collision body.
@@ -136,7 +171,7 @@ function install(ctx){
   // Physical acceptance prioritizes a reliable monitor; native layers remain
   // opt-in for a separate measured compositor session.
   const nativeLayersOptIn=false;
-  let clearBeforeXR=null,clearAlphaBeforeXR=1,arButton=null;
+  let clearBeforeXR=null,clearAlphaBeforeXR=1,arButton=null,mrHidden=[];
   const tempMatrix=new THREE.Matrix4(),ray=new THREE.Raycaster();
   const modelBox=new THREE.Box3(),head=new THREE.Vector3(),forward=new THREE.Vector3(),right=new THREE.Vector3();
   const tmp=new THREE.Vector3(),tmp2=new THREE.Vector3(),tempBox=new THREE.Box3();
@@ -539,7 +574,8 @@ function install(ctx){
         const targetPose=source.targetRaySpace&&frame.getPose?.(source.targetRaySpace,space)?.transform;
         if(targetPose?.position&&targetPose?.orientation){
           const h=hands[i];h.position.set(targetPose.position.x,targetPose.position.y,targetPose.position.z);
-          h.quaternion.set(targetPose.orientation.x,targetPose.orientation.y,targetPose.orientation.z,targetPose.orientation.w);h.updateMatrixWorld(true);
+          h.quaternion.set(targetPose.orientation.x,targetPose.orientation.y,targetPose.orientation.z,targetPose.orientation.w);
+          h.matrix.compose(h.position,h.quaternion,h.scale);h.matrixWorldNeedsUpdate=true;h.updateMatrixWorld(true);
         }
         proxy.position.copy(pA).add(pB).multiplyScalar(.5);
         const wrist=source.hand.get('wrist');
@@ -550,6 +586,7 @@ function install(ctx){
         }else proxy.quaternion.identity();
         proxy.updateMatrixWorld(true);valid[i]=true;
         handSeen[i]=true;
+        updateHandVisual(i,source,frame,space);
         if(contactMarkers[i]){
           contactMarkers[i].position.copy(proxy.position);
           contactMarkers[i].visible=mode==='anatomy';
@@ -571,7 +608,7 @@ function install(ctx){
     }
     for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
       if(handSeen[i])health.event('handTrackingLost');
-      handSeen[i]=false;handPinched[i]=false;
+      handSeen[i]=false;handPinched[i]=false;handVisuals[i].group.visible=false;
       if(contactMarkers[i])contactMarkers[i].visible=false;
       if(grabSource[i]==='hand')release(i,'hand');
     }
@@ -1718,7 +1755,8 @@ function install(ctx){
       const session=await xrCapabilities.request(presentation);
       // local-floor is not guaranteed for passthrough. A local space is
       // sufficient for hit-test placement and avoids a rejected XR setup.
-      rBro.xr.setReferenceSpaceType(presentation==='ar'?'local':'local-floor');
+      const floorGranted=Array.from(session.enabledFeatures||[]).includes('local-floor');
+      rBro.xr.setReferenceSpaceType(presentation==='ar'||!floorGranted?'local':'local-floor');
       xrPresentation=presentation;
       xrCapabilities.bind(session,presentation);
       try{await rBro.xr.setSession(session)}
@@ -1730,6 +1768,8 @@ function install(ctx){
     }catch(error){
       xrCapabilities.failure(error);
       xrPresentation='vr';
+      runtimeStatus.style.display='block';
+      runtimeStatus.textContent='XR ENTRY FAILED / '+String(error?.message||error).slice(0,160);
       showToast((presentation==='ar'?'MR passthrough':'Quest XR')+
         ' unavailable: '+String(error?.message||error),'warn');
       console.warn('PulmoSIMU WebXR entry',error);
@@ -1772,6 +1812,8 @@ function install(ctx){
     clearAlphaBeforeXR=rBro.getClearAlpha?.()??1;
     if(xrPresentation==='ar'){
       scene.background=null;scene.fog=null;
+      mrHidden=(ctx.getMRHiddenObjects?.()||[]).map(o=>[o,o.visible]);
+      for(const [o] of mrHidden)o.visible=false;
       rBro.setClearColor(0x000000,0);
     }
     health.begin(rBro.xr.getSession()?.frameRate??null);
@@ -1844,7 +1886,7 @@ function install(ctx){
         viewerValid=false;scope.velocity=0;release(0);release(1);
         toolProxyOverlay.visible=false;
         if(mrReticle)mrReticle.visible=false;
-        handSeen.fill(false);handPinched.fill(false);
+        handSeen.fill(false);handPinched.fill(false);handVisuals.forEach(v=>v.group.visible=false);
         contactMarkers.forEach(marker=>marker.visible=false);
         laserLines.forEach(line=>{if(line)line.visible=false});
         laserTips.forEach(tip=>{if(tip)tip.visible=false});
@@ -1995,6 +2037,8 @@ function install(ctx){
     if(guidePlane)guidePlane.visible=false;
     // Restore the exact pre-session desktop scene and renderer blend state.
     scene.background=backgroundBeforeXR;scene.fog=fogBeforeXR;
+    for(const [o,visible] of mrHidden)o.visible=visible;mrHidden=[];
+    handVisuals.forEach(v=>v.group.visible=false);
     if(clearBeforeXR)rBro.setClearColor(clearBeforeXR,clearAlphaBeforeXR);
     xrPresentation='vr';
     if(saved){
