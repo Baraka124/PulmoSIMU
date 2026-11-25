@@ -9,7 +9,8 @@ const MODES=Object.freeze({
  vr:Object.freeze({sessionMode:'immersive-vr',presentation:'vr',
    optionalFeatures:Object.freeze(['local-floor','bounded-floor','hand-tracking'])}),
  mr:Object.freeze({sessionMode:'immersive-ar',presentation:'mr',
-   optionalFeatures:Object.freeze(['local-floor','bounded-floor','hand-tracking'])})
+   optionalFeatures:Object.freeze(['local-floor','bounded-floor','hand-tracking',
+     'hit-test','anchors'])})
 });
 const FEATURES=Object.freeze(['local-floor','bounded-floor','hand-tracking',
   'hit-test','anchors','layers','depth-sensing']);
