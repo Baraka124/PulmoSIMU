@@ -314,6 +314,10 @@ try {
   assert.equal(afterReject.sourceAudit,null);
   assert.equal(await proceduralXR.locator('#pulmo-procedural-xr').count(),1,'Dedicated immersive original-engine entry is mounted');
   const xr16=await proceduralXR.evaluate(()=>window.pulmoProceduralXRDebug());
+  assert.equal(xr16.xrCapabilityEvidence.desktop,'available');
+  assert.equal(xr16.xrCapabilityEvidence.worldAnchor,'NOT_IMPLEMENTED');
+  assert.equal(xr16.xrCapabilityEvidence.physicalOcclusion,'NOT_IMPLEMENTED');
+  assert.equal(xr16.xrCapabilityEvidence.patientSpecificBronchoscopy,'NOT_VALIDATED');
   assert.deepEqual(xr16.monitorResolution,[800,450],'XR16 starts with balanced same-renderer source video');
   assert.equal(xr16.procedureStation.layout,'stacked');
   assert.equal(xr16.procedureStation.fovDegrees,100);
@@ -342,6 +346,27 @@ try {
   assert.deepEqual(proceduralErrors,[],'No original procedural XR adapter initialization errors');
   console.log('PASS original procedural PNEUMO XR: authentic source anatomy, pathology, scope bridge and desktop compatibility');
  }finally{await proceduralXR.close()}
+ // XR17A launcher status is feature-detected, without claiming room
+ // registration from immersive-ar support.
+ const capabilityLauncher=await browser.newPage({viewport:{width:1050,height:760}});
+ try{
+  await capabilityLauncher.goto(host+'/quest-short/',{waitUntil:'domcontentloaded'});
+  await capabilityLauncher.waitForFunction(()=>window.pulmoXRLauncherStatus?.()?.probed===true,
+    null,{timeout:15000});
+  const cap=await capabilityLauncher.evaluate(()=>window.pulmoXRLauncherStatus());
+  assert.equal(cap.desktop,'available');
+  assert.equal(cap.worldAnchor,'NOT_IMPLEMENTED');
+  assert.equal(cap.physicalOcclusion,'NOT_IMPLEMENTED');
+  assert.equal(await capabilityLauncher.locator('#desktop-launch').count(),1);
+  assert.ok((await capabilityLauncher.locator('#vr-capability').textContent()).length>7);
+  assert.ok((await capabilityLauncher.locator('#mr-capability').textContent()).length>7);
+  if(!cap.webxrAvailable){
+   assert.equal(cap.sessions.vr,'unavailable');
+   assert.equal(cap.sessions.mr,'unavailable');
+   assert.match(await capabilityLauncher.locator('#mr-capability').textContent(),/unavailable|No mixed/i);
+  }
+  console.log('PASS XR17A launcher: truthful browser VR/MR capability and direct desktop fallback');
+ }finally{await capabilityLauncher.close()}
  // A normal Chrome/Edge browser must enter the original procedural
  // workstation without WebXR or webcam permission dialogs.
  const desktop=await browser.newPage({viewport:{width:1300,height:860}});
