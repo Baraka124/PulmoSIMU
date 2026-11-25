@@ -772,7 +772,7 @@ try {
  const legacy=await browser.newPage({viewport:{width:1360,height:820}});
  try {
    await legacy.goto(host+'/',{waitUntil:'domcontentloaded',timeout:45000});
-   assert.match(await legacy.title(),/PNEUMO/i,'Original surgical application title');
+   assert.match(await legacy.title(),/PulmoSIMU/i,'Consolidated original research workstation title');
    assert.ok(await legacy.locator('#c-ext').count()>0,'Original external 3D procedure canvas exists');
    assert.ok(await legacy.locator('#c-bro').count()>0,'Original bronchoscopic procedure canvas exists');
    const spatialSource=await legacy.evaluate(()=>{
