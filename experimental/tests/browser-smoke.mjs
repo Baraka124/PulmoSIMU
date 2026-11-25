@@ -318,6 +318,39 @@ try {
   assert.equal(xr16.xrCapabilityEvidence.worldAnchor,'NOT_IMPLEMENTED');
   assert.equal(xr16.xrCapabilityEvidence.physicalOcclusion,'NOT_IMPLEMENTED');
   assert.equal(xr16.xrCapabilityEvidence.patientSpecificBronchoscopy,'NOT_VALIDATED');
+  assert.equal(xr16.mrPlacementEvidence.state,'idle',
+    'Physical MR placement must never run in ordinary desktop canvas mode');
+  assert.equal(xr16.mrPlacementEvidence.userConfirmed,false);
+  assert.equal(xr16.mrPlacementEvidence.physicalDepthOcclusion,false);
+  assert.equal(await proceduralXR.evaluate(()=>typeof window.PulmoXRMRPlacement?.create),'function');
+  const mrProbe=await proceduralXR.evaluate(async()=>{
+    const m=window.PulmoXRMRPlacement.create();
+    await m.start({
+      requestReferenceSpace:async()=>({type:'viewer'}),
+      requestHitTestSource:async()=>({cancel(){}})
+    });
+    const frame={getHitTestResults:()=>[{
+      getPose:()=>({transform:{position:{x:.65,y:0,z:-.8}}})
+    }]};
+    const ref={kind:'reference'};
+    const target=m.scan(frame,ref);
+    const unconfirmed=m.snapshot().userConfirmed;
+    const accepted=m.confirm().accepted;
+    const placed=m.scan(frame,ref);
+    const safe=m.snapshot();
+    m.reset();
+    return {hit:target?.kind,unconfirmed,accepted,placed:placed?.kind,
+      userConfirmed:safe.userConfirmed,anchorStatus:safe.anchorStatus,
+      stateAfterReset:m.snapshot().state};
+  });
+  assert.equal(mrProbe.hit,'candidate');
+  assert.equal(mrProbe.unconfirmed,false);
+  assert.equal(mrProbe.accepted,true);
+  assert.equal(mrProbe.placed,'placed');
+  assert.equal(mrProbe.userConfirmed,true);
+  assert.equal(mrProbe.anchorStatus,'not-anchored');
+  assert.equal(mrProbe.stateAfterReset,'idle');
+  console.log('PASS XR17B browser: actual hit result required, explicit confirmation, no fake anchor');
   assert.deepEqual(xr16.monitorResolution,[800,450],'XR16 starts with balanced same-renderer source video');
   assert.equal(xr16.procedureStation.layout,'stacked');
   assert.equal(xr16.procedureStation.fovDegrees,100);
