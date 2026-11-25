@@ -33,7 +33,7 @@ function create({xr=null}={}){
    actualFeatures:serializableFeatureReport(),featureReporting,
    spatialRegistration:'NOT_IMPLEMENTED',
    physicalOcclusion:'NOT_IMPLEMENTED',
-   worldAnchor:'NOT_IMPLEMENTED',
+   worldAnchor:sessionMode==='mr'?'SEE_MR_PLACEMENT_EVIDENCE':'NOT_IMPLEMENTED',
    patientSpecificBronchoscopy:'NOT_VALIDATED',
    sessionActive:Boolean(activeSession),
    lastSession:lastSession?Object.freeze({...lastSession}):null
