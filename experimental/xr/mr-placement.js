@@ -8,10 +8,18 @@
 const finite3=p=>p&&[p.x,p.y,p.z].every(Number.isFinite)&&
   Math.max(Math.abs(p.x),Math.abs(p.y),Math.abs(p.z))<100;
 const coordinate=p=>Object.freeze({x:p.x,y:p.y,z:p.z});
+function horizontalSurface(q){
+ if(!q||![q.x,q.y,q.z,q.w].every(Number.isFinite))return false;
+ const lengthSq=q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w;
+ if(lengthSq<.9||lengthSq>1.1)return false;
+ // WebXR hit test pose +Y represents the detected surface normal.
+ const up=1-2*(q.x*q.x+q.z*q.z)/lengthSq;
+ return up>=.86; // ~30 degrees from horizontal; walls excluded.
+}
 function create(){
  let session=null,source=null,anchor=null,lastHit=null,lastResult=null,origin=null;
  let candidate=null,placement=null,mode='inactive',state='idle';
- let error=null,anchorStatus='none',pendingConfirm=false,epoch=0;
+ let error=null,anchorStatus='none',surfaceStatus='unknown',pendingConfirm=false,epoch=0;
  let confirmations=0,repositions=0,hitFrames=0,trackingLost=0;
  function removeAnchor(){
   const existing=anchor;anchor=null;
@@ -22,13 +30,13 @@ function create(){
   try{source?.cancel?.()}catch{}
   source=null;removeAnchor();lastHit=null;lastResult=null;candidate=null;
   placement=null;origin=null;pendingConfirm=false;mode='inactive';
-  state='idle';anchorStatus='none';error=null;
+  state='idle';anchorStatus='none';surfaceStatus='unknown';error=null;
   confirmations=0;repositions=0;hitFrames=0;trackingLost=0;session=null;
  }
  function snapshot(){
   // Only capability/quality status, not private room positions or device poses.
   return Object.freeze({
-   version:'XR17B_MR_PLACEMENT_V1',mode,state,error,anchorStatus,
+   version:'XR17B_MR_PLACEMENT_V1',mode,state,error,anchorStatus,surfaceStatus,
    hitTestActive:Boolean(source),hitAvailable:Boolean(candidate),
    userConfirmed:Boolean(placement),unregisteredPreview:state==='preview',
    placementCount:confirmations,repositions,hitFrames,trackingLost,
@@ -81,13 +89,21 @@ function create(){
    candidate=null;lastResult=null;return null;
   }
   try{
-   const hit=frame.getHitTestResults(source)?.[0]||null;
-   const p=hit?.getPose?.(referenceSpace)?.transform?.position;
-   if(!finite3(p)){
+   const hits=frame.getHitTestResults(source)||[];
+   let hit=null,p=null;
+   for(const testHit of hits){
+    const pose=testHit?.getPose?.(referenceSpace)?.transform;
+    if(finite3(pose?.position)&&horizontalSurface(pose.orientation)){
+      hit=testHit;p=pose.position;break;
+    }
+   }
+   if(!hit){
     candidate=null;lastResult=null;lastHit=null;
+    surfaceStatus=hits.length?'NON_HORIZONTAL_OR_UNVERIFIED':'NO_SURFACE';
     if(pendingConfirm){pendingConfirm=false;state='scanning'}
     return null;
    }
+   surfaceStatus='HORIZONTAL_VERIFIED_BY_HIT_POSE';
    candidate=coordinate(p);lastResult=hit;hitFrames++;
    if(pendingConfirm){
     pendingConfirm=false;placement=candidate;origin=candidate;
@@ -125,14 +141,14 @@ function create(){
   if(mode!=='mr')return false;
   ++epoch;repositions++;removeAnchor();
   placement=null;candidate=null;lastResult=null;lastHit=null;origin=null;
-  pendingConfirm=false;anchorStatus='none';
+  pendingConfirm=false;anchorStatus='none';surfaceStatus='unknown';
   state=source?'scanning':'unsupported';
   return Boolean(source);
  }
  function preview(){
   if(mode!=='mr')return false;
   ++epoch;removeAnchor();placement=null;candidate=null;origin=null;
-  pendingConfirm=false;state='preview';anchorStatus='none';
+  pendingConfirm=false;state='preview';anchorStatus='none';surfaceStatus='unregistered';
   return true;
  }
  return Object.freeze({start,scan,confirm,reposition,preview,reset,snapshot});
