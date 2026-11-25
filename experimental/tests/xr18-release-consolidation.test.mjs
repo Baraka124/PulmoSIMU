@@ -83,12 +83,43 @@ test('XR18 invalid frame and mismatched units cannot inject virtual instrument c
 });
 test('Consolidated Vercel root serves launcher and old Quest shortcut redirects',()=>{
  const config=JSON.parse(readFileSync(new URL('../../vercel.json',import.meta.url),'utf8'));
- assert.equal(config.routes[0].src,'^/quest-short/?$');
- assert.equal(config.routes[0].status,308);
- assert.equal(config.routes[0].headers.Location,'/');
- assert.equal(config.routes[1].src,'^/$');
- assert.equal(config.routes[1].dest,'/quest-short/index.html');
- assert.equal(config.routes[2].handle,'filesystem');
+ assert.ok(config.routes.some(r=>r.src==='^/quest-short/?
+ const launcher=readFileSync(new URL('../../quest-short/index.html',import.meta.url),'utf8');
+ assert.ok(launcher.includes('../index.html?entry=vr'));
+ assert.ok(launcher.includes('../index.html?entry=mr'));
+ assert.ok(launcher.includes('../index.html?entry=desktop'));
+ assert.ok(!launcher.includes('XR09-UNIFIED'));
+ assert.ok(!launcher.includes('interaction=XR14'));
+ const engine=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+ assert.ok(engine.includes("['desktop','vr','mr'].includes(entryMode)"));
+ assert.ok(engine.includes("openDesktopWorkstation({requestCamera:false})"));
+});
+&&r.status===308&&r.headers.Location==='/'));
+ assert.ok(config.routes.some(r=>r.src==='^/(quest|quest4)\\.html
+ const launcher=readFileSync(new URL('../../quest-short/index.html',import.meta.url),'utf8');
+ assert.ok(launcher.includes('../index.html?entry=vr'));
+ assert.ok(launcher.includes('../index.html?entry=mr'));
+ assert.ok(launcher.includes('../index.html?entry=desktop'));
+ assert.ok(!launcher.includes('XR09-UNIFIED'));
+ assert.ok(!launcher.includes('interaction=XR14'));
+ const engine=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+ assert.ok(engine.includes("['desktop','vr','mr'].includes(entryMode)"));
+ assert.ok(engine.includes("openDesktopWorkstation({requestCamera:false})"));
+});
+&&r.status===308));
+ assert.ok(config.routes.some(r=>r.src==='^/
+ const launcher=readFileSync(new URL('../../quest-short/index.html',import.meta.url),'utf8');
+ assert.ok(launcher.includes('../index.html?entry=vr'));
+ assert.ok(launcher.includes('../index.html?entry=mr'));
+ assert.ok(launcher.includes('../index.html?entry=desktop'));
+ assert.ok(!launcher.includes('XR09-UNIFIED'));
+ assert.ok(!launcher.includes('interaction=XR14'));
+ const engine=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+ assert.ok(engine.includes("['desktop','vr','mr'].includes(entryMode)"));
+ assert.ok(engine.includes("openDesktopWorkstation({requestCamera:false})"));
+});
+&&r.dest==='/quest-short/index.html'));
+ assert.equal(config.routes.at(-1).handle,'filesystem');
  const launcher=readFileSync(new URL('../../quest-short/index.html',import.meta.url),'utf8');
  assert.ok(launcher.includes('../index.html?entry=vr'));
  assert.ok(launcher.includes('../index.html?entry=mr'));
