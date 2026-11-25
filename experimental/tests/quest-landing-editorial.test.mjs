@@ -33,7 +33,8 @@ test('Quest launch URLs still reach the canonical original-engine VR and feature
  assert.equal(urls[0].searchParams.get('entry'),null);
  assert.equal(urls[1].searchParams.get('entry'),'mr');
  assert.match(launcher,/grayscale/);
- assert.match(launcher,/Quest Browser supports immersive-ar/);
+ assert.match(launcher,/Quest hardware anchoring and drift are not yet tested/);
+ assert.match(launcher,/MR PLACEMENT provides REPOSITION/);
  assert.ok(!launcher.includes('experimental/vr.html'));
 });
 test('Quest entry remains responsive, accessible and restrained',()=>{
