@@ -35,7 +35,7 @@ function install(ctx){
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
   // External instrument inputs are evidence only, never scope control.
-  const physicalBench=global.PulmoXRInstrumentBench?.create?.()||null;
+  const physicalBench=global.PulmoXRInstrumentTelemetry?.create?.()||null;
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
   // Meta Quest Browser may expose fixed foveation on its XR base layer.
