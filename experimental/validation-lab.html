@@ -39,6 +39,7 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 @media(max-width:760px){.wrap{padding:0 18px 42px}.shell{grid-template-columns:1fr;gap:4px}.hero{padding:40px 0 30px}.fields,.key{grid-template-columns:1fr}}
 </style>
 <script defer src="./xr/physical-instrument-bench.js"></script>
+<script defer src="./xr/instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH"></script>
 <script defer src="./xr/clinical-review-gate.js"></script>
 </head>
 <body>
@@ -77,6 +78,20 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 </div>
 <div>
 <section>
+<h2>Live packet diagnostic · isolated input</h2>
+<p class="desc">Read-only JSON protocol inspection for future physical instrument acquisition. Checks bounded sample values, sequence freshness and an operator-entered reference offset. It cannot move the virtual scope and is not a substitute for the measured-trace assessment on the left.</p>
+<label for="packet">Bench packet / PULMOSIMU-BENCH/1</label>
+<textarea id="packet" spellcheck="false">{"protocol":"PULMOSIMU-BENCH/1","seq":1,"insertionMm":0,"shaftRollDeg":0,"tipPitchDeg":0,"tipYawDeg":0}</textarea>
+<div class="actions">
+<button id="inspectPacket" type="button">Inspect sample</button>
+<button id="resetPacket" type="button">Reset input</button>
+</div>
+<label for="packetReference">Operator-entered zero reference JSON</label>
+<textarea id="packetReference">{"insertionMm":0,"shaftRollDeg":0,"tipPitchDeg":0,"tipYawDeg":0}</textarea>
+<button id="zeroPacket" type="button">Record reference offset</button>
+<pre id="packetReport">No live sample inspected. Uncalibrated.</pre>
+</section>
+<section>
 <h2>Evidence & readiness</h2>
 <p class="desc">One report for engineering and clinical researchers. The outputs deliberately keep model validation, physical hardware verification and regulatory status separate.</p>
 <div class="key">
@@ -100,9 +115,25 @@ document.addEventListener('DOMContentLoaded',()=>{
  'use strict';
  const $=id=>document.getElementById(id);
  const bench=window.PulmoXRInstrumentBench;
+ const telemetry=window.PulmoXRInstrumentTelemetry;
+ const liveBench=telemetry?.create?.()||null;
  const clinical=window.PulmoXRClinicalReview;
  const checks=$('checks'),report=$('benchReport'),reviewReport=$('clinicalReport');
  let benchResult=null,clinicalResult=null;
+ if(liveBench){
+  const showLive=()=>{$('packetReport').textContent=JSON.stringify(liveBench.snapshot(performance.now()),null,2)};
+  $('inspectPacket').addEventListener('click',()=>{
+   const result=liveBench.ingest($('packet').value,performance.now());
+   showLive();
+   if(!result.accepted)$('packetReport').textContent+='\\nREJECTED: '+result.reason;
+  });
+  $('resetPacket').addEventListener('click',()=>{liveBench.reset();showLive()});
+  $('zeroPacket').addEventListener('click',()=>{
+   try{const result=liveBench.calibrate(JSON.parse($('packetReference').value),performance.now());
+    showLive();if(!result.ok)$('packetReport').textContent+='\\n'+result.reason;
+   }catch(e){$('packetReport').textContent='Reference invalid: '+String(e.message||e)}
+  });
+ }
  if(!bench||!clinical){report.textContent='Verification modules unavailable; no clinical claims are possible.';return}
  clinical.checks.forEach((item,index)=>{
   const block=document.createElement('div');block.className='check';
