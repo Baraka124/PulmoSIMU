@@ -688,7 +688,7 @@ try {
    assert.equal(await studio.locator('#workspaceTitle').innerText(),'Immersive procedural laboratory');
    await studio.waitForFunction(()=>document.getElementById('workspaceFrame')
      ?.contentWindow?.pulmoProceduralXRDebug?.()?.referenceFocus==='LLL',null,{timeout:45000});
-   assert.ok((await studio.locator('#workspaceFrame').getAttribute('src')).includes('/index.html?xr=procedural'),
+   assert.ok((await studio.locator('#workspaceFrame').getAttribute('src')).includes('/index.html?entry=vr'),
      'Studio must embed the original anatomical engine rather than old schematic viewer');
    const questLink=await studio.locator('#launchXR').getAttribute('href');
    assert.ok(questLink.includes('focus=LLL')&&questLink.includes('index.html'),
