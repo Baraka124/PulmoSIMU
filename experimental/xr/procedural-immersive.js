@@ -248,7 +248,7 @@ function install(ctx){
   }
   // Inspection transforms are display-only and are always restored before procedures.
   const lobes=(ctx.getReferenceLobes?.()||[]).map(l=>({...l,home:l.mesh.position.clone(),homeQuat:l.mesh.quaternion.clone()}));
-  let inspectMode=false,spread=false,selectedLobe=null;
+  let inspectMode=false,spread=false,selectedLobe=null,inspectionUnit='lobe';
   const lobeGrabs=[null,null];
   let opticalIndex=0;
   const opticalModes=[{name:'BALANCED',gain:1.25,glare:1},{name:'LOW GLARE',gain:1.12,glare:.25},{name:'DEEP VIEW',gain:1.6,glare:.45}];
@@ -262,11 +262,11 @@ function install(ctx){
     grabFeedback=enabled?'LOBE INSPECTION / AIM AND HOLD GRIP OR PINCH':'ASSEMBLED LUNG / WHOLE ORGAN GRAB';
     return true;
   }
-  function spreadLobes(){
+  function spreadLobes(unit='lobe'){
     if(!inspectMode&&!setInspection(true))return;
-    release(0);release(1);resetLobes();spread=true;
-    for(const l of lobes){l.mesh.position.add(new THREE.Vector3(...l.offset));l.mesh.updateMatrixWorld(true);}
-    grabFeedback='EXPLODED VIEW / GRAB INDIVIDUAL LOBES';
+    release(0);release(1);resetLobes();spread=true;inspectionUnit=unit;
+    for(const l of lobes){const offset=unit==='lung'?[l.id.startsWith('R')?.65:-.65,0,0]:l.offset;l.mesh.position.add(new THREE.Vector3(...offset));l.mesh.updateMatrixWorld(true);}
+    grabFeedback=unit==='lung'?'SEPARATED LUNGS / GRAB EITHER SIDE':'EXPLODED VIEW / GRAB INDIVIDUAL LOBES';
   }
   const surfaceTarget=()=> (inspectMode?lobes.map(l=>l.mesh):getAnatomyMeshes()).filter(o=>o&&o.visible&&o.isObject3D);
   const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
@@ -289,6 +289,29 @@ function install(ctx){
     if(grab[1]&&!grab[0])capture(1);
     gesture=null;
   };
+  // Actual source centerlines and scope position, independent of the optical feed.
+  const routeOverlay=new THREE.Group();routeOverlay.name='xr21-source-airway-location';routeOverlay.visible=false;mGrp.add(routeOverlay);
+  let routeVisible=true,routeSegment=null;
+  const routeLines=new Map();
+  for(const seg of SEGS){
+    const curve=pathCurves[seg.id];if(!curve)continue;
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(24)),
+      new THREE.LineBasicMaterial({color:0x7294a4,transparent:true,opacity:.42,depthTest:false,depthWrite:false}));
+    line.renderOrder=32;routeOverlay.add(line);routeLines.set(seg.id,line);
+  }
+  const routeTip=new THREE.Mesh(new THREE.SphereGeometry(.038,12,8),
+    new THREE.MeshBasicMaterial({color:0xe9d7a3,depthTest:false,depthWrite:false}));
+  routeTip.renderOrder=33;routeOverlay.add(routeTip);
+  function updateRouteOverlay(){
+    routeOverlay.visible=mode==='procedure'&&routeVisible&&getMeshMode()==='reference';
+    if(!routeOverlay.visible)return;
+    if(routeSegment!==scope.segId){
+      routeSegment=scope.segId;
+      const route=global.PulmoXRProcedureGuide.route({segments:SEG_MAP,segmentId:scope.segId});
+      for(const [id,line] of routeLines){line.material.color.setHex(id===scope.segId?0x9ce8d9:route.ids?.includes(id)?0x83b9c3:0x7294a4);line.material.opacity=id===scope.segId?1:route.ids?.includes(id)?.8:.35;}
+    }
+    const curve=pathCurves[scope.segId];if(curve)routeTip.position.copy(curve.getPoint(Math.max(0,Math.min(1,scope.t))));
+  }
   function setMode(next){
     if(!['anatomy','procedure'].includes(next))return false;
     // A4: the actual original bronchoscope traverses SEGS (a reference
@@ -311,6 +334,7 @@ function install(ctx){
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
+    updateRouteOverlay();
     if(next==='procedure'){
       camScope.fov=station.snapshot().fovDegrees;
       camScope.updateProjectionMatrix();
@@ -515,9 +539,11 @@ function install(ctx){
     }
     if(inspectMode){
       const lobe=lobes.find(l=>l.mesh===remote?.object||l.mesh.uuid===near.meshUuid);
-      if(!lobe||lobeGrabs.some(g=>g?.lobe===lobe))return false;
-      grip.updateMatrixWorld(true);lobe.mesh.updateMatrixWorld(true);
-      lobeGrabs[i]={lobe,relative:new THREE.Matrix4().copy(grip.matrixWorld).invert().multiply(lobe.mesh.matrixWorld)};
+      if(!lobe)return false;
+      const members=inspectionUnit==='lung'?lobes.filter(l=>l.id[0]===lobe.id[0]):[lobe];
+      if(lobeGrabs.some(g=>g?.members.some(m=>members.includes(m.lobe))))return false;
+      grip.updateMatrixWorld(true);
+      lobeGrabs[i]={lobe,members:members.map(l=>{l.mesh.updateMatrixWorld(true);return {lobe:l,relative:new THREE.Matrix4().copy(grip.matrixWorld).invert().multiply(l.mesh.matrixWorld)}})};
       grabSource[i]=source;grab[i]={input,method:'lobe-inspection'};selectedLobe=lobe.id;
       grabFeedback='INSPECT / '+lobe.name.toUpperCase();paint();return true;
     }
@@ -554,10 +580,12 @@ function install(ctx){
         const g=lobeGrabs[i];if(!g)continue;
         const grip=effectiveGrip(i);if(!grip)continue;
         grip.updateMatrixWorld(true);
-        const target=new THREE.Matrix4().copy(mGrp.matrixWorld).invert().multiply(grip.matrixWorld).multiply(g.relative);
-        const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();target.decompose(p,q,s);
-        const offset=p.sub(g.lobe.home);if(offset.length()>2)offset.setLength(2);
-        g.lobe.mesh.position.copy(g.lobe.home).add(offset);g.lobe.mesh.quaternion.copy(q);g.lobe.mesh.updateMatrixWorld(true);
+        for(const member of g.members){
+          const target=new THREE.Matrix4().copy(mGrp.matrixWorld).invert().multiply(grip.matrixWorld).multiply(member.relative);
+          const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();target.decompose(p,q,s);
+          const offset=p.sub(member.lobe.home);if(offset.length()>2)offset.setLength(2);
+          member.lobe.mesh.position.copy(member.lobe.home).add(offset);member.lobe.mesh.quaternion.copy(q);member.lobe.mesh.updateMatrixWorld(true);
+        }
       }return;
     }
     const previousPosition=mGrp.position.clone(),previousOrientation=mGrp.quaternion.clone();
@@ -825,9 +853,11 @@ function install(ctx){
       paint();return;
     }
     if(action==='inspect'){menuPage='inspection';actionHitbox=panelLayouts.inspection;paint();return;}
-    if(action==='inspect-toggle'){setInspection(!inspectMode);paint();return;}
-    if(action==='inspect-spread'){spreadLobes();paint();return;}
+    if(action==='inspect-toggle'){if(inspectMode&&inspectionUnit==='lung'){inspectionUnit='lobe';spreadLobes('lobe');}else{inspectionUnit='lobe';setInspection(!inspectMode);}paint();return;}
+    if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
+    if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
     if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
     if(action==='view'&&xrPresentation==='ar'&&mode==='anatomy'){
       menuPage='mr';actionHitbox=panelLayouts.mr;hoverPanels.fill(null);
@@ -1161,18 +1191,20 @@ function install(ctx){
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     advanced:[
-      {id:'inspect',label:'LOBE INSPECTION',u:.05,v:.54,w:.43,h:.12},
-      {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.12},
-      {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.69,w:.43,h:.12},
-      {id:'precision',label:'VIEW CONTROLS',u:.52,v:.69,w:.43,h:.12},
-      {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+      {id:'inspect',label:'LOBE INSPECTION',u:.05,v:.54,w:.43,h:.095},
+      {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.095},
+      {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.65,w:.43,h:.095},
+      {id:'precision',label:'VIEW CONTROLS',u:.52,v:.65,w:.43,h:.095},
+      {id:'tool',label:'INSTRUMENT',u:.05,v:.76,w:.43,h:.095},
+      {id:'airway-map',label:'AIRWAY MAP',u:.52,v:.76,w:.43,h:.095},
+      {id:'back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
+      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     inspection:[
       {id:'inspect-toggle',label:'INDIVIDUAL LOBES',u:.05,v:.54,w:.43,h:.12},
       {id:'inspect-spread',label:'SEPARATE LOBES',u:.52,v:.54,w:.43,h:.12},
-      {id:'inspect-restore',label:'REASSEMBLE',u:.05,v:.69,w:.43,h:.12},
-      {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
+      {id:'inspect-lungs',label:'SEPARATE LUNGS',u:.05,v:.69,w:.43,h:.12},
+      {id:'inspect-restore',label:'REASSEMBLE',u:.52,v:.69,w:.43,h:.12},
       {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
@@ -1301,6 +1333,7 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
         a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
         a.id==='inspect-toggle'?(inspectMode?'WHOLE ORGAN':'INDIVIDUAL LOBES'):
         a.id==='display-path'?'DISPLAY PATH':
@@ -1449,7 +1482,8 @@ function install(ctx){
       c.lineWidth=2;c.strokeRect(x,y,width,height);
       c.fillStyle=a.disabled?'#647d88':'#e6f0f3';
       c.font='600 23px system-ui';
-      c.fillText(a.label.slice(0,25),x+18,y+height*.65);
+      c.font='600 '+(a.w<.31?20:23)+'px system-ui';
+      c.fillText(a.label.slice(0,25),x+12,y+height*.65,width-24);
     }
     c.fillStyle='#839da7';c.font='19px system-ui';
     c.fillText(state.provenance,42,652);
@@ -1474,7 +1508,9 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,toolProxyOverlay,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
+      for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
       if(xrPresentation==='ar')scene.background=new THREE.Color(0x04080f);
       scopeScreen.visible=false;worldMenu.visible=false;room.visible=false;
@@ -1513,6 +1549,7 @@ function install(ctx){
       if(guidePlane)guidePlane.visible=guideWasVisible;
       room.visible=roomWasVisible;
       scopeScreen.visible=monitorWasVisible;
+      for(const [o,visible] of hidden)o.visible=visible;
       // One failed offscreen pass must not disable the monitor for the entire
       // session. Retry is bounded by backoff and always source-rendered.
       if(monitorStatus==='unavailable'){
@@ -2017,7 +2054,7 @@ function install(ctx){
         if(distance>0)advance(distance);else retract(-distance);
         scope.velocity*=Math.pow(scope.velocityDecay,step);
       }
-      updateScope();
+      updateScope();updateRouteOverlay();
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
       if(mode==='procedure'){
@@ -2089,7 +2126,7 @@ function install(ctx){
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
-    worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
+    worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
     mGrp.visible=originalModelVisibility;
     if(guidePlane)guidePlane.visible=false;
     // Restore the exact pre-session desktop scene and renderer blend state.
