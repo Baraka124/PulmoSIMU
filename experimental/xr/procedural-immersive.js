@@ -1501,6 +1501,8 @@ function install(ctx){
     endoscopeMonitor:{status:monitorStatus,framesRendered:monitorFrames,
       retryFailures:monitorFailures,recoveries:monitorRecoveries},
     videoBudget:monitorBudget.snapshot(),
+    XR17CDisplayPath:displayPath.snapshot(),
+    XR17CInstrumentTrace:traceSummary(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     integration:'Unified original-engine XR, verified local CT MPR and reference-only R3; CT-specific bronchoscopy and physical/clinical certification remain blocked'
   });
@@ -1630,6 +1632,10 @@ function install(ctx){
       rBro.setClearColor(0x000000,0);
     }
     health.begin(rBro.xr.getSession()?.frameRate??null);
+    displayPath.inspect({session:rBro.xr.getSession(),renderer:rBro,
+      gl:rBro.getContext?.()||null});
+    replay.pause(performance.now());
+    traceButton.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
@@ -1717,6 +1723,7 @@ function install(ctx){
         }
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
+      replay.tick(time); // Non-actuating, local measured trace playback.
       poll(dt);
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
@@ -1786,6 +1793,7 @@ function install(ctx){
     // Capture status before disposal; no raw room/headset coordinates.
     mrPlacement.reset();
     mrReticle.visible=false;
+    replay.pause(performance.now());
     xrCapabilities.end();
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
@@ -1813,6 +1821,7 @@ function install(ctx){
     placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';
     arButton.textContent='ENTER MR · PASSTHROUGH PREVIEW';
+    syncTraceButton();
     onResize();
   });
   paint();
@@ -1823,6 +1832,8 @@ function install(ctx){
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
     monitorRetryFailures:monitorFailures,monitorRecoveries,
     videoBudget:monitorBudget.snapshot(),
+    XR17CDisplayPath:displayPath.snapshot(),
+    XR17CInstrumentTrace:traceSummary(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',
     monitorResolution:[scopeTarget.width,scopeTarget.height],
     physicalInstrumentBench:physicalBench?.snapshot(performance.now())||null,
