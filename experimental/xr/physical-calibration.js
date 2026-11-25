@@ -17,15 +17,15 @@ function create({parseFrame,maxAgeMs=250}={}){
  if(typeof parseFrame!=='function')throw Error('FRAME_PARSER_REQUIRED');
  if(!finite(maxAgeMs)||maxAgeMs<50||maxAgeMs>1000)throw Error('INVALID_AGE_LIMIT');
  let model=null,latest=null,lastAt=-Infinity,lastSeq=-1,lastError=null;
- let accepted=0,rejected=0,safetyStops=0,paused=true;
+ let accepted=0,rejected=0,safetyStops=0,paused=true,armed=false;
  function stop(reason){
-  if(!paused)safetyStops++;
-  paused=true;lastError=reason;return snapshot();
+  if(armed)safetyStops++;
+  paused=true;armed=false;lastError=reason;return snapshot();
  }
  function configure(config){
   // Reset all prior evidence before attempting a replacement.
   model=null;latest=null;lastAt=-Infinity;lastSeq=-1;
-  paused=true;lastError=null;
+  paused=true;armed=false;lastError=null;
   if(!stable(config)||config.protocol!=='PULMOSIMU-CALIBRATION/1'||
      typeof config.calibrationId!=='string'||!/^([A-Za-z0-9_-]){6,64}$/.test(config.calibrationId)||
      !stable(config.axes))throw Error('INVALID_CALIBRATION_ID_OR_FORMAT');
@@ -64,9 +64,15 @@ function create({parseFrame,maxAgeMs=250}={}){
    physicalMetrologyValidated:false,clinicalApproval:false});
   return snapshot();
  }
+ function arm(){
+  if(!model)throw Error('CALIBRATION_REQUIRED');
+  armed=true;paused=false;lastError=null;
+  return snapshot();
+ }
  function ingest(line,nowMs){
   if(!model){rejected++;return Object.freeze({accepted:false,reason:'CALIBRATION_REQUIRED'})}
-  if(!finite(nowMs)||nowMs<0){rejected++;return Object.freeze({accepted:false,reason:'INVALID_TIME'})}
+  if(!armed){rejected++;return Object.freeze({accepted:false,reason:'MANUAL_ARM_REQUIRED'})}
+  if(!finite(nowMs)||nowMs<0){rejected++;stop('INVALID_TIME');return Object.freeze({accepted:false,reason:'INVALID_TIME'})}
   let frame;
   try{frame=parseFrame(typeof line==='string'?line:JSON.stringify(line))}
   catch(err){rejected++;stop('FRAME_REJECTED');return Object.freeze({accepted:false,reason:String(err.message)})}
@@ -90,16 +96,17 @@ function create({parseFrame,maxAgeMs=250}={}){
    drivesVirtualScope:false,clinicalApproval:false});
  }
  function snapshot(nowMs){
+  if(armed&&latest&&finite(nowMs)&&nowMs-lastAt>maxAgeMs)stop('STALE_SAMPLE');
   const fresh=finite(nowMs)&&latest!==null&&!paused&&
     nowMs>=lastAt&&nowMs-lastAt<=maxAgeMs;
   const state=!model?'NO_CALIBRATION':
-    !latest?'AWAITING_INPUT':paused?'SAFETY_STOP':
+    !armed&&lastError?'SAFETY_STOP':!latest?'AWAITING_INPUT':paused?'SAFETY_STOP':
     !fresh?'STALE_SAMPLE':'BENCH_MAPPING_ONLY';
   return Object.freeze({
    version:'PULMOSIMU_CALIBRATION_MAPPING_V1',state,
    calibrationId:model?.calibrationId||null,
    axes:model?.axes||null,corrected:fresh?latest:null,
-   accepted,rejected,safetyStops,lastError,
+   accepted,rejected,safetyStops,lastError,armed,
    maxSampleAgeMs:maxAgeMs,
    // No command bus. No patient connection. Never a clinical credential.
    source:'LOCAL_PHYSICAL_BENCH_READINGS_ONLY',deviceToScopeCoupled:false,
@@ -109,9 +116,9 @@ function create({parseFrame,maxAgeMs=250}={}){
   });
  }
  function clear(){model=null;latest=null;lastAt=-Infinity;lastSeq=-1;
-  lastError=null;accepted=0;rejected=0;safetyStops=0;paused=true;
+  lastError=null;accepted=0;rejected=0;safetyStops=0;paused=true;armed=false;
   return snapshot()}
- return Object.freeze({configure,ingest,stop,snapshot,clear});
+ return Object.freeze({configure,arm,ingest,stop,snapshot,clear});
 }
 root.PulmoXRPhysicalCalibration=Object.freeze({create,FIELDS});
 })(typeof window!=='undefined'?window:globalThis);
