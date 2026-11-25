@@ -77,4 +77,4 @@ XR24 adds a depth-texture-driven focus approximation (reference 2–50 mm), boun
 
 ## XR-27 / HIL-01 parallel start
 
-Local 20 Hz bounded procedure observation records reference segment bins, within-segment travel, movement-speed summaries and estimated shaft-state sample counts. No visual surface coverage, clinical score, contact force or raw trajectory export. HIL-01 preliminary passive training handle concept is stored in hardware/hil-01 with parametric OpenSCAD, dimensional design manifest and manufacturing gates. CAD not yet rendered or printed.
+Local 20 Hz bounded procedure observation records reference segment bins, within-segment travel, movement-speed summaries and estimated shaft-state sample counts. No visual surface coverage, clinical score, contact force or raw trajectory export. HIL-01 preliminary passive training handle concept is stored in hardware/hil-01 with parametric OpenSCAD, dimensional design manifest and manufacturing gates. Draft CAD exported and checked locally for single connected watertight meshes; no print, slicer or hardware fit validation.
