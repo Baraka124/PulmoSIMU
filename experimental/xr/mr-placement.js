@@ -84,7 +84,9 @@ function create(){
    const hit=frame.getHitTestResults(source)?.[0]||null;
    const p=hit?.getPose?.(referenceSpace)?.transform?.position;
    if(!finite3(p)){
-    candidate=null;lastResult=null;lastHit=null;return null;
+    candidate=null;lastResult=null;lastHit=null;
+    if(pendingConfirm){pendingConfirm=false;state='scanning'}
+    return null;
    }
    candidate=coordinate(p);lastResult=hit;hitFrames++;
    if(pendingConfirm){
