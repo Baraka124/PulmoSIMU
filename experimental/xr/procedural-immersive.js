@@ -88,6 +88,36 @@ function install(ctx){
   let summonTween=null;
   const handProxies=[new THREE.Group(),new THREE.Group()];
   const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
+  // A slender, opt-in reference marker attached to the *actual* right
+  // WebXR controller grip. It is not a physical bronchoscope model,
+  // calibration, haptic device or anatomical collision body.
+  const toolProxyOverlay=new THREE.Group();
+  toolProxyOverlay.name='xr17c-6dof-controller-only-reference-marker';
+  const markerMaterial=new THREE.MeshBasicMaterial({
+    color:0x99d7df,transparent:true,opacity:.67,depthWrite:false});
+  const referenceShaft=new THREE.Mesh(new THREE.CylinderGeometry(
+    .0035,.0035,.15,12),markerMaterial);
+  referenceShaft.rotation.x=Math.PI/2;
+  referenceShaft.position.z=-.075;
+  toolProxyOverlay.add(referenceShaft);
+  const referenceTip=new THREE.Mesh(new THREE.SphereGeometry(.008,12,8),
+    new THREE.MeshBasicMaterial({color:0xe5e1cc,depthWrite:false}));
+  referenceTip.position.z=-.15;toolProxyOverlay.add(referenceTip);
+  toolProxyOverlay.visible=false;scene.add(toolProxyOverlay);
+  function updateToolProxy(){
+    const rightIndex=controllerSide.findIndex((v,i)=>
+      (v==='right'||controllerSources[i]?.handedness==='right')&&
+      Boolean(controllerSources[i]?.gripSpace));
+    const valid=toolProxy.observe({
+      rightGripTracked:rightIndex>=0,procedure:mode==='procedure',
+      immersiveVR:xrPresentation==='vr'
+    });
+    if(valid&&rightIndex>=0){
+      const target=grips[rightIndex];
+      if(toolProxyOverlay.parent!==target)target.add(toolProxyOverlay);
+    }
+    toolProxyOverlay.visible=valid;
+  }
   const contactMarkers=[];
   let mode='anatomy',active=false,placed=false,viewerValid=false,lastFrame=0;
   let scaleMode='comfort',lastPanelUpdate=0,physicsSnapshot=null;
@@ -1457,6 +1487,7 @@ function install(ctx){
     controller.addEventListener('disconnected',()=>{
       health.event('controllerDisconnected');
       release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;
+      toolProxyOverlay.visible=false;
       mapButtons[i].length=0;squeezeHeld[i]=false;
       if(laserLines[i])laserLines[i].visible=false;
       if(laserTips[i])laserTips[i].visible=false;
@@ -1660,6 +1691,7 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();
+    toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
     camScope.fov=station.snapshot().fovDegrees;camScope.updateProjectionMatrix();
@@ -1707,6 +1739,7 @@ function install(ctx){
         // Tracking loss: never continue the last object or instrument command.
         health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         viewerValid=false;scope.velocity=0;release(0);release(1);
+        toolProxyOverlay.visible=false;
         if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);
         contactMarkers.forEach(marker=>marker.visible=false);
@@ -1745,7 +1778,8 @@ function install(ctx){
       poll(dt);
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
-      updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();updatePointerAim(time);
+      updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();
+      updateToolProxy();updatePointerAim(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -1812,6 +1846,7 @@ function install(ctx){
     mrPlacement.reset();
     mrReticle.visible=false;
     replay.pause(performance.now());
+    toolProxyOverlay.visible=false;toolProxy.reset();
     xrCapabilities.end();
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
