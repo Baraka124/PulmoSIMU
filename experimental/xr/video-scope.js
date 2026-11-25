@@ -5,16 +5,17 @@
  */
 (function(root){
 'use strict';
-const REF=Object.freeze({horizontalFovDeg:110,distalOdMm:4.2,shaftOdMm:4.1,channelIdMm:2,workingLengthMm:600});
+const REF=Object.freeze({horizontalFovDeg:110,distalOdMm:4.2,shaftOdMm:4.1,channelIdMm:2,workingLengthMm:600,depthOfFieldMm:[2,50]});
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 function verticalFov(horizontal,aspect){
  if(!Number.isFinite(horizontal)||horizontal<=0||horizontal>=179||!(aspect>0))throw Error('INVALID_OPTICS');
  return 2*Math.atan(Math.tan(horizontal*Math.PI/360)/aspect)*180/Math.PI;
 }
-function poseBasis(THREE,tangent,roll,h,v,limit){
+function poseBasis(THREE,tangent,roll,h,v,limit,sourceNormal=null){
  const t=tangent.clone().normalize();
  const seed=Math.abs(t.y)>.96?new THREE.Vector3(0,0,1):new THREE.Vector3(0,1,0);
- const right=t.clone().cross(seed).normalize().applyAxisAngle(t,roll);
+ const normal=sourceNormal?.clone().addScaledVector(t,-sourceNormal.dot(t));
+ const right=(normal&&normal.lengthSq()>1e-8?normal.normalize():t.clone().cross(seed).normalize()).applyAxisAngle(t,roll);
  const up=right.clone().cross(t).normalize();
  const ax=clamp(h,-1,1)*limit*Math.PI/180,ay=clamp(v,-1,1)*limit*Math.PI/180;
  const direction=t.clone().addScaledVector(right,Math.tan(ax)).addScaledVector(up,Math.tan(ay)).normalize();
@@ -71,6 +72,7 @@ function createVisual(THREE){
  const Y=new THREE.Vector3(0,1,0),Z=new THREE.Vector3(0,0,-1);
  function update({h=0,v=0,roll=0,diameterMm=REF.distalOdMm}={}){
   const d=clamp(diameterMm,2.8,6.5)/1000,rad=d*.5;
+  const shaftRad=rad*REF.shaftOdMm/REF.distalOdMm;
   lever.rotation.x=-clamp(v,-1,1)*.48;
   shaftRoot.rotation.y=roll;
   const points=[new THREE.Vector3(0,-.135,0)];
@@ -84,10 +86,9 @@ function createVisual(THREE){
     if(i>=24){dir.applyAxisAngle(new THREE.Vector3(1,0,0),v*.12);dir.applyAxisAngle(new THREE.Vector3(0,0,1),h*.12)}
     dir.normalize();pos=pos.clone().addScaledVector(dir,ds);points.push(pos);
     const m=shaftSegments[i];m.position.copy(points[i]).lerp(pos,.5);m.quaternion.setFromUnitVectors(Y,dir);
-    m.scale.set(rad*.97,ds+.0006,rad*.97);
+    m.scale.set(shaftRad,ds+.0006,shaftRad);
   }
   tip.position.copy(pos);tip.quaternion.setFromUnitVectors(Z,dir);
-  cap.scale.set(rad,rad,.003); // overridden below: cylinder local Y is length
   cap.scale.set(rad,.003,rad);face.scale.setScalar(rad);face.position.z=-.0016;
   lens.position.set(-rad*.32,rad*.27,-.00172);lens.scale.setScalar(rad*.33);
   channel.position.set(rad*.28,-rad*.24,-.00173);channel.scale.setScalar(rad*.43);

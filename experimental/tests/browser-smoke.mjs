@@ -837,6 +837,21 @@ try {
    assert.ok(lumenEvidence.tests.length>10);
    assert.ok(lumenEvidence.tests.every(t=>t.wallHits===0),'Actual source junctions are obstructed: '+JSON.stringify(lumenEvidence.tests));
    console.log('PASS XR22 actual reference lumen: '+lumenEvidence.triangles+' triangles / '+lumenEvidence.tests.length+' open junction paths / step '+lumenEvidence.step);
+   const instrumentEvidence=await legacy.evaluate(()=>{
+     const THREE=window.THREE,M=window.PulmoXRVideoScope;
+     const t=new THREE.Vector3(0,0,-1);
+     const a=M.poseBasis(THREE,t,0,.6,0,32),b=M.poseBasis(THREE,t,Math.PI/2,.6,0,32);
+     const device=M.createVisual(THREE);
+     device.update({h:.6,v:-.4,roll:.5,diameterMm:4.2});
+     let meshes=0,finite=true;
+     device.group.traverse(o=>{if(o.isMesh){meshes++;finite=finite&&o.position.toArray().every(Number.isFinite)&&o.scale.toArray().every(Number.isFinite)}});
+     return {meshes,finite,orthogonality:Math.abs(a.direction.dot(a.up)),unit:a.direction.length(),rollChangesDirection:a.direction.distanceTo(b.direction),horizontalFov:M.REF.horizontalFovDeg,depth:M.REF.depthOfFieldMm};
+   });
+   assert.ok(instrumentEvidence.meshes>40&&instrumentEvidence.finite);
+   assert.ok(instrumentEvidence.orthogonality<1e-6&&Math.abs(instrumentEvidence.unit-1)<1e-6);
+   assert.ok(instrumentEvidence.rollChangesDirection>.2);
+   assert.equal(instrumentEvidence.horizontalFov,110);
+   console.log('PASS XR23 device assembly and roll-coupled camera basis');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

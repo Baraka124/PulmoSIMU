@@ -163,7 +163,7 @@ function install(ctx){
     const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed;
     if(!held){shaftClutch.reset();clutchAxis=null;clutchHeld=false;return;}
     const rel=new THREE.Vector3(lp.position.x-rp.position.x,lp.position.y-rp.position.y,lp.position.z-rp.position.z);
-    if(!clutchAxis){if(rel.length()<.12)return;clutchAxis=rel.clone().normalize().toArray();}
+    if(!clutchAxis){if(rel.length()<.12){scope.velocity=0;return;}clutchAxis=rel.clone().normalize().toArray();}
     clutchHeld=true;scope.velocity=0;
     const mm=shaftClutch.step({held,tracking:true,position:rel.toArray(),axis:clutchAxis,dt});
     const length=pathCurves[scope.segId]?.getLength()*getMmPerSceneUnit();
