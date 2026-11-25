@@ -54,6 +54,7 @@ test('Desktop entry never depends on Quest or camera permissions',()=>{
  const main=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
  assert.match(main,/function openDesktopWorkstation\(\{requestCamera=true\}=\{\}\)/);
  assert.match(main,/if\(!requestCamera\)/);
- assert.match(main,/get\('entry'\)==='desktop'/);
+ assert.match(main,/const entryMode=new URLSearchParams\(location.search\).get\('entry'\)/);
+ assert.ok(main.includes("['desktop','vr','mr'].includes(entryMode)"));
  assert.ok(main.includes("openDesktopWorkstation({requestCamera:false})"));
 });
