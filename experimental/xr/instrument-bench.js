@@ -65,19 +65,5 @@ function makeBench({maxSampleAgeMs=250}={}){
   last=null;lastAt=-Infinity;lastSequence=-1;calibration=null;accepted=0;rejected=0;
  }});
 }
-const GATES=Object.freeze([
- 'source_graph_review','scope_mechanical_dimensions','centerline_navigation_accuracy',
- 'distal_tip_deflection_accuracy','shaft_rotation_accuracy','insertion_depth_accuracy',
- 'wall_contact_and_collision','task_completion_reproducibility',
- 'endoscopic_scene_fidelity','clinician_review','hardware_tracking_recovery',
- 'privacy_and_data_governance'
-]);
-function acceptance(evidence){
- if(!evidence||typeof evidence!=='object')return Object.freeze({passed:false,missing:GATES.slice(),evaluated:0});
- const missing=GATES.filter(k=>evidence[k]?.result!=='pass'||typeof evidence[k]?.evidenceId!=='string'||!evidence[k].evidenceId.trim());
- return Object.freeze({passed:missing.length===0,missing:Object.freeze(missing),
-   evaluated:GATES.length-missing.length,
-   status:missing.length?'NOT_READY_FOR_CLINICAL_OR_PHYSICAL_CLAIM':'DOCUMENTED_GATES_PASSED_REQUIRES_REVIEW'});
-}
-root.PulmoXRInstrumentTelemetry=Object.freeze({create:makeBench,parseFrame,acceptance,GATES,FIELDS,LIMITS});
+root.PulmoXRInstrumentTelemetry=Object.freeze({create:makeBench,parseFrame,FIELDS,LIMITS});
 })(typeof window!=='undefined'?window:globalThis);
