@@ -364,6 +364,16 @@ try {
     && !!window.PulmoXRClinicalReview?.assess);
   assert.ok(await validationPage.getByText('Clinical review and physical instrument verification.').isVisible());
   assert.equal(await validationPage.locator('#benchBadge').innerText(),'BENCH · AWAITING TRACE');
+  // Isolated packet verifier coexists with the measured-trace and clinical
+  // reviewer gates; it does not promote itself to simulated scope control.
+  await validationPage.waitForFunction(()=>!!window.PulmoXRInstrumentTelemetry?.parseFrame);
+  await validationPage.locator('#inspectPacket').click();
+  assert.match(await validationPage.locator('#packetReport').textContent(),/UNCALIBRATED/);
+  await validationPage.locator('#zeroPacket').click();
+  assert.match(await validationPage.locator('#packetReport').textContent(),/BENCH_ONLY/);
+  await validationPage.locator('#inspectPacket').click();
+  assert.match(await validationPage.locator('#packetReport').textContent(),/STALE_OR_REPLAYED_SEQUENCE/);
+
   const samples=Array.from({length:110},(_,i)=>({
     tMs:i*60,
     cmdInsertionMm:i*.25,measInsertionMm:i*.25+.8,
