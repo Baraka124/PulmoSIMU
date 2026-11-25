@@ -40,6 +40,7 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 </style>
 <script defer src="./xr/physical-instrument-bench.js"></script>
 <script defer src="./xr/instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH"></script>
+<script defer src="./xr/instrument-serial.js?v=XR16F-READONLY-SERIAL"></script>
 <script defer src="./xr/clinical-review-gate.js"></script>
 </head>
 <body>
@@ -85,7 +86,10 @@ footer{border-top:1px solid var(--line);margin-top:25px;padding-top:20px;color:v
 <div class="actions">
 <button id="inspectPacket" type="button">Inspect sample</button>
 <button id="resetPacket" type="button">Reset input</button>
+<button id="connectSerial" type="button">Connect serial bench (read-only)</button>
+<button id="disconnectSerial" type="button">Disconnect</button>
 </div>
+<p class="desc" id="serialStatus">No physical serial connection. Browser support and a user-authorized training instrument are required.</p>
 <label for="packetReference">Operator-entered zero reference JSON</label>
 <textarea id="packetReference">{"insertionMm":0,"shaftRollDeg":0,"tipPitchDeg":0,"tipYawDeg":0}</textarea>
 <button id="zeroPacket" type="button">Record reference offset</button>
@@ -118,6 +122,17 @@ document.addEventListener('DOMContentLoaded',()=>{
  const telemetry=window.PulmoXRInstrumentTelemetry;
  const liveBench=telemetry?.create?.()||null;
  const clinical=window.PulmoXRClinicalReview;
+ const serial=window.PulmoXRReadOnlySerial?.create({
+  navigatorObject:navigator,
+  now:()=>performance.now(),
+  onLine:(line,t)=>{if(liveBench){const result=liveBench.ingest(line,t);
+    $('packet').value=line;
+    $('packetReport').textContent=JSON.stringify(liveBench.snapshot(t),null,2)+(result.accepted?'':'\\nREJECTED '+result.reason);
+  }},
+  onState:state=>{if($('serialStatus'))$('serialStatus').textContent=
+    'SERIAL / '+state.state+' · '+state.frames+' packet(s) · '+state.bytes+' bytes'+
+    (state.lastError?' · '+state.lastError:'')+' · READ ONLY / NO SCOPE COUPLING'}
+ })||null;
  const checks=$('checks'),report=$('benchReport'),reviewReport=$('clinicalReport');
  let benchResult=null,clinicalResult=null;
  if(liveBench){
@@ -128,6 +143,14 @@ document.addEventListener('DOMContentLoaded',()=>{
    if(!result.accepted)$('packetReport').textContent+='\\nREJECTED: '+result.reason;
   });
   $('resetPacket').addEventListener('click',()=>{liveBench.reset();showLive()});
+  $('connectSerial').addEventListener('click',()=>{
+   if(!serial){$('serialStatus').textContent='Web Serial unavailable in this browser';return}
+   void serial.connect().catch(e=>{
+    $('serialStatus').textContent='Connection unavailable: '+String(e?.message||e);
+   });
+  });
+  $('disconnectSerial').addEventListener('click',()=>{if(serial)void serial.disconnect()});
+  window.addEventListener('pagehide',()=>{if(serial)void serial.disconnect()});
   $('zeroPacket').addEventListener('click',()=>{
    try{const result=liveBench.calibrate(JSON.parse($('packetReference').value),performance.now());
     showLive();if(!result.ok)$('packetReport').textContent+='\\n'+result.reason;
