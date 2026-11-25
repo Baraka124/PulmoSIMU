@@ -62,3 +62,7 @@ Record per test: exact URL, `main` commit, browser/headset firmware, test subjec
 ## VI. Finite release outcome
 
 The present development batch closes **software routing, tested calibration preview and source-consolidation work**. Native compositor activation, calibrated real-device control and physical Quest acceptance are not technically finishable from remote software access without the renderer/device studies specified above. Keep these as exactly three bounded external acceptance gates, not an endless series of new applications or versions.
+
+## XR-19 implementation supplement
+
+The r147 renderer upgrade and native quad implementation supersede the historical XR-18 software limitation above. The adapter retains the renderer-owned projection layer, transfers the existing scope target into a native subimage when available, reports active only after successful copying and falls back to the existing monitor on errors. The original workstation now also supports explicit calibrated local serial input to the reference simulator: measured file import, manual arm, left-grip dead-man, incremental bounded virtual motion, stop on stale/replayed/disconnected data or tracking loss. No physical actuation. Actual Quest and independent instrument measurements remain outstanding; software implementation is not evidence of physical performance.

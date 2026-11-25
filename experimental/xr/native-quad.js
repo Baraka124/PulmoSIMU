@@ -72,8 +72,8 @@ function create({transformConstructor=root.XRRigidTransform}={}){
     if(gl.getError()!==gl.NO_ERROR)throw Error('NATIVE_BLIT_FAILED');
    }finally{
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER,oldRead);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,oldDraw);
-    if(scissor)gl.enable(gl.SCISSOR_TEST);else gl.disable(gl.SCISSOR_TEST);
     renderer.setRenderTarget(previous);
+    if(scissor)gl.enable(gl.SCISSOR_TEST);else gl.disable(gl.SCISSOR_TEST);
    }
    active=true;frames++;reason='NATIVE_SUBIMAGE_UPDATED';return true;
   }catch(e){detach();attempted=true;reason='FALLBACK_'+String(e?.message||e).slice(0,100);return false}

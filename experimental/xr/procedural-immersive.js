@@ -57,6 +57,9 @@ function install(ctx){
   const originalScopeFov=camScope.fov;
   // External instrument inputs are evidence only, never scope control.
   const physicalBench=global.PulmoXRInstrumentTelemetry?.create?.()||null;
+  const physicalCalibration=global.PulmoXRPhysicalCalibration?.create({parseFrame:global.PulmoXRInstrumentTelemetry.parseFrame});
+  const physicalControl=physicalCalibration&&global.PulmoXRCalibratedControl?.create({calibration:physicalCalibration});
+  let serialInput=null;
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
   // Meta Quest Browser may expose fixed foveation on its XR base layer.
@@ -240,12 +243,13 @@ function install(ctx){
     }
     if(mode==='anatomy'&&next!=='anatomy')finishViewChange();
     summonGeneration++;
+    const previousMode=mode;
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
-    if(next==='anatomy')scope.velocity=0;
+    if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
     if(next==='procedure'){
       camScope.fov=station.snapshot().fovDegrees;
       camScope.updateProjectionMatrix();
@@ -555,7 +559,7 @@ function install(ctx){
     }
   }
   function updateSteering(){
-    if(mode!=='procedure'||!scopeSteering)return;
+    if(mode!=='procedure'||!scopeSteering||physicalControl?.snapshot().armed)return;
     const {i,origin,deflH,deflV}=scopeSteering;
     const controller=trackedController(i);
     if(!controller||!controllerSources[i]){
@@ -951,6 +955,7 @@ function install(ctx){
         continue;
       }
       if(mode!=='procedure')continue;
+      if(physicalControl?.snapshot().armed)continue;
       if(side==='left'){
         // Insertion and shaft roll are independent. Neutral stick stops
         // insertion immediately; no unintended scope drift after release.
@@ -1524,6 +1529,7 @@ function install(ctx){
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
     nativeQuadEvidence:endedXRGeometry?.nativeQuadEvidence||nativeQuad?.snapshot()||null,
+    calibratedSimulatorInput:physicalControl?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
@@ -1589,10 +1595,65 @@ function install(ctx){
       showToast('Trace rejected: '+String(error?.message||error).slice(0,100),'warn');
     }finally{traceFile.value=''}
   });
+  // Local instrument setup in the same workstation, before entering XR.
+  const instrumentSetup=document.createElement('details');
+  instrumentSetup.id='pulmo-calibrated-instrument';
+  Object.assign(instrumentSetup.style,{position:'fixed',bottom:'166px',right:'18px',
+   zIndex:10019,width:'290px',background:'#14222b',color:'#d7e4e8',padding:'8px 12px',
+   border:'1px solid #49626d',font:'12px/1.5 system-ui',display:'none'});
+  instrumentSetup.innerHTML='<summary>Physical instrument · local setup</summary>'+
+   '<p>Research simulator only. Import a measured PULMOSIMU-CALIBRATION/1 file, connect a read-only serial device, then arm. Hold left grip in VR bronchoscopy to move the virtual scope. Release to stop.</p>'+
+   '<input type="file" accept=".json,application/json" aria-label="Measured calibration file">'+
+   '<p><button type="button" data-op="connect">Connect</button> <button type="button" data-op="arm">Arm simulator</button> <button type="button" data-op="stop">Stop</button></p>'+
+   '<p role="status">No device connected.</p>';
+  document.body.appendChild(instrumentSetup);
+  const inputStatus=instrumentSetup.querySelector('[role="status"]');
+  let calibrationLoaded=false,serialConnecting=false;
+  const inputStatusRefresh=()=>{
+    const a=physicalControl?.snapshot(),s=serialInput?.status();
+    inputStatus.textContent=(calibrationLoaded?'Calibration loaded':'Calibration required')+' · '+
+      (s?.state||'DISCONNECTED')+' · '+(a?.reason||'UNAVAILABLE');
+  };
+  if(physicalCalibration&&physicalControl&&global.PulmoXRReadOnlySerial){
+   serialInput=global.PulmoXRReadOnlySerial.create({navigatorObject:navigator,
+    onLine:(line,now)=>{if(physicalControl.snapshot().armed){
+      const result=physicalCalibration.ingest(line,now);
+      if(!result.accepted)physicalControl.stop(result.reason);
+    }},
+    onState:s=>{if(s.state==='DISCONNECTED'&&physicalControl.snapshot().armed)
+      physicalControl.stop('SERIAL_DISCONNECTED');inputStatusRefresh();}
+   });
+  }
+  instrumentSetup.querySelector('input').addEventListener('change',async e=>{
+    try{physicalControl?.stop('CALIBRATION_REPLACED');calibrationLoaded=false;
+     const file=e.target.files?.[0];if(!file||file.size>100000)throw Error('INVALID_CALIBRATION_FILE');
+     physicalCalibration.configure(JSON.parse(await file.text()));calibrationLoaded=true;
+     inputStatusRefresh();
+    }catch(err){inputStatus.textContent='Calibration rejected: '+String(err.message).slice(0,100)}
+    finally{e.target.value=''}
+  });
+  instrumentSetup.querySelector('[data-op="connect"]').addEventListener('click',async()=>{
+    if(serialConnecting)return;
+    serialConnecting=true;
+    try{if(!serialInput)throw Error('LOCAL_SERIAL_UNAVAILABLE');await serialInput.connect()}
+    catch(err){inputStatus.textContent=String(err.message).slice(0,120)}
+    finally{serialConnecting=false}
+  });
+  instrumentSetup.querySelector('[data-op="arm"]').addEventListener('click',()=>{
+    try{if(!calibrationLoaded||serialInput?.status().state!=='ACQUIRING')throw Error('CALIBRATION_AND_CONNECTED_DEVICE_REQUIRED');
+      if(!confirm('Arm the virtual reference simulator only? Physical measurement accuracy has not been independently verified.'))return;
+      physicalControl.arm();inputStatusRefresh();
+    }catch(err){inputStatus.textContent=String(err.message).slice(0,120)}
+  });
+  instrumentSetup.querySelector('[data-op="stop"]').addEventListener('click',()=>{
+    physicalControl?.stop('OPERATOR_STOP');void serialInput?.disconnect();inputStatusRefresh();
+  });
+  addEventListener('pagehide',()=>{physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
   const syncTraceButton=()=>{
     const splash=document.getElementById('splash');
     traceButton.style.display=!rBro.xr.isPresenting&&splash?.style.display==='none'
       ?'block':'none';
+    instrumentSetup.style.display=traceButton.style.display;
   };
   const splash=document.getElementById('splash');
   if(splash&&typeof MutationObserver!=='undefined'){
@@ -1680,7 +1741,7 @@ function install(ctx){
       gl:rBro.getContext?.()||null});
     nativeQuad?.bind(rBro);
     replay.pause(performance.now());
-    traceButton.style.display='none';
+    traceButton.style.display='none';instrumentSetup.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
@@ -1735,6 +1796,7 @@ function install(ctx){
         // Tracking loss: never continue the last object or instrument command.
         health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
+        if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
         viewerValid=false;scope.velocity=0;release(0);release(1);
         toolProxyOverlay.visible=false;
         if(mrReticle)mrReticle.visible=false;
@@ -1783,6 +1845,26 @@ function install(ctx){
         try{physicsSnapshot=global.PulmoXRReferencePhysics.step(dt);physicsError=null}
         catch(error){physicsSnapshot=null;physicsError=String(error?.message||error).slice(0,140)}
       }else physicsSnapshot=null;
+      // Only a calibrated, live, local device can request simulator motion.
+      // Left grip is a dead-man; no replay, no hardware write, no patient input.
+      if(physicalControl?.snapshot().armed){
+        scope.velocity=0;scopeSteering=null;
+        const deadman=Array.from(rBro.xr.getSession()?.inputSources||[]).some(s=>
+          s.handedness==='left'&&s.gamepad?.buttons?.[1]?.pressed===true);
+        const length=pathCurves[scope.segId]?.getLength()*getMmPerSceneUnit();
+        const command=physicalControl.step({now:performance.now(),deadman,
+          reference:getMeshMode()==='reference',procedure:mode==='procedure',
+          visible:viewerValid&&xrPresentation==='vr',
+          connected:serialInput?.status().state==='ACQUIRING',
+          segmentLengthMm:length,deflectionMax:CFG.deflMax});
+        if(command){
+          scope.roll+=command.rollRad;
+          scope.deflH=safe(-1,1,scope.deflH+command.tipH);
+          scope.deflV=safe(-1,1,scope.deflV+command.tipV);
+          if(command.insertionT>0)advance(command.insertionT);
+          else if(command.insertionT<0)retract(-command.insertionT);
+        }
+      }
       // Advance the ORIGINAL medical procedure engine on XR time, not
       // tab requestAnimationFrame, which can be throttled in a headset.
       if(mode==='procedure'&&Math.abs(scope.velocity)>.0001){
@@ -1851,6 +1933,7 @@ function install(ctx){
     };
     // Capture status before disposal; no raw room/headset coordinates.
     nativeQuad?.reset();
+    if(physicalControl?.snapshot().armed)physicalControl.stop('XR_SESSION_ENDED');
     mrPlacement.reset();
     mrReticle.visible=false;
     replay.pause(performance.now());
@@ -1882,7 +1965,7 @@ function install(ctx){
     placed=false;viewerValid=false;
     button.textContent='ENTER PROCEDURAL XR';
     arButton.textContent='ENTER MR · PASSTHROUGH PREVIEW';
-    syncTraceButton();
+    syncTraceButton();inputStatusRefresh();
     onResize();
   });
   paint();
@@ -1899,6 +1982,7 @@ function install(ctx){
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
     nativeQuadEvidence:endedXRGeometry?.nativeQuadEvidence||nativeQuad?.snapshot()||null,
+    calibratedSimulatorInput:physicalControl?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
