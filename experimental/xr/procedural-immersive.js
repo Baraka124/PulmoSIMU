@@ -1565,6 +1565,7 @@ function install(ctx){
         // Tracking loss: never continue the last object or instrument command.
         health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         viewerValid=false;scope.velocity=0;release(0);release(1);
+        if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);
         contactMarkers.forEach(marker=>marker.visible=false);
         laserLines.forEach(line=>{if(line)line.visible=false});
