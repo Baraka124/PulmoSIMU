@@ -84,3 +84,6 @@ Bounded discrete elastic centerline relaxation with fixed endpoints, assumed str
 
 ## XR-29 / HIL-03
 R3 net-volume-driven bounded affine reference motion uses the existing 18-branch solver, an assumed baseline 2.5 L and a reversible tracheal-anchor deformation frame. The same reference airway, route, shaft visualization and tip camera frame move together; original source coordinates and procedural navigation remain unchanged. This is one-way geometry motion, not 4D CT, measured regional mechanics or updated CFD/RC resistance. The HIL-03 local angle sweep CLI fits raw ADC against independent references and reports holdout residual and hysteresis; a draft passive indexing fixture accompanies it. No BENCH/1 export, hardware actuation, or actual bench calibration.
+
+## XR-30 / HIL-04
+Optional side-by-side radial interface view uses the reference lumen's signed field in the scope transverse plane, with a 2 Hz update budget and idealized interface echo only under explicitly selected fluid coupling. No tissue acoustic map, diagnosis, clinical EBUS fidelity or patient data. HIL-04 adds a preliminary passive fixture CAD and dissipative resistance numerical analysis, with no hardware commands or actuation. Hardware design and validation remain incomplete.

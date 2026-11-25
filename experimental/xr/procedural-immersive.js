@@ -56,6 +56,7 @@ function install(ctx){
   const deviceLab=global.PulmoXRDeviceLab;
   const respiratoryMotion=global.PulmoXRRespiratoryMotion.create();
   let motionEnabled=true,motionEvidence=respiratoryMotion.reset(),motionReport=null;
+  let radialEnabled=false,radialCoupling='air',radialLast=-Infinity,radialEvidence=null,radialRange=20;
   const procedureMetrics=global.PulmoXRProcedureMetrics.create({sampleHz:20});
   procedureMetrics.reset(SEGS);
   const insertedShaft=deviceLab.createShaft(THREE,mGrp);
@@ -366,7 +367,7 @@ function install(ctx){
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -894,6 +895,11 @@ function install(ctx){
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='imaging-open'){menuPage='imaging';actionHitbox=panelLayouts.imaging;paint();return;}
+    if(action==='imaging-back'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
+    if(action==='radial-toggle'){radialEnabled=!radialEnabled;radialLast=-Infinity;paint();return;}
+    if(action==='radial-coupling'){radialCoupling=radialCoupling==='air'?'ideal-fluid':'air';radialLast=-Infinity;paint();return;}
+    if(action==='radial-range'){radialRange=radialRange===20?10:radialRange===10?30:20;radialLast=-Infinity;paint();return;}
     if(action==='motion-toggle'){motionEnabled=!motionEnabled;if(!motionEnabled)ctx.setReferenceMotion?.(1);paint();return;}
     if(action==='channel-open'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
@@ -1279,7 +1285,15 @@ function install(ctx){
       {id:'optics-toggle',label:'OPTICAL RESPONSE',u:.05,v:.76,w:.43,h:.095},
       {id:'trace-open',label:'INSTRUMENT TRACE',u:.52,v:.76,w:.43,h:.095},
       {id:'channel-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
-      {id:'motion-toggle',label:'RESPIRATORY MOTION',u:.52,v:.87,w:.43,h:.095}
+      {id:'imaging-open',label:'IMAGING LAB',u:.52,v:.87,w:.43,h:.095}
+    ],
+    imaging:[
+      {id:'radial-toggle',label:'RADIAL VIEW',u:.05,v:.54,w:.43,h:.095},
+      {id:'radial-coupling',label:'COUPLING',u:.52,v:.54,w:.43,h:.095},
+      {id:'radial-range',label:'RANGE',u:.05,v:.65,w:.43,h:.095},
+      {id:'motion-toggle',label:'RESPIRATORY MOTION',u:.52,v:.65,w:.43,h:.095},
+      {id:'imaging-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
+      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     mr:[
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
@@ -1390,6 +1404,9 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='radial-toggle'?(radialEnabled?'RADIAL ON':'RADIAL OFF'):
+        a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
+        a.id==='radial-range'?'RANGE '+radialRange+' MM':
         a.id==='motion-toggle'?(motionEnabled?'MOTION ON':'MOTION OFF'):
         a.id==='optics-toggle'?(opticsEnabled?'OPTICS ON':'OPTICS OFF'):
         a.id==='channel-action'?(channel.snapshot().tool==='suction'?(channel.snapshot().suction?'STOP INDICATOR':'SUCTION INDICATOR'):channel.snapshot().jawsOpen?'CLOSE JAWS':'ACTUATE'):
@@ -1449,6 +1466,21 @@ function install(ctx){
     opticalResponse?.material||new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
   monitorImage.position.y=-.012;
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
+  const radialCanvas=document.createElement('canvas');radialCanvas.width=512;radialCanvas.height=512;
+  const radialTexture=new THREE.CanvasTexture(radialCanvas);radialTexture.encoding=THREE.sRGBEncoding;
+  const radialPanel=new THREE.Mesh(new THREE.PlaneGeometry(.44,.44),new THREE.MeshBasicMaterial({map:radialTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+  radialPanel.position.set(.246,-.012,.003);radialPanel.renderOrder=31;radialPanel.visible=false;monitorRoot.add(radialPanel);
+  function updateRadial(now){
+    const show=mode==='procedure'&&getMeshMode()==='reference'&&radialEnabled;
+    radialPanel.visible=show;monitorImage.scale.setScalar(show?.52:1);monitorImage.position.x=show?-.235:0;
+    if(!show)return;
+    if(now-radialLast<500)return;radialLast=now;
+    try{const field=ctx.getLumenField?.();if(!field)throw Error('NO_SOURCE_FIELD');
+     const basis=global.PulmoXRVideoScope.poseBasis(THREE,scope.dir,scope.roll,0,0,CFG.deflMax);
+     radialEvidence=global.PulmoXRRadialImaging.scan({origin:scope.pos.toArray(),right:basis.right.toArray(),up:basis.up.toArray(),field,mmPerUnit:getMmPerSceneUnit()*(ctx.getReferenceMotionFactor?.()||1),rangeMm:radialRange,coupling:radialCoupling});
+    }catch(error){radialEvidence={state:'SCAN_UNAVAILABLE',reason:String(error?.message||error).slice(0,80),coupling:radialCoupling};}
+    global.PulmoXRRadialImaging.paint(radialCanvas,radialEvidence);radialTexture.needsUpdate=true;
+  }
   function monitorStrip(y){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=74;
     const ctx=canvas.getContext('2d');
@@ -1759,6 +1791,7 @@ function install(ctx){
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
     respiratoryMotion:motionReport||motionEvidence,
+    radialImaging:radialEvidence?{...radialEvidence,rays:undefined}:null,
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
@@ -1995,6 +2028,7 @@ function install(ctx){
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
     motionEnabled=true;motionEvidence=respiratoryMotion.reset();motionReport=null;ctx.setReferenceMotion?.(1);
+    radialEnabled=false;radialCoupling='air';radialLast=-Infinity;radialRange=20;radialEvidence=null;
     toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
@@ -2131,7 +2165,7 @@ function install(ctx){
       }
       motionEvidence=respiratoryMotion.step(physicsSnapshot,motionEnabled&&mode==='procedure'&&getMeshMode()==='reference'&&viewerValid,dt);
       ctx.setReferenceMotion?.(motionEvidence.scale,[routeOverlay,insertedShaft.mesh]);
-      updateScope();updateRouteOverlay();
+      updateScope();updateRouteOverlay();updateRadial(time);
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
       procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
@@ -2159,7 +2193,7 @@ function install(ctx){
       }
       // Native compositor gets only the original source render target.
       // The mesh remains visible until a real XR subimage copy succeeds.
-      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr'&&nativeLayersOptIn;
+      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr'&&nativeLayersOptIn&&!radialEnabled;
       const p=monitorImage.getWorldPosition(new THREE.Vector3());
       const q=monitorImage.getWorldQuaternion(new THREE.Quaternion());
       const nativeActive=nativeQuad?.update({renderer:rBro,frame,target:scopeTarget,
@@ -2192,7 +2226,7 @@ function install(ctx){
       viewHistory:viewHistory.status(),pivotMode,axisMode,
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
-    motionReport={...motionEvidence};ctx.setReferenceMotion?.(1);
+    motionReport={...motionEvidence};ctx.setReferenceMotion?.(1);radialEnabled=false;radialPanel.visible=false;monitorImage.scale.setScalar(1);monitorImage.position.x=0;
     // Capture status before disposal; no raw room/headset coordinates.
     if(inspectMode)setInspection(false);
     opticalIndex=0;ctx.setEndoscopeLighting?.(opticalModes[0].gain,opticalModes[0].glare);
