@@ -63,7 +63,7 @@ Measure on a real headset: frame interval percentiles, display readability, shad
 
 ### XR-17B physical MR acceptance gates
 
-The software validation covers failure-to-detect, actual viewer-space results, explicit user confirmation, optional anchor creation, bounded anchor corrections, repositioning, unsupported-device fallback, and restoration of the desktop scene on XR exit. In-browser MR is supported only when `immersive-ar` is available; `immersive-ar` alone does not prove hit-test or anchor grants.
+The software validation covers failure-to-detect, actual viewer-space results, **horizontal surface normal verification (rejecting walls and unverifiable poses)**, explicit user confirmation, optional anchor creation, bounded anchor corrections, repositioning, unsupported-device fallback, and restoration of the desktop scene on XR exit. In-browser MR is supported only when `immersive-ar` is available; `immersive-ar` alone does not prove hit-test or anchor grants.
 
 **Required headset acceptance procedure:** launch MR, aim at a real tabletop/floor surface until the teal reticle appears, select to place, walk around the model, deliberately reposition using the spatial menu, re-enter the session, and test loss/recovery of tracking. Compare observed virtual target positions to a known stationary physical reference at several view angles and over a continuous session. Record device, Quest Browser version, actual enabled features, 10-minute drift, model scale, unexpected movement, clarity, controller selection and menu recovery, and local session evidence. Do not invent accuracy thresholds; determine them with clinical/engineering reviewers before measurement.
 
