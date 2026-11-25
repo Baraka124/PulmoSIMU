@@ -875,6 +875,34 @@ try {
    assert.ok(respiratoryEvidence.restored<1e-6);
    assert.equal(respiratoryEvidence.parentRestored,true);
    console.log('PASS XR29 original lumen and camera motion, anchor and reversible restoration');
+   const deviceIntegration=await legacy.evaluate(()=>{
+     const D=window.PulmoXRDeviceLab,T=window.THREE;
+     const renderer=rBro,old=renderer.getRenderTarget();
+     if(!renderer.capabilities.isWebGL2)return {depthSupported:false};
+     const raw=new T.WebGLRenderTarget(64,64,{depthBuffer:true});
+     raw.depthTexture=new T.DepthTexture(64,64,T.UnsignedIntType);
+     const out=new T.WebGLRenderTarget(64,64);
+     const camera=new T.PerspectiveCamera(60,1,.01,10);
+     const source=new T.Scene(),plane=new T.Mesh(new T.PlaneGeometry(5,5),new T.MeshBasicMaterial({color:0xb87962}));
+     plane.position.z=-1;source.add(plane);
+     const optics=D.opticalMaterial(T,raw),screen=new T.Scene(),quad=new T.Mesh(new T.PlaneGeometry(2,2),optics.material);
+     screen.add(quad);const ortho=new T.OrthographicCamera(-1,1,1,-1,.01,10);ortho.position.z=1;
+     const pixel=new Uint8Array(4),off=new Uint8Array(4);
+     try{
+       renderer.setRenderTarget(raw);renderer.clear();renderer.render(source,camera);
+       optics.update({near:.01,far:10,scale:1,mmPerUnit:100,enabled:true});
+       renderer.setRenderTarget(out);renderer.clear();renderer.render(screen,ortho);renderer.readRenderTargetPixels(out,32,32,1,1,pixel);
+       optics.update({near:.01,far:10,scale:1,mmPerUnit:100,enabled:false});
+       renderer.clear();renderer.render(screen,ortho);renderer.readRenderTargetPixels(out,32,32,1,1,off);
+       return {depthSupported:true,on:[...pixel],off:[...off],branch:D.triggerIntent({atBranch:true,side:'right',tool:'forceps'}),native:D.allowNativeDisplay({opticsActive:true,radialEnabled:false,nativeOptIn:true})};
+     }finally{renderer.setRenderTarget(old);raw.dispose();out.dispose();plane.geometry.dispose();plane.material.dispose();quad.geometry.dispose();optics.material.dispose();}
+   });
+   if(deviceIntegration.depthSupported){
+     assert.ok(deviceIntegration.on[0]>20&&deviceIntegration.on[3]===255,JSON.stringify(deviceIntegration));
+     assert.ok(deviceIntegration.on.some((v,i)=>v!==deviceIntegration.off[i]),'Optical toggle did not change rendered pixels');
+     assert.equal(deviceIntegration.branch,'BRANCH');assert.equal(deviceIntegration.native,false);
+     console.log('PASS XR32 optical shader actual offscreen pixels and integrated routing');
+   }else console.log('XR32 optical pixel test unavailable in non-WebGL2 browser; source fallback only');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

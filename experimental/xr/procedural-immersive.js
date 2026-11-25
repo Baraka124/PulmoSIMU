@@ -358,7 +358,7 @@ function install(ctx){
       grabFeedback='PLACE REFERENCE ANATOMY BEFORE ENTERING BRONCHOSCOPY';
       paint();return false;
     }
-    if(next==='procedure'&&getMeshMode()==='patient'){
+    if(next==='procedure'&&getMeshMode()!=='reference'){
       grabFeedback='CT-SPECIFIC BRONCHOSCOPY BLOCKED / NO REGISTERED AIRWAY';
       showToast('The CT mesh has no reviewed airway centreline. Return to the procedural reference before bronchoscopy.','warn');
       paint();return false;
@@ -854,11 +854,12 @@ function install(ctx){
       // The SELECT trigger is an actual hold-to-manipulate action.
       // A short unmoved tap summons the same original mesh within reach.
       startGrab(i,'controller','trigger');
-    }else if(side==='right'){
-      if(channel.snapshot().tool!=='none'){channel.action();paint();return;}
-      if(scope.atBranch){enterBranch(Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1))}
-      else fireAction();
-    }else if(scope.atBranch)enterBranch(0);
+    }else if(mode==='procedure'){
+      const intent=deviceLab.triggerIntent({atBranch:scope.atBranch,side,tool:channel.snapshot().tool});
+      if(intent==='BRANCH')enterBranch(side==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
+      else if(intent==='ACCESSORY'){channel.action();paint();}
+      else if(intent==='CLINICAL')fireAction();
+    }
   }
   const modes=['nav','biopsy','measure','annotate'];
   function activate(action){
@@ -905,10 +906,10 @@ function install(ctx){
     if(action==='motion-toggle'){motionEnabled=!motionEnabled;if(!motionEnabled)ctx.setReferenceMotion?.(1);paint();return;}
     if(action==='channel-open'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
-    if(action==='optics-toggle'){opticsEnabled=!opticsEnabled;lastFeed=0;paint();return;}
-    if(action==='channel-cycle'){channel.cycle();paint();return;}
+    if(action==='optics-toggle'){if(depthOpticsAvailable){opticsEnabled=!opticsEnabled;lastFeed=0;}else grabFeedback='DEPTH OPTICS UNAVAILABLE / RAW SOURCE';paint();return;}
+    if(action==='channel-cycle'){if(mode==='procedure'&&getMeshMode()==='reference')channel.cycle();paint();return;}
     if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference')channel.extend(action==='channel-extend'?2:-2);paint();return;}
-    if(action==='channel-action'){if(mode==='procedure')channel.action();paint();return;}
+    if(action==='channel-action'){if(mode==='procedure'&&getMeshMode()==='reference')channel.action();paint();return;}
     if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
     if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
     if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
@@ -1339,12 +1340,13 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU XR-32 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
+      menuPage==='imaging'?'Imaging laboratory':
       menuPage==='inspection'?'Anatomical disassembly':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
@@ -1365,7 +1367,7 @@ function install(ctx){
     c.fillText(menuPage==='trace'
        ?'PHYSICAL MEASUREMENT REVIEW · NEVER DRIVES THE ORIGINAL SCOPE'
        :mode==='procedure'
-       ?'L GRIP: FEED SHAFT · L STICK: INSERT/ROLL · R GRIP: STEER'
+       ?(menuPage==='channel'?'AT JUNCTION: TRIGGERS SELECT BRANCH · USE ACTUATE FOR TOOL':'L GRIP: FEED SHAFT · L STICK: INSERT/ROLL · R GRIP: STEER')
        :xrPresentation==='ar'&&!placed
          ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
          :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
@@ -1410,7 +1412,7 @@ function install(ctx){
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
         a.id==='motion-toggle'?(motionEnabled?'MOTION ON':'MOTION OFF'):
-        a.id==='optics-toggle'?(opticsEnabled?'OPTICS ON':'OPTICS OFF'):
+        a.id==='optics-toggle'?(!depthOpticsAvailable?'RAW SOURCE ONLY':opticsEnabled?'OPTICS ON':'OPTICS OFF'):
         a.id==='channel-action'?(channel.snapshot().tool==='suction'?(channel.snapshot().suction?'STOP INDICATOR':'SUCTION INDICATOR'):channel.snapshot().jawsOpen?'CLOSE JAWS':'ACTUATE'):
         a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
         a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
@@ -1464,8 +1466,9 @@ function install(ctx){
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
   // Keep anatomical source pixels clear: identification and instrument data
   // are physically above/below the image, never drawn across the lumen.
+  const rawMonitorMaterial=new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false,toneMapped:false});
   const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.94,.529),
-    opticalResponse?.material||new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
+    opticalResponse?.material||rawMonitorMaterial);
   monitorImage.position.y=-.012;
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   const radialCanvas=document.createElement('canvas');radialCanvas.width=512;radialCanvas.height=512;
@@ -1806,7 +1809,7 @@ function install(ctx){
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     virtualVideoScope:{visible:videoScope.group.visible,clutchHeld,referenceDimensions:videoScope.reference,calibrated:false},
-    deviceLab:{depthOpticsAvailable,opticsEnabled,shaft:shaftEvidence,channel:channel.snapshot()},
+    deviceLab:{depthOpticsAvailable,opticsEnabled,opticsApplied:Boolean(depthOpticsAvailable&&opticsEnabled),shaft:shaftEvidence,channel:channel.snapshot()},
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
       requestedIntervalMs:station.snapshot().capture.intervalMs,
@@ -2201,7 +2204,10 @@ function install(ctx){
       }
       // Native compositor gets only the original source render target.
       // The mesh remains visible until a real XR subimage copy succeeds.
-      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr'&&nativeLayersOptIn&&!radialEnabled;
+      // Native copies raw source pixels; retain the processed mesh when optical response is selected.
+      const useProcessedOptics=Boolean(opticalResponse&&opticsEnabled);
+      monitorImage.material=useProcessedOptics?opticalResponse.material:rawMonitorMaterial;
+      const nativeVisible=mode==='procedure'&&monitorStatus==='live'&&xrPresentation==='vr'&&deviceLab.allowNativeDisplay({opticsActive:useProcessedOptics,radialEnabled,nativeOptIn:nativeLayersOptIn});
       const p=monitorImage.getWorldPosition(new THREE.Vector3());
       const q=monitorImage.getWorldQuaternion(new THREE.Quaternion());
       const nativeActive=nativeQuad?.update({renderer:rBro,frame,target:scopeTarget,
@@ -2284,6 +2290,7 @@ function install(ctx){
     originalSegments:SEGS.length,scopeBranch:scope.segId,clinicalMode:getClinMode(),
     scopeSteeringActive:Boolean(scopeSteering),
     monitorSource:'same-renderer-offscreen',monitorStatus,monitorFrames,monitorError,
+    opticalDisplay:depthOpticsAvailable&&opticsEnabled?'PROCESSED_MESH':'RAW_SOURCE',
     monitorRetryFailures:monitorFailures,monitorRecoveries,
     videoBudget:monitorBudget.snapshot(),
     clinicalAndPhysicalReview:'EXTERNAL_EVIDENCE_REQUIRED_LOCAL_VALIDATION_LAB',

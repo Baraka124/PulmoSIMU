@@ -90,3 +90,6 @@ Optional side-by-side radial interface view uses the reference lumen's signed fi
 
 ## XR-31 / HIL-05–06
 Three-landmark rigid registration CLI with independent check landmarks; local XR pose continuity observation without invented uncertainty. Numerical geometric contact risk is dimensionless, never a force or actuator command. HIL-06 documents the remaining independent headset and physical acceptance gates. No actual physical registration, sensor fusion, live bridge, calibrated forces or hardware acceptance.
+
+## XR-32 | Integrated quality and freeze candidate
+Preserves XR31/HIL05 and all prior modules. Branch selection takes priority over accessory actuation; use the explicit working-channel action for accessory actuation at junctions. Procedure mode requires the original reference model. The native compositor is restricted to raw-source display; depth-processed optics use the same-context mesh, and raw mesh fallback is explicit when processing is off/unavailable. Imaging panel labels and optical status are corrected. Added route-policy tests and a WebGL2 offscreen optical pixel check; independent Quest and physical HIL-06 acceptance remain necessary. No new hardware control or clinical claims.

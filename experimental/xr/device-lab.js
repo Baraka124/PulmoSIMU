@@ -5,6 +5,12 @@
 'use strict';
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 const finite=Number.isFinite;
+function triggerIntent({atBranch,side,tool='none'}){
+ if(atBranch&&['left','right'].includes(side))return 'BRANCH';
+ if(side!=='right')return 'NONE';
+ return tool==='none'?'CLINICAL':'ACCESSORY';
+}
+function allowNativeDisplay({opticsActive,radialEnabled,nativeOptIn}){return Boolean(nativeOptIn&&!opticsActive&&!radialEnabled)}
 const OPTICS=Object.freeze({distortion:.055,focusNearMm:2,focusFarMm:50});
 function distort(x,y,k=OPTICS.distortion){const r=x*x+y*y;return [x*(1+k*r),y*(1+k*r)]}
 function linearDepth(z,near,far){return near*far/(far-(far-near)*clamp(z,0,1))}
@@ -140,5 +146,5 @@ function createAccessory(THREE,scene){
  }
  return {group:g,update};
 }
-root.PulmoXRDeviceLab=Object.freeze({OPTICS,distort,linearDepth,blurMm,opticalMaterial,ancestry,shaftSamples,assessShaft,createShaft,createChannel,createAccessory});
+root.PulmoXRDeviceLab=Object.freeze({OPTICS,triggerIntent,allowNativeDisplay,distort,linearDepth,blurMm,opticalMaterial,ancestry,shaftSamples,assessShaft,createShaft,createChannel,createAccessory});
 })(typeof window!=='undefined'?window:globalThis);
