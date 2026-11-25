@@ -66,6 +66,8 @@ function create({parseFrame,maxAgeMs=250}={}){
  }
  function arm(){
   if(!model)throw Error('CALIBRATION_REQUIRED');
+  // Re-arming requires a new sample; retain sequence high-water mark.
+  latest=null;lastAt=-Infinity;
   armed=true;paused=false;lastError=null;
   return snapshot();
  }
@@ -73,6 +75,10 @@ function create({parseFrame,maxAgeMs=250}={}){
   if(!model){rejected++;return Object.freeze({accepted:false,reason:'CALIBRATION_REQUIRED'})}
   if(!armed){rejected++;return Object.freeze({accepted:false,reason:'MANUAL_ARM_REQUIRED'})}
   if(!finite(nowMs)||nowMs<0){rejected++;stop('INVALID_TIME');return Object.freeze({accepted:false,reason:'INVALID_TIME'})}
+  if(latest&&(nowMs<lastAt||nowMs-lastAt>maxAgeMs)){
+   rejected++;const reason=nowMs<lastAt?'NON_MONOTONIC_TIME':'STALE_SAMPLE';
+   stop(reason);return Object.freeze({accepted:false,reason});
+  }
   let frame;
   try{frame=parseFrame(typeof line==='string'?line:JSON.stringify(line))}
   catch(err){rejected++;stop('FRAME_REJECTED');return Object.freeze({accepted:false,reason:String(err.message)})}
@@ -96,7 +102,10 @@ function create({parseFrame,maxAgeMs=250}={}){
    drivesVirtualScope:false,clinicalApproval:false});
  }
  function snapshot(nowMs){
-  if(armed&&latest&&finite(nowMs)&&nowMs-lastAt>maxAgeMs)stop('STALE_SAMPLE');
+  if(armed&&latest&&finite(nowMs)){
+   if(nowMs<lastAt)stop('NON_MONOTONIC_TIME');
+   else if(nowMs-lastAt>maxAgeMs)stop('STALE_SAMPLE');
+  }
   const fresh=finite(nowMs)&&latest!==null&&!paused&&
     nowMs>=lastAt&&nowMs-lastAt<=maxAgeMs;
   const state=!model?'NO_CALIBRATION':

@@ -3,6 +3,32 @@
   "version": 2,
   "routes": [
     {
+      "src": "^/.*$",
+      "has": [
+        {
+          "type": "host",
+          "value": "pulmosimu-xr-preview.vercel.app"
+        }
+      ],
+      "status": 308,
+      "headers": {
+        "Location": "https://pulmosimu.vercel.app/"
+      }
+    },
+    {
+      "src": "^/.*$",
+      "has": [
+        {
+          "type": "host",
+          "value": "pulmo-e4-preview.vercel.app"
+        }
+      ],
+      "status": 308,
+      "headers": {
+        "Location": "https://pulmosimu.vercel.app/"
+      }
+    },
+    {
       "src": "^/(quest|quest4)\\.html$",
       "status": 308,
       "headers": {

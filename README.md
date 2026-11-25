@@ -6,12 +6,12 @@ PulmoSIMU is an integrated pulmonary research and spatial procedure laboratory b
 
 ## Canonical entries
 
-- **One canonical PulmoSIMU entrance:** https://pulmosimu-xr-preview.vercel.app/ (the old `/quest-short/`, `/quest.html` and `/quest4.html` shortcuts redirect here)
-- **Original desktop procedural workstation (no Quest or webcam required):** https://pulmosimu-xr-preview.vercel.app/index.html?entry=desktop
-- **CT source / MPR inspector:** https://pulmosimu-xr-preview.vercel.app/experimental/anatomy-inspector.html
-- **Clinical and physical verification lab (local-only):** https://pulmosimu-xr-preview.vercel.app/experimental/validation-lab.html
+- **One canonical PulmoSIMU entrance:** https://pulmosimu.vercel.app/ (the old `/quest-short/`, `/quest.html` and `/quest4.html` shortcuts redirect here)
+- **Original desktop procedural workstation (no Quest or webcam required):** https://pulmosimu.vercel.app/index.html?entry=desktop
+- **CT source / MPR inspector:** https://pulmosimu.vercel.app/experimental/anatomy-inspector.html
+- **Clinical and physical verification lab (local-only):** https://pulmosimu.vercel.app/experimental/validation-lab.html
 
-Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.vercel.app`, are historical compatibility addresses, not separate release targets. The single production project is **`pulmosimu-xr-preview`**. The earlier `pulmovr` project is obsolete and subject to permanent deletion in the Vercel dashboard.
+Historical Vercel aliases are not release targets; use only the canonical entrance above. The single production project is **`pulmosimu`**. The earlier `pulmovr` project is obsolete and subject to permanent deletion in the Vercel dashboard.
 
 ## Authoritative implementation
 
@@ -47,4 +47,4 @@ Older Vercel aliases, including `pulmo-e4-preview.vercel.app` and `pulmovr-chi.v
 
 **Desktop/Quest software baseline:** XR-16F. **Canonical entry + calibration preview:** XR-18 software changes integrated. **Capability-negotiated runtime:** XR-17A implemented. **Spatial MR surface placement:** XR-17B implemented in software. **Advanced procedure/input research:** XR-17C read-only trace review, tracked-controller visual proxy and compositor capability assessment implemented in software. Physical headset acceptance and clinically calibrated instrument coupling remain pending. The physical-instrument evidence reader and clinical review checklist are software, not measured proof. Hardware-validated device claims, stable physical MR anchoring, depth-based room occlusion and verified patient-specific endoscopy are **not available**.
 
-**Cleanup status:** The duplicate development branch was deleted after proving it contained no unique commits. The obsolete `pulmovr` Vercel project remains paused and requires its owner's Delete Project confirmation; GitHub Pages depublication also requires repository settings because the automation token received HTTP 403. Compatibility aliases all resolve to canonical production, not competing builds. GitHub automatic deployment in the remaining Vercel project must still be verified in the Vercel Git settings.
+**Cleanup status:** The duplicate development branch was deleted after proving it contained no unique commits. The obsolete `pulmovr` Vercel project remains paused and requires its owner's Delete Project confirmation; GitHub Pages depublication also requires repository settings because the automation token received HTTP 403. Historical aliases are redirected to the canonical production host by the release routing configuration. GitHub automatic deployment in the remaining Vercel project must still be verified in the Vercel Git settings.

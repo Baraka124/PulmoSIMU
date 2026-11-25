@@ -89,3 +89,26 @@ test('Consolidated Vercel root serves launcher and redirects all legacy shortcut
  assert.ok(engine.includes("['desktop','vr','mr'].includes(entryMode)"));
  assert.ok(engine.includes("openDesktopWorkstation({requestCamera:false})"));
 });
+
+test('Re-arm never exposes old samples; timing gaps and clock reversal fail closed',()=>{
+ const c=make();c.configure(fixture());c.arm();
+ assert.equal(c.ingest(sample(1),1000).accepted,true);
+ c.stop('OPERATOR_STOP');c.arm();
+ assert.equal(c.snapshot(2000).corrected,null);
+ assert.equal(c.snapshot(2000).state,'AWAITING_INPUT');
+ assert.equal(c.ingest(sample(1),2000).reason,'REPLAYED_SAMPLE');
+ c.arm();assert.equal(c.ingest(sample(2),2100).accepted,true);
+ assert.equal(c.ingest(sample(3),2400).reason,'STALE_SAMPLE');
+ c.arm();assert.equal(c.ingest(sample(3),2500).accepted,true);
+ assert.equal(c.ingest(sample(4),2499).reason,'NON_MONOTONIC_TIME');
+ assert.equal(c.snapshot(2501).corrected,null);
+});
+test('Historical hostnames redirect to canonical production',()=>{
+ const cfg=JSON.parse(src('../../vercel.json'));
+ for(const host of ['pulmosimu-xr-preview.vercel.app','pulmo-e4-preview.vercel.app']){
+  const route=cfg.routes.find(r=>r.has?.some(h=>h.type==='host'&&h.value===host));
+  assert.equal(route?.status,308);
+  assert.equal(route.headers.Location,'https://pulmosimu.vercel.app/');
+  assert.ok(cfg.routes.indexOf(route)<cfg.routes.findIndex(r=>r.src==='^/$'));
+ }
+});

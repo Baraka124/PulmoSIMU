@@ -1,7 +1,7 @@
 # PulmoSIMU — Consolidated Release & Independent Acceptance
 
 **Release:** XR-18 consolidation; source branch `main`.  
-**Official entry:** https://pulmosimu-xr-preview.vercel.app/  
+**Official entry:** https://pulmosimu.vercel.app/  
 **Single underlying procedural engine:** `index.html`.  
 **Decision:** No parallel app, no speculative hardware claims, no unverified medical use.
 
@@ -9,7 +9,7 @@
 
 Vercel `vercel.json` routes the root address to the original editorial launcher in `quest-short/index.html` without duplicating its content. `/quest-short/`, `/quest.html` and `/quest4.html` redirect to `/`. The obsolete `quest.html` and `quest4.html` files have been deleted. There are three choices, all pointing to `index.html`: desktop `?entry=desktop`, VR `?entry=vr` and MR `?entry=mr`. They start the original workstation without camera permission; headset sessions require a real second click to preserve WebXR transient activation. Existing `studio.html` is retained as a functional workspace wrapper; original CT inspector, clinical validation laboratory and archived experiment source are preserved.
 
-**Production authority:** one repository `Baraka124/PulmoSIMU`, branch `main`; one project `pulmosimu-xr-preview`. Pre-production and deployment verification must match exactly the GitHub commit hash. The obsolete `pulmovr` Vercel project and GitHub Pages publishing require dashboard-owner actions where app tools lack deletion or depublication.
+**Production authority:** one repository `Baraka124/PulmoSIMU`, branch `main`; one project `pulmosimu`. Pre-production and deployment verification must match exactly the GitHub commit hash. The obsolete `pulmovr` Vercel project and GitHub Pages publishing require dashboard-owner actions where app tools lack deletion or depublication.
 
 ## II. Four closeout tracks — evidence and limits
 
