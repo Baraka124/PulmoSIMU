@@ -246,13 +246,36 @@ function install(ctx){
   function feedbackToController(i){
     if(Number.isInteger(i)&&i>=0&&i<2)haptic(i);
   }
-  const surfaceTarget=()=>getAnatomyMeshes().filter(o=>o&&o.visible&&o.isObject3D);
+  // Inspection transforms are display-only and are always restored before procedures.
+  const lobes=(ctx.getReferenceLobes?.()||[]).map(l=>({...l,home:l.mesh.position.clone(),homeQuat:l.mesh.quaternion.clone()}));
+  let inspectMode=false,spread=false,selectedLobe=null;
+  const lobeGrabs=[null,null];
+  let opticalIndex=0;
+  const opticalModes=[{name:'BALANCED',gain:1.25,glare:1},{name:'LOW GLARE',gain:1.12,glare:.25},{name:'DEEP VIEW',gain:1.6,glare:.45}];
+  function resetLobes(){
+    lobeGrabs.fill(null);selectedLobe=null;spread=false;
+    for(const l of lobes){l.mesh.position.copy(l.home);l.mesh.quaternion.copy(l.homeQuat);l.mesh.updateMatrixWorld(true);}
+  }
+  function setInspection(enabled){
+    if(enabled&&(mode!=='anatomy'||getMeshMode()!=='reference'||!lobes.length))return false;
+    release(0);release(1);resetLobes();inspectMode=enabled;
+    grabFeedback=enabled?'LOBE INSPECTION / AIM AND HOLD GRIP OR PINCH':'ASSEMBLED LUNG / WHOLE ORGAN GRAB';
+    return true;
+  }
+  function spreadLobes(){
+    if(!inspectMode&&!setInspection(true))return;
+    release(0);release(1);resetLobes();spread=true;
+    for(const l of lobes){l.mesh.position.add(new THREE.Vector3(...l.offset));l.mesh.updateMatrixWorld(true);}
+    grabFeedback='EXPLODED VIEW / GRAB INDIVIDUAL LOBES';
+  }
+  const surfaceTarget=()=> (inspectMode?lobes.map(l=>l.mesh):getAnatomyMeshes()).filter(o=>o&&o.visible&&o.isObject3D);
   const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
   const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:trackedController(i);
   const release=(i,source=null,input=null)=>{
     if(source&&grabSource[i]&&grabSource[i]!==source)return;
     if(input&&grab[i]&&grab[i].input!==input)return;
     const endedGrab=grab[i];
+    lobeGrabs[i]=null;
     grab[i]=null;grabSource[i]=null;
     if(endedGrab&&!grab.some(Boolean))finishViewChange();
     if(endedGrab){
@@ -279,7 +302,7 @@ function install(ctx){
       showToast('The CT mesh has no reviewed airway centreline. Return to the procedural reference before bronchoscopy.','warn');
       paint();return false;
     }
-    if(mode==='anatomy'&&next!=='anatomy')finishViewChange();
+    if(mode==='anatomy'&&next!=='anatomy'){finishViewChange();if(inspectMode)setInspection(false);}
     summonGeneration++;
     const previousMode=mode;
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
@@ -453,7 +476,7 @@ function install(ctx){
   }
   function capture(i){
     const grip=effectiveGrip(i);
-    if(!grip||!grab[i])return;
+    if(!grip||!grab[i]||lobeGrabs[i])return;
     grip.updateMatrixWorld(true);mGrp.updateMatrixWorld(true);
     grab[i].relative.copy(grip.matrixWorld).invert().multiply(mGrp.matrixWorld);
   }
@@ -490,6 +513,14 @@ function install(ctx){
         distanceM:null};
       paint();return false;
     }
+    if(inspectMode){
+      const lobe=lobes.find(l=>l.mesh===remote?.object||l.mesh.uuid===near.meshUuid);
+      if(!lobe||lobeGrabs.some(g=>g?.lobe===lobe))return false;
+      grip.updateMatrixWorld(true);lobe.mesh.updateMatrixWorld(true);
+      lobeGrabs[i]={lobe,relative:new THREE.Matrix4().copy(grip.matrixWorld).invert().multiply(lobe.mesh.matrixWorld)};
+      grabSource[i]=source;grab[i]={input,method:'lobe-inspection'};selectedLobe=lobe.id;
+      grabFeedback='INSPECT / '+lobe.name.toUpperCase();paint();return true;
+    }
     if(analogChangedAt)finishViewChange();
     beginViewChange();
     summonGeneration++;summonTween=null;
@@ -517,6 +548,18 @@ function install(ctx){
   function updateGrab(){
     if(!grab[0]&&!grab[1]||mode!=='anatomy')return;
     mGrp.parent?.updateMatrixWorld(true);
+    if(inspectMode){
+      mGrp.updateMatrixWorld(true);
+      for(let i=0;i<2;i++){
+        const g=lobeGrabs[i];if(!g)continue;
+        const grip=effectiveGrip(i);if(!grip)continue;
+        grip.updateMatrixWorld(true);
+        const target=new THREE.Matrix4().copy(mGrp.matrixWorld).invert().multiply(grip.matrixWorld).multiply(g.relative);
+        const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();target.decompose(p,q,s);
+        const offset=p.sub(g.lobe.home);if(offset.length()>2)offset.setLength(2);
+        g.lobe.mesh.position.copy(g.lobe.home).add(offset);g.lobe.mesh.quaternion.copy(q);g.lobe.mesh.updateMatrixWorld(true);
+      }return;
+    }
     const previousPosition=mGrp.position.clone(),previousOrientation=mGrp.quaternion.clone();
     if(grab[0]&&grab[1]&&gesture){
       effectiveGrip(0).updateMatrixWorld(true);effectiveGrip(1).updateMatrixWorld(true);
@@ -781,6 +824,11 @@ function install(ctx){
         ' / '+mrPlacement.snapshot().anchorStatus.toUpperCase();
       paint();return;
     }
+    if(action==='inspect'){menuPage='inspection';actionHitbox=panelLayouts.inspection;paint();return;}
+    if(action==='inspect-toggle'){setInspection(!inspectMode);paint();return;}
+    if(action==='inspect-spread'){spreadLobes();paint();return;}
+    if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
     if(action==='view'&&xrPresentation==='ar'&&mode==='anatomy'){
       menuPage='mr';actionHitbox=panelLayouts.mr;hoverPanels.fill(null);
       paint();return;
@@ -920,8 +968,8 @@ function install(ctx){
       setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
       guideActions++;
     }
-    if(action==='guide-branch0'||action==='guide-branch1'){
-      const index=action==='guide-branch0'?0:1;
+    if(action==='guide-branch0'||action==='guide-branch1'||action==='guide-branch2'){
+      const index=Number(action.slice(-1));
       const current=global.PulmoXRProcedureGuide.describe({
         segmentId:scope.segId,segment:SEG_MAP[scope.segId],segments:SEG_MAP,
         position:scope.t,atBranch:scope.atBranch,clinicalMode:getClinMode(),
@@ -1113,11 +1161,19 @@ function install(ctx){
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     advanced:[
-      {id:'tool',label:'INSTRUMENT',u:.05,v:.54,w:.43,h:.12},
+      {id:'inspect',label:'LOBE INSPECTION',u:.05,v:.54,w:.43,h:.12},
       {id:'scale',label:'SOURCE SCALE',u:.52,v:.54,w:.43,h:.12},
       {id:'guide',label:'PROCEDURE GUIDE',u:.05,v:.69,w:.43,h:.12},
       {id:'precision',label:'VIEW CONTROLS',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
+    inspection:[
+      {id:'inspect-toggle',label:'INDIVIDUAL LOBES',u:.05,v:.54,w:.43,h:.12},
+      {id:'inspect-spread',label:'SEPARATE LOBES',u:.52,v:.54,w:.43,h:.12},
+      {id:'inspect-restore',label:'REASSEMBLE',u:.05,v:.69,w:.43,h:.12},
+      {id:'reset',label:'RECENTER',u:.52,v:.69,w:.43,h:.12},
+      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     ct:[
@@ -1134,7 +1190,7 @@ function install(ctx){
       {id:'station-optics',label:'ENDOSCOPE VIEW',u:.05,v:.65,w:.43,h:.095},
       {id:'station-control',label:'FINE CONTROL',u:.52,v:.65,w:.43,h:.095},
       {id:'trace-open',label:'INSTRUMENT TRACE',u:.05,v:.76,w:.43,h:.095},
-      {id:'display-path',label:'DISPLAY EVIDENCE',u:.52,v:.76,w:.43,h:.095},
+      {id:'optical-light',label:'LIGHTING',u:.52,v:.76,w:.43,h:.095},
       {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
       {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
@@ -1185,6 +1241,7 @@ function install(ctx){
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
+      menuPage==='inspection'?'Anatomical disassembly':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
       menuPage==='ct'?'Source CT / spatial sections':
@@ -1198,7 +1255,7 @@ function install(ctx){
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
       :menuPage==='ct'&&ctSpatial
         ?'CT '+ctAxis.toUpperCase()+' / slice '+ctSpatial.snapshot().sections[ctAxis]
-        :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
+        :inspectMode?'INSPECTION · '+(lobes.find(l=>l.id===selectedLobe)?.name||'GRAB A LOBE'):'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(menuPage==='trace'
        ?'PHYSICAL MEASUREMENT REVIEW · NEVER DRIVES THE ORIGINAL SCOPE'
@@ -1244,6 +1301,8 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
+        a.id==='inspect-toggle'?(inspectMode?'WHOLE ORGAN':'INDIVIDUAL LOBES'):
         a.id==='display-path'?'DISPLAY PATH':
         a.id==='station-layout'?'LAYOUT '+settings.pose.label:
         a.id==='station-video'?'VIDEO '+settings.capture.label:
@@ -1318,7 +1377,7 @@ function install(ctx){
       c.fillText(rightText.slice(0,45),w-17,49);
       strip.texture.needsUpdate=true;
     }
-    draw(topStrip,'PULMOSIMU / ENDOSCOPIC VIDEO','REFERENCE AIRWAY · '+monitorStatus.toUpperCase());
+    draw(topStrip,(seg?.name||'REFERENCE AIRWAY').toUpperCase(),'GEN '+(seg?.gen??'—')+' · '+monitorStatus.toUpperCase());
     draw(bottomStrip,
       'SEG '+scope.segId+' · '+(seg?.name||'—')+' · DEPTH '+Math.round(scope.depth)+' MM',
       settings.capture.label+' · '+settings.fovDegrees+'°',true);
@@ -1339,6 +1398,7 @@ function install(ctx){
   const guideStages=['ORIENT','NAVIGATE','CHOOSE','INSTRUMENT','REVIEW'];
   function paintGuide(){
     if(!guideCtx||!guideTex)return;
+    const route=global.PulmoXRProcedureGuide.route({segments:SEG_MAP,segmentId:scope.segId,position:scope.t,lengthMm:id=>(pathCurves[id]?.getLength()||0)*getMmPerSceneUnit()});
     const state=global.PulmoXRProcedureGuide.describe({
       segmentId:scope.segId,segment:SEG_MAP[scope.segId],segments:SEG_MAP,
       position:scope.t,atBranch:scope.atBranch,clinicalMode:getClinMode(),
@@ -1366,16 +1426,11 @@ function install(ctx){
     c.fillStyle='#dce8eb';c.font='600 26px system-ui';
     c.fillText(state.tool+'   /   '+state.monitor,42,289);
     c.fillStyle='#aebfc7';c.font='24px system-ui';
-    c.fillText(state.instruction.slice(0,73),42,337);
+    c.fillText(route.labels.join(' > ').slice(0,73),42,337);
     c.fillStyle=state.clearance.includes('BLOCKING')?'#e8b99d':'#93adba';
     c.font='23px system-ui';
-    c.fillText(state.clearance.slice(0,73),42,378);
-    const branches=[
-      {id:'guide-branch0',label:state.branches[0]?.label||'NO SOURCE BRANCH',
-        disabled:!state.branches[0]?.enabled,u:.04,v:.60,w:.44,h:.14},
-      {id:'guide-branch1',label:state.branches[1]?.label||'NO SOURCE BRANCH',
-        disabled:!state.branches[1]?.enabled,u:.52,v:.60,w:.44,h:.14}
-    ];
+    c.fillText('ROUTE '+Math.round(route.distanceMm)+' MM · '+state.clearance.slice(0,47),42,378);
+    const branches=Array.from({length:Math.max(2,state.branches.length)},(_,i)=>({id:'guide-branch'+i,label:state.branches[i]?.label||'NO SOURCE BRANCH',disabled:!state.branches[i]?.enabled,u:.04+i*.92/Math.max(2,state.branches.length),v:.60,w:.88/Math.max(2,state.branches.length),h:.14}));
     guideHitboxes=[
       ...branches,
       {id:'scope-back',label:'RETRACT',disabled:false,u:.04,v:.76,w:.43,h:.10},
@@ -2021,6 +2076,8 @@ function install(ctx){
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
     // Capture status before disposal; no raw room/headset coordinates.
+    if(inspectMode)setInspection(false);
+    opticalIndex=0;ctx.setEndoscopeLighting?.(opticalModes[0].gain,opticalModes[0].glare);
     nativeQuad?.reset();
     if(physicalControl?.snapshot().armed)physicalControl.stop('XR_SESSION_ENDED');
     mrPlacement.reset();

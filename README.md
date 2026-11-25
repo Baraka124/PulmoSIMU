@@ -56,3 +56,7 @@ The original workstation now pins Three.js r147 for WebXR projection-layer suppo
 ## XR-20 physical acceptance recovery
 
 Corrected the original clearance gate's undefined diameter variable, added explicit forward/retract controls to the spatial guide, hand pinch menu actions and remote/near anatomical grabs, closer default anatomy, MR local-space entry and explicit manual placement when real hit testing is unavailable. Native compositor activation is disabled for this compatibility test release; source endoscopy remains available. Physical retesting is mandatory.
+
+## XR-21 inspection and optics
+
+Reduced reference mucosal specular glare and normalized optical falloff and scope offset to model display scale. Three light profiles, original source route breadcrumb and cumulative reference path distance, all source junction choices, and reversible individual-lobe inspection using the existing five reference meshes. Reassembly is automatic before bronchoscopy and on XR exit. This is a visual reference exploration mode, not physical tissue separation or clinical anatomy validation.

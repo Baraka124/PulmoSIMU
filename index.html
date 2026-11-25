@@ -24,7 +24,7 @@
 <script src="./experimental/anatomy/a4-source-gate.js?v=A4-CT-PROCEDURE-GATE"></script>
 <script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
-<script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE"></script>
+<script src="./experimental/xr/procedure-guide.js?v=XR14-XR21-SOURCE-GUIDE"></script>
 <script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 <script src="./experimental/xr/mr-placement.js?v=XR17B-SURFACE-PLACEMENT"></script>
 <script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
@@ -38,7 +38,7 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR20"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR21"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -1963,7 +1963,7 @@ const cBro=document.getElementById('c-bro');
 // Alpha-enabled XR renderer allows genuine immersive-ar passthrough blending.
 // Desktop and immersive-vr retain their opaque source scene background.
 const rBro=new THREE.WebGLRenderer({canvas:cBro,antialias:true,alpha:true,powerPreference:'high-performance'});
-rBro.outputEncoding=THREE.sRGBEncoding;rBro.toneMapping=THREE.ACESFilmicToneMapping;rBro.toneMappingExposure=2.2;
+rBro.outputEncoding=THREE.sRGBEncoding;rBro.toneMapping=THREE.ACESFilmicToneMapping;rBro.toneMappingExposure=1.15;
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x04080f);
@@ -1981,8 +1981,8 @@ const fillL=new THREE.DirectionalLight(0x102214,0.9);fillL.position.set(-2,-4,2)
 const rimL=new THREE.DirectionalLight(0x002244,1.3);rimL.position.set(-5,2,-5);scene.add(rimL);
 const sssL=new THREE.PointLight(0xff1500,6.5,11);sssL.position.set(0,-1.8,1.4);scene.add(sssL);
 const heartL=new THREE.PointLight(0xff0800,4.5,7);heartL.position.set(0,0,0.7);scene.add(heartL);
-const scopeSpot=new THREE.SpotLight(0xfff8f0,8,2.2,Math.PI*0.28,0.45,2);scene.add(scopeSpot);scene.add(scopeSpot.target);
-const scopeFL=new THREE.PointLight(0xffe8c0,2.5,0.8);scene.add(scopeFL);
+const scopeSpot=new THREE.SpotLight(0xfff5e9,3.2,2.2,Math.PI*0.28,0.45,2);scene.add(scopeSpot);scene.add(scopeSpot.target);
+const scopeFL=new THREE.PointLight(0xffeee2,.65,0.8);scene.add(scopeFL);
 
 // ==================== PBR LUNG SHADER (v16) ====================
 const LUNG_V=`
@@ -2097,6 +2097,7 @@ const TRACH_F=`
 precision highp float;
 varying vec3 vWP;varying vec3 vN;varying vec2 vUV;varying float vPosterior;
 uniform float uT;uniform vec3 uSP;uniform float uActive;uniform float uBreath;uniform float uBleed;
+uniform float uSceneScale;uniform float uOpticalGain;uniform float uOpticalGlare;
 uniform int uDisease;uniform float uSeverity;uniform float uSmoke;uniform float uSwell;
 float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
 float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
@@ -2125,19 +2126,33 @@ void main(){
   mucosaBase=mix(mucosaBase,vec3(.58,.50,.28),uSmoke*.32);
   mucosaBase=mix(mucosaBase,vec3(.80,.04,.02),uBleed*.6);
   vec3 col=mucosaBase*mucosaRegion;col=mix(col,cartCol,cartilagePresence*.78);col=mix(col,membraneCol,membraneStr*.6);
-  vec3 L=normalize(uSP-vWP);float att=1./(1.+length(vWP-uSP)*length(vWP-uSP)*2.5);float diff=max(dot(N,L),0.)*att;
+  // Mucosal normals point outward geometrically; illuminate the visible inner face.
+  N=gl_FrontFacing?N:-N;
+  vec3 lightDelta=uSP-vWP;
+  float d=length(lightDelta)/max(uSceneScale,.0001);
+  vec3 L=normalize(lightDelta);
+  float att=1./(1.+d*d*8.0);
   vec3 vD=normalize(cameraPosition-vWP);vec3 H=normalize(L+vD);
-  float cartSpec=pow(max(dot(N,H),0.),120.)*cartilagePresence*.9*att;float wetSpec=pow(max(dot(N,H),0.),48.)*mucosaRegion*.5*att;
-  float mucusSpec=pow(max(dot(N,H),0.),64.)*mucus*1.2*att;float vSpec=pow(max(dot(N,H),0.),32.)*vascSpec*att;
-  float sss=pow(max(-dot(N,L),0.),2.)*.3*att;
-  col*=(diff*.9+.10);col+=vec3(.97,.94,.91)*(cartSpec+wetSpec+mucusSpec+vSpec);col+=vec3(.9,.2,.1)*sss*mucosaBase;col+=vec3(.42,.38,.18)*mucus*.15*att;
-  float d=length(vWP-uSP);col+=vec3(0.,.14,.11)*smoothstep(.45,.0,d)*uActive*.12;
+  float ndl=max(dot(N,L),0.);
+  float beam=.32+.68*pow(max(dot(L,vD),0.),1.5);
+  float diff=ndl*att*beam;
+  float cartSpec=pow(max(dot(N,H),0.),28.)*cartilagePresence*.075*att;
+  float wetSpec=pow(max(dot(N,H),0.),22.)*mucosaRegion*.065*att;
+  float mucusSpec=pow(max(dot(N,H),0.),32.)*mucus*.09*att;
+  float vSpec=pow(max(dot(N,H),0.),20.)*vascSpec*.04*att;
+  float spec=min(.16,(cartSpec+wetSpec+mucusSpec+vSpec)*uOpticalGlare);
+  col*=.10+diff*1.26;
+  col+=vec3(1.,.94,.88)*spec;
+  col+=vec3(.11,.035,.018)*mucosaBase*att;
+  col*=uOpticalGain;
+  // Smooth highlight shoulder preserves local relief rather than white clipping.
+  col=col/(vec3(1.)+col*.46);
   gl_FragColor=vec4(col,1.);}`;
 
 function mkTrachMat(){
   return new THREE.ShaderMaterial({
     uniforms:{uT:{value:0},uSP:{value:new THREE.Vector3()},uActive:{value:0},
-      uBreath:{value:0},uBleed:{value:0},
+      uBreath:{value:0},uBleed:{value:0},uSceneScale:{value:1},uOpticalGain:{value:1.25},uOpticalGlare:{value:1},
       uDisease:{value:0},uSeverity:{value:0.5},uSmoke:{value:0},uSwell:{value:0}},
     vertexShader:TRACH_V,fragmentShader:TRACH_F,side:THREE.BackSide});
 }
@@ -2351,7 +2366,7 @@ SEGS.forEach(seg=>{
   const om=new THREE.Mesh(buildTube(curve,segs2,seg.r0*.94,seg.r1*.94,12),bm);
   mGrp.add(om);proceduralMeshes.push(om);
   const mm=mkTrachMat();mucoMats.push(mm);
-  const im=new THREE.Mesh(buildTube(curve,segs2,seg.r0*1.05,seg.r1*1.05,14),mm);
+  const im=new THREE.Mesh(buildTube(curve,segs2,seg.r0*1.05,seg.r1*1.05,28),mm);
   mGrp.add(im);proceduralMeshes.push(im);
 });
 
@@ -2673,12 +2688,15 @@ function updateScope(){
   const worldTang=tang.clone().transformDirection(mGrp.matrixWorld).normalize();
   const worldRolledUp=rolledUp.clone().transformDirection(mGrp.matrixWorld).normalize();
   const worldDefl=deflDir.clone().transformDirection(mGrp.matrixWorld).normalize();
-  camScope.position.copy(worldPos.clone().sub(worldTang.clone().multiplyScalar(.016)));
+  const displayScale=Math.max(.0001,mGrp.getWorldScale(new THREE.Vector3()).x);
+  camScope.position.copy(worldPos.clone().sub(worldTang.clone().multiplyScalar(.008*displayScale)));
+  const scopeNear=Math.max(.0001,.002*displayScale);
+  if(Math.abs(camScope.near-scopeNear)>1e-6){camScope.near=scopeNear;camScope.updateProjectionMatrix();}
   camScope.up.copy(worldRolledUp);
   camScope.lookAt(worldPos.clone().add(worldDefl.clone().multiplyScalar(.2)));
-  scopeSpot.position.copy(worldPos);scopeSpot.target.position.copy(worldPos.clone().add(worldDefl.clone().multiplyScalar(.5)));
+  scopeSpot.position.copy(camScope.position);scopeSpot.target.position.copy(worldPos.clone().add(worldDefl.clone().multiplyScalar(.5)));
   scopeSpot.target.updateMatrixWorld();scopeFL.position.copy(worldPos.clone().add(worldTang.clone().multiplyScalar(.04)));
-  mucoMats.forEach(m=>m.uniforms.uSP.value.copy(worldPos));
+  mucoMats.forEach(m=>{m.uniforms.uSP.value.copy(camScope.position);m.uniforms.uSceneScale.value=displayScale;});
   Object.entries(bronchMatsMap).forEach(([id,bm])=>{bm.uniforms.uSP.value.copy(pos);bm.uniforms.uActive.value=parseInt(id)===scope.segId?1:0;});
   probeGrp.visible=true;probeGrp.position.copy(pos);
   const q=new THREE.Quaternion();q.setFromUnitVectors(new THREE.Vector3(0,1,0),tang);probeGrp.quaternion.copy(q);
@@ -4059,6 +4077,16 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   getMmPerSceneUnit:()=>mmPerUnit,
   getScopeDiameterMm:()=>scopeDiamMm,
   getMRHiddenObjects:()=>[gnd,vignPlane],
+  getReferenceLobes:()=>[
+    {id:'RUL',name:'Right upper lobe',mesh:rUpperL,offset:[.32,.38,0]},
+    {id:'RML',name:'Right middle lobe',mesh:rMidL,offset:[.45,.02,.22]},
+    {id:'RLL',name:'Right lower lobe',mesh:rLowL,offset:[.32,-.36,-.08]},
+    {id:'LUL',name:'Left upper lobe',mesh:lUpperL,offset:[-.38,.32,.05]},
+    {id:'LLL',name:'Left lower lobe',mesh:lLowL,offset:[-.38,-.34,-.08]}
+  ],
+  setEndoscopeLighting:(gain,glare)=>mucoMats.forEach(m=>{
+    m.uniforms.uOpticalGain.value=gain;m.uniforms.uOpticalGlare.value=glare;
+  }),
   getAnatomyMeshes:()=>{
     if((meshMode==='patient'||meshMode==='research')&&patientData.gltf)return [patientData.gltf];
     if(meshMode!=='reference')return [];
