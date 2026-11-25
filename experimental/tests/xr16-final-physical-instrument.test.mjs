@@ -37,13 +37,16 @@ test('XR16-FINAL physical offsets require fresh data and explicit reference',()=
  assert.equal(b.snapshot(1400).status,'STALE_INPUT');
  b.reset();assert.equal(b.snapshot(1450).status,'NO_INPUT');
 });
-test('XR16-FINAL clinical and physical evidence gates fail closed',()=>{
- const gaps=API.acceptance({});assert.equal(gaps.passed,false);
- assert.ok(gaps.missing.includes('clinician_review'));
- const fake=Object.fromEntries(API.GATES.map(k=>[k,{result:'pass',evidenceId:''}]));
- assert.equal(API.acceptance(fake).passed,false);
- const real=Object.fromEntries(API.GATES.map(k=>[k,{result:'pass',evidenceId:'LAB-'+k}]));
- assert.equal(API.acceptance(real).passed,true);
+test('XR16F uses the existing measured-trace and clinical reviewer gates as single authority',()=>{
+ const ctx={window:{}};
+ runInNewContext(load('../xr/clinical-review-gate.js'),ctx);
+ const reviewer=ctx.window.PulmoXRClinicalReview;
+ assert.equal(reviewer.assess({}).clinicalValidated,false);
+ assert.equal(reviewer.assess({}).readyForIndependentReview,false);
+ const strict=readFileSync(new URL('../xr/physical-instrument-bench.js',import.meta.url),'utf8');
+ assert.ok(strict.includes('BENCH_ENGINEERING_TARGET_MET'));
+ assert.ok(strict.includes('clinicalValidated:false'));
+ assert.equal('acceptance' in API,false,'Packet intake must not offer competing approval paths');
 });
 test('XR16-FINAL module is source-isolated, never streams or actuates the scope',()=>{
  const source=load('../xr/instrument-bench.js');
