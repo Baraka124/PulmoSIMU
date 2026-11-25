@@ -26,6 +26,7 @@
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
 <script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE-XR21"></script>
 <script src="./experimental/xr/unified-lumen.js?v=XR22"></script>
+<script src="./experimental/xr/video-scope.js?v=XR23"></script>
 <script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 <script src="./experimental/xr/mr-placement.js?v=XR17B-SURFACE-PLACEMENT"></script>
 <script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
@@ -39,7 +40,7 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR22"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR23"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -2712,7 +2713,7 @@ function onResize(){
   rExt.setSize(ew,eh);rExt.setPixelRatio(Math.min(window.devicePixelRatio,2));
   camExt.aspect=ew/eh;camExt.updateProjectionMatrix();
   rBro.setSize(bw,bh);rBro.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  camScope.aspect=bw/bh;camScope.updateProjectionMatrix();
+  camScope.aspect=bw/bh;camScope.fov=window.PulmoXRVideoScope.verticalFov(110,camScope.aspect);camScope.updateProjectionMatrix();
 }
 window.addEventListener('resize',onResize);
 
@@ -2721,30 +2722,26 @@ function updateScope(){
   const curve=pathCurves[scope.segId];if(!curve)return;
   const t=Math.max(0.001,Math.min(0.999,scope.t));
   const pos=curve.getPoint(t),tang=curve.getTangent(t).normalize();
-  const wUp=new THREE.Vector3(0,1,0);
-  let right=new THREE.Vector3().crossVectors(tang,wUp).normalize();
-  if(right.lengthSq()<.01)right.set(1,0,0);
-  const up=new THREE.Vector3().crossVectors(right,tang).normalize();
-  const rolledUp=up.clone().applyAxisAngle(tang,scope.roll);
-  const deflRad=THREE.MathUtils.degToRad(CFG.deflMax);
-  const deflDir=tang.clone().add(right.clone().multiplyScalar(Math.sin(scope.deflH*deflRad))).add(up.clone().multiplyScalar(Math.sin(scope.deflV*deflRad))).normalize();
+  // Optical forward axis and up-vector share the rolled distal steering frame.
+  const basis=window.PulmoXRVideoScope.poseBasis(THREE,tang,scope.roll,scope.deflH,scope.deflV,CFG.deflMax);
+  const rolledUp=basis.up,deflDir=basis.direction;
   scope.pos.copy(pos);scope.dir.copy(tang);
   const worldPos=pos.clone().applyMatrix4(mGrp.matrixWorld);
   const worldTang=tang.clone().transformDirection(mGrp.matrixWorld).normalize();
   const worldRolledUp=rolledUp.clone().transformDirection(mGrp.matrixWorld).normalize();
   const worldDefl=deflDir.clone().transformDirection(mGrp.matrixWorld).normalize();
   const displayScale=Math.max(.0001,mGrp.getWorldScale(new THREE.Vector3()).x);
-  camScope.position.copy(worldPos.clone().sub(worldTang.clone().multiplyScalar(.008*displayScale)));
-  const scopeNear=Math.max(.0001,.002*displayScale);
+  camScope.position.copy(worldPos);
+  const scopeNear=Math.max(.00005,.001*displayScale);
   if(Math.abs(camScope.near-scopeNear)>1e-6){camScope.near=scopeNear;camScope.updateProjectionMatrix();}
   camScope.up.copy(worldRolledUp);
-  camScope.lookAt(worldPos.clone().add(worldDefl.clone().multiplyScalar(.2)));
+  camScope.lookAt(worldPos.clone().add(worldDefl.clone().multiplyScalar(.2*displayScale)));
   scopeSpot.position.copy(camScope.position);scopeSpot.target.position.copy(worldPos.clone().add(worldDefl.clone().multiplyScalar(.5)));
   scopeSpot.target.updateMatrixWorld();scopeFL.position.copy(worldPos.clone().add(worldTang.clone().multiplyScalar(.04)));
   mucoMats.forEach(m=>{m.uniforms.uSP.value.copy(camScope.position);m.uniforms.uSceneScale.value=displayScale;});
   Object.entries(bronchMatsMap).forEach(([id,bm])=>{bm.uniforms.uSP.value.copy(pos);bm.uniforms.uActive.value=parseInt(id)===scope.segId?1:0;});
   probeGrp.visible=true;probeGrp.position.copy(pos);
-  const q=new THREE.Quaternion();q.setFromUnitVectors(new THREE.Vector3(0,1,0),tang);probeGrp.quaternion.copy(q);
+  const q=new THREE.Quaternion();q.setFromUnitVectors(new THREE.Vector3(0,1,0),deflDir);probeGrp.quaternion.copy(q);
   const pulse=Math.sin(Date.now()*.0038)*.5+.5;
   tipM.material.emissiveIntensity=.8+pulse*.7;glowM.material.opacity=.07+pulse*.10;
   const tLen=curve.getLength()||1;scope.depth=t*tLen*mmPerUnit;

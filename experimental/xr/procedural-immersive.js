@@ -52,6 +52,10 @@ function install(ctx){
   });
   const nativeQuad=global.PulmoXRNativeQuad?.create();
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
+  const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
+  const shaftClutch=global.PulmoXRVideoScope.createClutch();
+  let deviceVisible=true,clutchAxis=null,clutchHeld=false;
+  scene.add(videoScope.group);
   let mrReticle=null,originalModelVisibility=true,mrMenuPositioned=false;
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
@@ -143,6 +147,28 @@ function install(ctx){
     new THREE.MeshBasicMaterial({color:0xe5e1cc,depthWrite:false}));
   referenceTip.position.z=-.15;toolProxyOverlay.add(referenceTip);
   toolProxyOverlay.visible=false;scene.add(toolProxyOverlay);
+  function updateVideoScope(frame,dt){
+    const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
+    const rightSource=Array.from(session?.inputSources||[]).find(s=>s.handedness==='right'&&s.gripSpace&&!s.hand);
+    const leftSource=Array.from(session?.inputSources||[]).find(s=>s.handedness==='left'&&s.gripSpace&&!s.hand);
+    const rp=rightSource&&frame?.getPose(rightSource.gripSpace,space)?.transform;
+    const lp=leftSource&&frame?.getPose(leftSource.gripSpace,space)?.transform;
+    const valid=mode==='procedure'&&viewerValid&&Boolean(rp);
+    videoScope.group.visible=valid&&deviceVisible;
+    if(valid){
+      videoScope.group.position.set(rp.position.x,rp.position.y,rp.position.z);
+      videoScope.group.quaternion.set(rp.orientation.x,rp.orientation.y,rp.orientation.z,rp.orientation.w);
+      videoScope.update({h:scope.deflH,v:scope.deflV,roll:scope.roll,diameterMm:getScopeDiameterMm()});
+    }
+    const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed;
+    if(!held){shaftClutch.reset();clutchAxis=null;clutchHeld=false;return;}
+    const rel=new THREE.Vector3(lp.position.x-rp.position.x,lp.position.y-rp.position.y,lp.position.z-rp.position.z);
+    if(!clutchAxis){if(rel.length()<.12)return;clutchAxis=rel.clone().normalize().toArray();}
+    clutchHeld=true;scope.velocity=0;
+    const mm=shaftClutch.step({held,tracking:true,position:rel.toArray(),axis:clutchAxis,dt});
+    const length=pathCurves[scope.segId]?.getLength()*getMmPerSceneUnit();
+    if(Number.isFinite(length)&&length>0){if(mm>0)advance(mm/length);else if(mm<0)retract(-mm/length);}
+  }
   function updateToolProxy(){
     const rightIndex=controllerSide.findIndex((v,i)=>
       (v==='right'||controllerSources[i]?.handedness==='right')&&
@@ -331,6 +357,7 @@ function install(ctx){
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
+    if(next!=='procedure'){videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -857,6 +884,7 @@ function install(ctx){
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
     if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
     if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
     if(action==='view'&&xrPresentation==='ar'&&mode==='anatomy'){
@@ -1221,10 +1249,10 @@ function install(ctx){
       {id:'station-video',label:'VIDEO DETAIL',u:.52,v:.54,w:.43,h:.095},
       {id:'station-optics',label:'ENDOSCOPE VIEW',u:.05,v:.65,w:.43,h:.095},
       {id:'station-control',label:'FINE CONTROL',u:.52,v:.65,w:.43,h:.095},
-      {id:'trace-open',label:'INSTRUMENT TRACE',u:.05,v:.76,w:.43,h:.095},
+      {id:'device-visible',label:'VIRTUAL SCOPE',u:.05,v:.76,w:.43,h:.095},
       {id:'optical-light',label:'LIGHTING',u:.52,v:.76,w:.43,h:.095},
-      {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
-      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'trace-open',label:'INSTRUMENT TRACE',u:.05,v:.87,w:.43,h:.095},
+      {id:'back-expert',label:'BACK',u:.52,v:.87,w:.43,h:.095}
     ],
     mr:[
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
@@ -1292,7 +1320,7 @@ function install(ctx){
     c.fillText(menuPage==='trace'
        ?'PHYSICAL MEASUREMENT REVIEW · NEVER DRIVES THE ORIGINAL SCOPE'
        :mode==='procedure'
-       ?'L STICK: INSERT / ROLL · R STICK: TIP · R GRIP: STEER'
+       ?'L GRIP: FEED SHAFT · L STICK: INSERT/ROLL · R GRIP: STEER'
        :xrPresentation==='ar'&&!placed
          ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
          :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
@@ -1333,6 +1361,7 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
         a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
         a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
         a.id==='inspect-toggle'?(inspectMode?'WHOLE ORGAN':'INDIVIDUAL LOBES'):
@@ -1503,12 +1532,12 @@ function install(ctx){
     lastFeed=now;
     const previousTarget=rBro.getRenderTarget();
     const previousXR=rBro.xr.enabled;
-    const previousAspect=camScope.aspect;
+    const previousAspect=camScope.aspect,previousFov=camScope.fov;
     const menuWasVisible=worldMenu.visible,roomWasVisible=room.visible;
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,toolProxyOverlay,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,toolProxyOverlay,videoScope.group,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -1519,6 +1548,7 @@ function install(ctx){
       // Disable only for the offscreen pass, then restore in finally.
       rBro.xr.enabled=false;
       camScope.aspect=scopeTarget.width/scopeTarget.height;
+      camScope.fov=global.PulmoXRVideoScope.verticalFov(station.snapshot().fovDegrees,camScope.aspect);
       camScope.updateProjectionMatrix();
       rBro.setRenderTarget(scopeTarget);
       rBro.clear(true,true,true);
@@ -1543,7 +1573,7 @@ function install(ctx){
         monitorError='XR frame target unavailable after scope pass';
         monitorImage.visible=false;
       }
-      camScope.aspect=previousAspect;camScope.updateProjectionMatrix();
+      camScope.aspect=previousAspect;camScope.fov=previousFov;camScope.updateProjectionMatrix();
       scene.background=originalBg;
       worldMenu.visible=menuWasVisible;
       if(guidePlane)guidePlane.visible=guideWasVisible;
@@ -1697,6 +1727,7 @@ function install(ctx){
     calibratedSimulatorInput:physicalControl?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
+    virtualVideoScope:{visible:videoScope.group.visible,clutchHeld,referenceDimensions:videoScope.reference,calibrated:false},
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
       requestedIntervalMs:station.snapshot().capture.intervalMs,
@@ -1977,7 +2008,7 @@ function install(ctx){
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
         viewerValid=false;scope.velocity=0;release(0);release(1);
-        toolProxyOverlay.visible=false;
+        toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);handVisuals.forEach(v=>v.group.visible=false);
         contactMarkers.forEach(marker=>marker.visible=false);
@@ -2020,7 +2051,7 @@ function install(ctx){
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
       updateTrackedHands(frame);updateSummon();updateGrab();updateSteering();
-      updateToolProxy();updatePointerAim(time);
+      updateToolProxy();updateVideoScope(frame,dt);updatePointerAim(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -2121,7 +2152,7 @@ function install(ctx){
     mrPlacement.reset();
     mrReticle.visible=false;
     replay.pause(performance.now());
-    toolProxyOverlay.visible=false;toolProxy.reset();
+    toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;

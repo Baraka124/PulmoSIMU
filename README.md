@@ -64,3 +64,7 @@ Reduced reference mucosal specular glare and normalized optical falloff and scop
 ## XR-22 continuous reference lumen
 
 A bounded implicit union of the existing tapered centerline pieces provides one continuous endoscopic viewing surface, removing overlap walls at bifurcations and trifurcations. Original source graph, radii, scope kinematics and external anatomical meshes are unchanged. Shared optical rendering across desktop and XR, with automatic fallback to original tubes on construction/budget error. Terminal closures are numerical reference boundaries, not inferred distal airways. Headset rendering and orifice appearance require physical acceptance.
+
+## XR-23 reference video bronchoscope
+
+A generic dimensionally referenced flexible video scope adds a shaped control body, lever, suction valve, channel port, flexible 600 mm display shaft and optical tip (4.2 mm distal OD, 4.1 mm insertion OD, 2 mm channel reference, 110 degree forward view; Olympus BF-P190 published specification https://olympusmedical.asia/products/pulmonology/bronchoscopy/endoscopes/video-bronchoscopes/bf-p190/index-en.html). Housing geometry is illustrative, not manufacturer CAD. The original camera now uses a roll-coupled distal frame and aspect-correct horizontal field-of-view convention. In VR, the right controller holds the instrument; a left-grip relative-motion clutch feeds/retracts the original scope, while original sticks remain available. No physical actuation, measured shaft mechanics, haptics or clinical validation.
