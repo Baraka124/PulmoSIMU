@@ -150,7 +150,7 @@ try {
  // An ordinary old VR bookmark must never show the schematic ellipsoids.
  const redirect=await browser.newPage();
  await redirect.goto(host+'/experimental/vr.html',{waitUntil:'domcontentloaded'});
- await redirect.waitForURL(/index\.html\?xr=procedural.*XR09-UNIFIED/,{timeout:30000});
+ await redirect.waitForURL(url=>url.pathname==='/',{timeout:30000});
  assert.ok(!redirect.url().includes('archive=1'),'Legacy entry points to original engine');
  await redirect.close();
  const xr=await browser.newPage({viewport:{width:1260,height:850}});
@@ -494,26 +494,29 @@ try {
   await validationPage.locator('#review').click();
   assert.match(await validationPage.locator('#clinicalReport').textContent(),/INCOMPLETE_REVIEW_PACKET/);
   assert.match(await validationPage.locator('#clinicalReport').textContent(),/"clinicalValidated": false/);
-  console.log('PASS XR16F browser evidence lab: measured trace fixture, clinician gate, no false clinical certification');
+  await validationPage.locator('#configureMapping').click();
+  assert.match(await validationPage.locator('#mappingReport').textContent(),/AWAITING_INPUT/);
+  await validationPage.locator('#armMapping').click();
+  await validationPage.locator('#mapPacket').click();
+  assert.match(await validationPage.locator('#mappingReport').textContent(),/BENCH_MAPPING_ONLY/);
+  await validationPage.locator('#mapPacket').click();
+  assert.match(await validationPage.locator('#mappingReport').textContent(),/SAFETY_STOP/);
+  assert.match(await validationPage.locator('#mappingReport').textContent(),/REPLAYED_SAMPLE/);
+  console.log('PASS consolidated physical and clinical verification lab with fail-closed mapping');
  }finally{await validationPage.close()}
 
- // Retired launcher routes must never open the competing XR-04/06 viewer.
+ // Legacy quest/quest4 HTML files are removed. Vercel redirects bookmarks to /.
  const legacyEntry=await browser.newPage({viewport:{width:1100,height:760}});
  try{
-   await legacyEntry.goto(host+'/quest4.html?focus=LLL',{waitUntil:'domcontentloaded'});
-   await legacyEntry.waitForURL(url=>url.pathname.endsWith('/index.html')&&
-     url.searchParams.get('xr')==='procedural'&&url.searchParams.get('focus')==='LLL',
-     {timeout:20000});
+   await legacyEntry.goto(host+'/index.html?entry=vr&focus=LLL',{waitUntil:'domcontentloaded'});
    await legacyEntry.waitForFunction(()=>window.pulmoProceduralXRDebug?.()?.referenceFocus==='LLL',
      null,{timeout:45000});
    assert.equal(await legacyEntry.locator('#pulmo-procedural-xr').count(),1);
-   console.log('PASS retired XR04 launcher now routes into the original-engine XR09 workspace');
+   console.log('PASS canonical Quest entry keeps original source focus');
  }finally{await legacyEntry.close()}
  const questEntry=await browser.newPage({viewport:{width:1050,height:760}});
  try{
-   await questEntry.goto(host+'/quest.html?focus=RUL',{waitUntil:'domcontentloaded'});
-   await questEntry.waitForURL(url=>url.pathname.endsWith('/index.html')&&url.searchParams.get('xr')==='procedural',
-     {timeout:20000});
+   await questEntry.goto(host+'/index.html?entry=vr&focus=RUL',{waitUntil:'domcontentloaded'});
    await questEntry.waitForFunction(()=>window.pulmoProceduralXRDebug?.()?.referenceFocus==='RUL',
      null,{timeout:45000});
    const result=await questEntry.evaluate(()=>{
