@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-11-24  
 **Repository / release authority:** `Baraka124/PulmoSIMU`, `main`  
-**Status (2026-11-25):** **XR-17A software capability registry integrated in `main`**. XR-17B physical MR anchoring and XR-17C physical input/layer improvements remain **planned**. Hardware acceptance remains pending.  
+**Status (2026-11-25):** **XR-17A capability registry integrated. XR-17B surface-placement software implemented in `main`** with genuine frame hit-test results, explicit confirmation, an optional WebXR anchor, read-only placement diagnostics, and an unregistered preview fallback. Physical Quest MR/anchor testing is **pending**. XR-17C physical input/layer improvements remain planned.  
 **Product principle:** ONE source-grounded pulmonary simulation engine, several presentation and interaction modes. Never fork anatomy, clinical procedure or numerical solvers by headset modality.
 
 ## 1. Technical vocabulary and intended value
@@ -13,7 +13,7 @@ The user-supplied Milgram–Kishino-style taxonomy distinguishes assisted realit
 | --- | --- | --- | --- |
 | Desktop / conventional 3D | CT provenance review, anatomy inspection, baseline endoscopy | Real `index.html?entry=desktop` and local CT inspector | Further clinical and UI acceptance |
 | VR | Interactive spatial lung anatomy and reference bronchoscopy lab | Original-engine WebXR `immersive-vr`, real 6DoF input, two-hand scaling, source render-target monitor, XR-16 station options | Quest frame timing, sustained interaction and physical controller/instrument verification |
-| MR | Place shared lung/twin on a physical table or bench | WebXR `immersive-ar` capability-gated passthrough preview; **not** a registered room-aware workstation | Real hit-test placement, anchoring, persistence, stable scale, supported occlusion |
+| MR | Place the existing reference lung over a detected physical surface | XR-17B software invokes WebXR viewer-space hit-tests, places only on an explicitly confirmed result, uses optional frame-tracked anchors and preserves an explicitly unregistered fallback | Test on Quest, quantify drift and placement accuracy; no cross-session anchor persistence or depth occlusion |
 | AR | World-registered explanatory anatomy overlays | No separate calibrated AR mode | World registration, safe anchors, position drift checks, readable labeling |
 | AV | Bring a real tracked bronchoscope controller, physical hand or instrument into a synthetic VR procedure room | Only optional headset hand/controller pose inputs | Explicit calibrated physical-device-to-virtual-tool transform, latency and motion-error study |
 | aR | Minimal non-obstructive persistent scope HUD | Existing world-space menu and guide are **not** a verified assisted-reality workflow | Small optional headset-relative information layer; must not conceal airway or instruments |
@@ -55,11 +55,19 @@ Measure on a real headset: frame interval percentiles, display readability, shad
 
 **XR-17A — Capability registry + entry correctness.** Implemented in `experimental/xr/xr-capabilities.js`, original-engine `experimental/xr/procedural-immersive.js`, and the canonical `quest-short/index.html` launcher. Runtime queries `isSessionSupported` for VR/MR, invokes `requestSession` directly from the user's click, records **requested** optional features separately from `XRSession.enabledFeatures` (when exposed), and exports runtime evidence with the original session report. Desktop remains unconditional. `local-floor`, `bounded-floor`, and `hand-tracking` are still optional; anchors, depth-sensing, hit-test, and layers are **not** claimed or requested by this stage. Node and Chromium regressions are the software acceptance gate; actual Quest validation is pending.
 
-**XR-17B — Physical MR workbench.** Only on devices supporting required AR APIs: confirmed hit-test placement, optional persisted anchor, explicit reset/reposition, legible independent monitor. Deliver: device-observed placement errors and drift; downgrade cleanly when unavailable.
+**XR-17B — Physical MR workbench.** Implemented software in `experimental/xr/mr-placement.js` and the original `procedural-immersive.js` scene. An `immersive-ar` session requests optional `hit-test` and `anchors`; the returned viewer-space hit-test result positions a reticle and only places the reference model after a user trigger or menu action. Optional `XRHitTestResult.createAnchor()` is invoked inside the XR frame, and later anchor poses contribute bounded incremental translation without replacing user-driven anatomy manipulation. Where surface detection is absent, no automatic geometry placement occurs; an explicit **UNREGISTERED FLOATING PREVIEW** remains available. A dedicated MR menu permits repositioning. **No cross-session anchor persistence, room-mesh reconstruction, actual depth occlusion, patient CT registration or device-verified stability is claimed.** Still required: device-observed error and drift evaluation, quality/comfort assessment and error recovery.
 
 **XR-17C — Advanced VR/AV procedure station.** Evaluate XR layers for monitor and optional calibrated tracked instrument inputs; improve ergonomics and measured refresh while retaining original bronchoscopy state. Deliver: independently repeatable controller/device calibration and performance test.
 
 **Freeze gate:** all three software tests pass; actual device run supplies minimum comfort, persistence, error recovery and measured source/pose behavior. Record per-device unsupported features, not 'universal XR support'. The patient-specific medical/tissue/device validation program is separate.
+
+### XR-17B physical MR acceptance gates
+
+The software validation covers failure-to-detect, actual viewer-space results, explicit user confirmation, optional anchor creation, bounded anchor corrections, repositioning, unsupported-device fallback, and restoration of the desktop scene on XR exit. In-browser MR is supported only when `immersive-ar` is available; `immersive-ar` alone does not prove hit-test or anchor grants.
+
+**Required headset acceptance procedure:** launch MR, aim at a real tabletop/floor surface until the teal reticle appears, select to place, walk around the model, deliberately reposition using the spatial menu, re-enter the session, and test loss/recovery of tracking. Compare observed virtual target positions to a known stationary physical reference at several view angles and over a continuous session. Record device, Quest Browser version, actual enabled features, 10-minute drift, model scale, unexpected movement, clarity, controller selection and menu recovery, and local session evidence. Do not invent accuracy thresholds; determine them with clinical/engineering reviewers before measurement.
+
+**No hidden fallbacks:** if surface hit-testing fails, the model remains absent until the user explicitly selects the unregistered floating preview. A visibly overlaid lung does not count as physical anchoring. No data are uploaded by the MR placement component.
 
 ### XR-17A concrete integrity contracts
 
