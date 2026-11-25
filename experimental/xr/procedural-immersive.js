@@ -38,7 +38,7 @@ function install(ctx){
   const station=global.PulmoXRBronchoscopyStation.create();
   const xrCapabilities=global.PulmoXRCapabilities.create({xr:navigator.xr||null});
   const mrPlacement=global.PulmoXRMRPlacement.create();
-  let mrReticle=null,originalModelVisibility=true;
+  let mrReticle=null,originalModelVisibility=true,mrMenuPositioned=false;
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
   // External instrument inputs are evidence only, never scope control.
@@ -1547,6 +1547,7 @@ function install(ctx){
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
     worldMenu.visible=true;scopeScreen.visible=false;room.visible=xrPresentation!=='ar';
+    mrMenuPositioned=false;
     if(xrPresentation==='ar'){
       mGrp.visible=false; // Never auto-place unregistered geometry over passthrough.
       void mrPlacement.start(rBro.xr.getSession()).then(()=>paint());
@@ -1594,7 +1595,9 @@ function install(ctx){
             mGrp.updateWorldMatrix(true,false);
           }
         }
-        if(!placed&&viewerValid)positionPanels();
+        if(!placed&&viewerValid&&!mrMenuPositioned){
+          positionPanels();mrMenuPositioned=true;
+        }
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);
