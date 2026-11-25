@@ -31,10 +31,14 @@ function install(ctx){
     throw Error('XR-16 procedure station and instrument kinematics unavailable');
   if(!global.PulmoXRCapabilities?.create)
     throw Error('XR-17A capability-negotiated XR runtime unavailable');
+  if(!global.PulmoXRMRPlacement?.create)
+    throw Error('XR-17B spatial MR placement runtime unavailable');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   const station=global.PulmoXRBronchoscopyStation.create();
   const xrCapabilities=global.PulmoXRCapabilities.create({xr:navigator.xr||null});
+  const mrPlacement=global.PulmoXRMRPlacement.create();
+  let mrReticle=null,originalModelVisibility=true;
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
   // External instrument inputs are evidence only, never scope control.
@@ -181,6 +185,10 @@ function install(ctx){
     if(!['anatomy','procedure'].includes(next))return false;
     // A4: the actual original bronchoscope traverses SEGS (a reference
     // tree), not the uploaded CT GLB. Never silently call that patient-specific.
+    if(next==='procedure'&&xrPresentation==='ar'&&!placed){
+      grabFeedback='PLACE REFERENCE ANATOMY BEFORE ENTERING BRONCHOSCOPY';
+      paint();return false;
+    }
     if(next==='procedure'&&getMeshMode()==='patient'){
       grabFeedback='CT-SPECIFIC BRONCHOSCOPY BLOCKED / NO REGISTERED AIRWAY';
       showToast('The CT mesh has no reviewed airway centreline. Return to the procedural reference before bronchoscopy.','warn');
@@ -239,6 +247,31 @@ function install(ctx){
   }
   // Reachable seated default: the anatomy is close enough for a real grip,
   // while remote laser grabs still work at larger distances.
+  function placeOnMRSurface(point){
+    if(xrPresentation!=='ar'||!viewerValid)return false;
+    if(!point||![point.x,point.y,point.z].every(Number.isFinite))return false;
+    const target=new THREE.Vector3(point.x,point.y,point.z);
+    const reach=head.distanceTo(target);
+    if(reach<.25||reach>2.8){
+      grabFeedback='SURFACE OUTSIDE WORK AREA / REPOSITION';
+      mrPlacement.reposition();paint();return false;
+    }
+    release(0);release(1);summonGeneration++;summonTween=null;
+    const bounds=sourceBounds();boundsCache=bounds;
+    const scale=limits.clampScale(
+      Math.min(.68/Math.max(.0001,bounds.size.x),
+        .64/Math.max(.0001,bounds.size.y)),modelExtent());
+    mGrp.quaternion.identity();mGrp.scale.setScalar(scale);
+    // Upright, bounded reference anatomy stands above a real hit surface.
+    // Do not rotate the lung by the XR plane normal or infer clinical scale.
+    const center=target.clone().add(new THREE.Vector3(0,
+      Math.max(.05,bounds.size.y*scale*.5+.025),0));
+    mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale));
+    mGrp.visible=true;mGrp.updateWorldMatrix(true,false);
+    placed=true;scaleMode='mr-surface-comfort';
+    grabFeedback='MR SURFACE CONFIRMED / '+mrPlacement.snapshot().anchorStatus.toUpperCase();
+    positionPanels();paint();return true;
+  }
   function frameGroup(distance=1.05,width=.68){
     if(!viewerValid)return false;
     if(placed){finishViewChange();beginViewChange();}
@@ -589,6 +622,12 @@ function install(ctx){
       }else{grabFeedback='POINT AT A PANEL CONTROL';paint()}
       return;
     }
+    if(mode==='anatomy'&&xrPresentation==='ar'&&!placed){
+      const result=mrPlacement.confirm();
+      grabFeedback=result.accepted?'SURFACE CONFIRMATION / ALIGNING NEXT FRAME':
+        'NO VERIFIED SURFACE / OPEN MR WORKSPACE';
+      paint();return;
+    }
     if(mode==='anatomy'){
       // The SELECT trigger is an actual hold-to-manipulate action.
       // A short unmoved tap summons the same original mesh within reach.
@@ -605,6 +644,33 @@ function install(ctx){
       menuPage=action==='more'||action==='back-expert'?'advanced':
         action==='precision'?(mode==='procedure'?'station':'precision'):'primary';
       actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);
+      paint();return;
+    }
+    if(action==='mr-confirm'&&xrPresentation==='ar'){
+      const result=mrPlacement.confirm();
+      grabFeedback=result.accepted?'SURFACE SELECTED / CONFIRMING':
+        'NO REAL SURFACE HIT / SELECT UNREGISTERED PREVIEW';
+      paint();return;
+    }
+    if(action==='mr-reposition'&&xrPresentation==='ar'){
+      release(0);release(1);scope.velocity=0;
+      placed=false;mGrp.visible=false;mrPlacement.reposition();
+      if(mrReticle)mrReticle.visible=false;
+      grabFeedback='MR SCAN / AIM HEADSET AT A REAL SURFACE';
+      paint();return;
+    }
+    if(action==='mr-preview'&&xrPresentation==='ar'){
+      mrPlacement.preview();mGrp.visible=true;
+      frameGroup();grabFeedback='UNREGISTERED FLOATING PREVIEW / NOT ROOM ANCHORED';
+      paint();return;
+    }
+    if(action==='mr-status'&&xrPresentation==='ar'){
+      grabFeedback='MR / '+mrPlacement.snapshot().state.toUpperCase()+
+        ' / '+mrPlacement.snapshot().anchorStatus.toUpperCase();
+      paint();return;
+    }
+    if(action==='view'&&xrPresentation==='ar'&&mode==='anatomy'){
+      menuPage='mr';actionHitbox=panelLayouts.mr;hoverPanels.fill(null);
       paint();return;
     }
     if(action==='view'&&mode==='procedure'){
@@ -856,6 +922,13 @@ function install(ctx){
       transparent:true,opacity:.45}));
   plinth.position.set(0,.03,0);room.add(plinth);
   const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth,rings:spatialRings});
+  // Surface target from a real per-frame hit test. Not room reconstruction.
+  mrReticle=new THREE.Mesh(
+    new THREE.RingGeometry(.075,.092,48).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0x8fd6d7,side:THREE.DoubleSide,
+      transparent:true,opacity:.94,depthWrite:false}));
+  mrReticle.name='xr17b-actual-hit-test-reticle';
+  mrReticle.renderOrder=32;mrReticle.visible=false;scene.add(mrReticle);
   // Plinth only indicates working region, never anatomical scale or a patient metric.
   const panelCanvas=document.createElement('canvas');panelCanvas.width=1024;panelCanvas.height=600;
   const panelCtx=panelCanvas.getContext('2d');
@@ -899,6 +972,14 @@ function install(ctx){
       {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
+    mr:[
+      {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
+      {id:'mr-reposition',label:'REPOSITION',u:.52,v:.54,w:.43,h:.12},
+      {id:'mr-preview',label:'FLOATING PREVIEW',u:.05,v:.69,w:.43,h:.12},
+      {id:'mr-status',label:'PLACEMENT STATUS',u:.52,v:.69,w:.43,h:.12},
+      {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
       {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
@@ -925,7 +1006,8 @@ function install(ctx){
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
     c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
-    c.fillText(menuPage==='station'?'Bronchoscopy workstation':
+    c.fillText(menuPage==='mr'?'Mixed-reality placement':
+      menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
       menuPage==='ct'?'Source CT / spatial sections':
@@ -939,9 +1021,14 @@ function install(ctx){
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
     c.fillText(mode==='procedure'
        ?'L STICK: INSERT / ROLL · R STICK: TIP · R GRIP: STEER'
-       :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
+       :xrPresentation==='ar'&&!placed
+         ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
+         :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
-    c.fillText(source,48,274);
+    c.fillText((xrPresentation==='ar'?
+      'MR '+mrPlacement.snapshot().state.toUpperCase()+' / '+
+      mrPlacement.snapshot().anchorStatus.toUpperCase()+' · UNVERIFIED ROOM DEPTH'
+      :source).slice(0,83),48,274);
     c.fillStyle='#d8e1e4';c.font='22px system-ui';
     const clinicalLabel=mode==='procedure'
       ?(clearance
@@ -973,6 +1060,7 @@ function install(ctx){
         a.id==='ct-sections'&&ctSpatial?(ctSpatial.snapshot().visible?'HIDE MPR':'SHOW MPR'):
         a.id==='view'
         ?(mode==='procedure'?'PROCEDURE STATION':
+          xrPresentation==='ar'?'MR PLACEMENT':
           stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
         a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
@@ -1322,6 +1410,7 @@ function install(ctx){
       framesRendered:monitorFrames},
     sessionType:xrPresentation==='ar'?'mixed-reality-passthrough-preview':'immersive-vr',
     xrCapabilityEvidence:endedXRGeometry?.xrCapabilityEvidence||xrCapabilities.snapshot(),
+    mrPlacementEvidence:endedXRGeometry?.mrPlacementEvidence||mrPlacement.snapshot(),
     lastInteractionResult:grabFeedback,
     xrGeometryAtExit:endedXRGeometry,
     maximumModelSpanM:limits.CONFIG.maximumSpanM,
@@ -1453,10 +1542,17 @@ function install(ctx){
     monitorFailures=0;monitorRecoveries=0;monitorRetryAt=0;
     monitorBudget=instrument.videoCostGovernor();
     monitorImage.visible=false;
+    originalModelVisibility=mGrp.visible;
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
     worldMenu.visible=true;scopeScreen.visible=false;room.visible=xrPresentation!=='ar';
+    if(xrPresentation==='ar'){
+      mGrp.visible=false; // Never auto-place unregistered geometry over passthrough.
+      void mrPlacement.start(rBro.xr.getSession()).then(()=>paint());
+      grabFeedback='MR SCAN / FIND A REAL SURFACE OR CHOOSE PREVIEW';
+    }else mrPlacement.reset();
+    mrReticle.visible=false;
     if(guidePlane)guidePlane.visible=false;
     room.position.copy(head).setY(-.02);
     button.textContent='EXIT PROCEDURAL XR';
@@ -1475,11 +1571,29 @@ function install(ctx){
         laserTips.forEach(tip=>{if(tip)tip.visible=false});
         return;
       }
-      if(!placed){
+      if(!placed&&xrPresentation!=='ar'){
         room.position.copy(head).setY(head.y-1.18);
         const center=head.clone().addScaledVector(forward,1.5);
         plinth.position.x=center.x-head.x;plinth.position.z=center.z-head.z;
         frameGroup();
+      }
+      if(xrPresentation==='ar'){
+        const hit=mrPlacement.scan(frame,rBro.xr.getReferenceSpace());
+        mrReticle.visible=Boolean(hit?.kind==='candidate'&&!placed);
+        if(hit?.kind==='candidate')
+          mrReticle.position.set(hit.point.x,hit.point.y+.006,hit.point.z);
+        if(hit?.kind==='placed'){
+          mrReticle.visible=false;
+          placeOnMRSurface(hit.point);
+        }else if(hit?.kind==='anchor-delta'&&placed){
+          const delta=hit.delta;
+          if([delta.x,delta.y,delta.z].every(Number.isFinite)&&
+             Math.hypot(delta.x,delta.y,delta.z)<.15){
+            mGrp.position.add(new THREE.Vector3(delta.x,delta.y,delta.z));
+            mGrp.updateWorldMatrix(true,false);
+          }
+        }
+        if(!placed&&viewerValid)positionPanels();
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       poll(dt);
@@ -1542,17 +1656,22 @@ function install(ctx){
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},
       procedureStation:station.snapshot(),
       xrCapabilityEvidence:xrCapabilities.snapshot(),
+      mrPlacementEvidence:mrPlacement.snapshot(),
       instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
       controllerActions:{...attempts},
       viewHistory:viewHistory.status(),pivotMode,axisMode,
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
+    // Capture status before disposal; no raw room/headset coordinates.
+    mrPlacement.reset();
+    mrReticle.visible=false;
     xrCapabilities.end();
     health.end();reportButton.style.display='block';
     active=false;rBro.setAnimationLoop(null);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;
+    mGrp.visible=originalModelVisibility;
     if(guidePlane)guidePlane.visible=false;
     // Restore the exact pre-session desktop scene and renderer blend state.
     scene.background=backgroundBeforeXR;scene.fog=fogBeforeXR;
@@ -1595,6 +1714,7 @@ function install(ctx){
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,
+    mrPlacementEvidence:mrPlacement.snapshot(),
     xrCapabilityEvidence:xrCapabilities.snapshot(),
     procedureGuideVisible:Boolean(guidePlane?.visible),
     viewHistory:viewHistory.status(),pivotMode,axisMode,
