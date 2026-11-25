@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "routes": [
+    {
+      "src": "^/quest-short/?$",
+      "status": 308,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    {
+      "src": "^/$",
+      "dest": "/quest-short/index.html"
+    },
+    {
+      "handle": "filesystem"
+    }
+  ]
+}
