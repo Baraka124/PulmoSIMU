@@ -81,3 +81,6 @@ Local 20 Hz bounded procedure observation records reference segment bins, within
 
 ## XR-28 / HIL-02
 Bounded discrete elastic centerline relaxation with fixed endpoints, assumed stretch/bend/anchor weights and source-field compliant-wall penalty. Candidate shape is observational and fallback preserves original navigation; no calibrated force, torsional dynamics, or tissue deformation solution. Shaft recomputation capped at nominal 10 Hz. HIL-02 contains separate preliminary sensor-carrier CAD, interface manifest and uncompiled raw-only ESP32-C3 acquisition sketch. Hardware remains unassembled and uncalibrated.
+
+## XR-29 / HIL-03
+R3 net-volume-driven bounded affine reference motion uses the existing 18-branch solver, an assumed baseline 2.5 L and a reversible tracheal-anchor deformation frame. The same reference airway, route, shaft visualization and tip camera frame move together; original source coordinates and procedural navigation remain unchanged. This is one-way geometry motion, not 4D CT, measured regional mechanics or updated CFD/RC resistance. The HIL-03 local angle sweep CLI fits raw ADC against independent references and reports holdout residual and hysteresis; a draft passive indexing fixture accompanies it. No BENCH/1 export, hardware actuation, or actual bench calibration.

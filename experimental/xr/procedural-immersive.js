@@ -54,6 +54,8 @@ function install(ctx){
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
+  const respiratoryMotion=global.PulmoXRRespiratoryMotion.create();
+  let motionEnabled=true,motionEvidence=respiratoryMotion.reset(),motionReport=null;
   const procedureMetrics=global.PulmoXRProcedureMetrics.create({sampleHz:20});
   procedureMetrics.reset(SEGS);
   const insertedShaft=deviceLab.createShaft(THREE,mGrp);
@@ -364,7 +366,7 @@ function install(ctx){
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -892,6 +894,7 @@ function install(ctx){
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='motion-toggle'){motionEnabled=!motionEnabled;if(!motionEnabled)ctx.setReferenceMotion?.(1);paint();return;}
     if(action==='channel-open'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
     if(action==='optics-toggle'){opticsEnabled=!opticsEnabled;lastFeed=0;paint();return;}
@@ -1276,7 +1279,7 @@ function install(ctx){
       {id:'optics-toggle',label:'OPTICAL RESPONSE',u:.05,v:.76,w:.43,h:.095},
       {id:'trace-open',label:'INSTRUMENT TRACE',u:.52,v:.76,w:.43,h:.095},
       {id:'channel-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
-      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'motion-toggle',label:'RESPIRATORY MOTION',u:.52,v:.87,w:.43,h:.095}
     ],
     mr:[
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
@@ -1387,6 +1390,7 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='motion-toggle'?(motionEnabled?'MOTION ON':'MOTION OFF'):
         a.id==='optics-toggle'?(opticsEnabled?'OPTICS ON':'OPTICS OFF'):
         a.id==='channel-action'?(channel.snapshot().tool==='suction'?(channel.snapshot().suction?'STOP INDICATOR':'SUCTION INDICATOR'):channel.snapshot().jawsOpen?'CLOSE JAWS':'ACTUATE'):
         a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
@@ -1754,6 +1758,7 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
+    respiratoryMotion:motionReport||motionEvidence,
     proceduralGuidance:{visible:guideVisible,manualDemoStep:guideStep,
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
@@ -1989,6 +1994,7 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
+    motionEnabled=true;motionEvidence=respiratoryMotion.reset();motionReport=null;ctx.setReferenceMotion?.(1);
     toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
@@ -2041,7 +2047,7 @@ function install(ctx){
       health.startFrame(time);
       if(!headPose(frame)){
         // Tracking loss: never continue the last object or instrument command.
-        procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
+        ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
         viewerValid=false;scope.velocity=0;release(0);release(1);
@@ -2123,6 +2129,8 @@ function install(ctx){
         if(distance>0)advance(distance);else retract(-distance);
         scope.velocity*=Math.pow(scope.velocityDecay,step);
       }
+      motionEvidence=respiratoryMotion.step(physicsSnapshot,motionEnabled&&mode==='procedure'&&getMeshMode()==='reference'&&viewerValid,dt);
+      ctx.setReferenceMotion?.(motionEvidence.scale,[routeOverlay,insertedShaft.mesh]);
       updateScope();updateRouteOverlay();
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
@@ -2184,6 +2192,7 @@ function install(ctx){
       viewHistory:viewHistory.status(),pivotMode,axisMode,
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
+    motionReport={...motionEvidence};ctx.setReferenceMotion?.(1);
     // Capture status before disposal; no raw room/headset coordinates.
     if(inspectMode)setInspection(false);
     opticalIndex=0;ctx.setEndoscopeLighting?.(opticalModes[0].gain,opticalModes[0].glare);

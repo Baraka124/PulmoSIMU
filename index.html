@@ -30,6 +30,7 @@
 <script src="./experimental/xr/elastic-rod.js?v=XR28"></script>
 <script src="./experimental/xr/device-lab.js?v=XR24-26-XR28"></script>
 <script src="./experimental/xr/procedure-metrics.js?v=XR27"></script>
+<script src="./experimental/xr/respiratory-motion.js?v=XR29"></script>
 <script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 <script src="./experimental/xr/mr-placement.js?v=XR17B-SURFACE-PLACEMENT"></script>
 <script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
@@ -43,7 +44,7 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR28"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR29"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -2228,6 +2229,16 @@ const SEGS=[
 const SEG_MAP={};SEGS.forEach(s=>SEG_MAP[s.id]=s);
 
 const mGrp=new THREE.Group();scene.add(mGrp);
+const motionGrp=new THREE.Group();motionGrp.name='XR29 reference deformation frame';mGrp.add(motionGrp);
+let motionFactor=1;
+function setReferenceMotion(scale,extras=[]){
+ const enabled=meshMode==='reference'&&Number.isFinite(scale)&&Math.abs(scale-1)>1e-7;
+ if(!enabled){motionGrp.scale.setScalar(1);motionGrp.position.set(0,0,0);for(const o of [...motionGrp.children])mGrp.add(o);motionFactor=1;mGrp.updateMatrixWorld(true);return;}
+ const targets=[...proceduralMeshes,...referenceMeshes,...Object.values(pathoMeshes).map(p=>p.mesh),probeGrp,unifiedLumen,...extras].filter(Boolean);
+ for(const o of targets)if(o.parent===mGrp)motionGrp.add(o);
+ motionFactor=Math.min(1.08,Math.max(.96,scale));motionGrp.scale.setScalar(motionFactor);
+ const anchor=SEGS[0].pts[0];motionGrp.position.copy(anchor).multiplyScalar(1-motionFactor);mGrp.updateMatrixWorld(true);
+}
 const pathCurves={};
 const mucoMats=[];
 const bronchMatsMap={};
@@ -2250,6 +2261,7 @@ let ctResearchHidden=null,ctResearchReturn=null,ctLobeAtlas=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
+  if(mode!=='reference')setReferenceMotion(1);
   // The NIfTI-derived lung shell is not the procedural bronchial tree.
   if(mode==='patient'&&patientData.sourceKind==='ct-airspace-research')mode='research';
   if(mode==='research'&&(!patientData.gltf||patientData.sourceKind!=='ct-airspace-research')){
@@ -2527,7 +2539,7 @@ function ensureUnifiedLumen(){
   // Share an existing source material so pathology/lighting updates remain
   // synchronized. The generated mesh is never a second procedural engine.
   unifiedLumen=new THREE.Mesh(geo,mucoMats[0]);unifiedLumen.name='XR22 unified reference lumen';
-  unifiedLumen.visible=false;mGrp.add(unifiedLumen);
+  unifiedLumen.visible=false;(motionFactor!==1?motionGrp:mGrp).add(unifiedLumen);
   lumenStatus={state:'UNIFIED_REFERENCE_SURFACE',triangles:result.triangles,gridCells:result.gridCells,step:result.step,pieces:result.pieceCount};
  }catch(e){lumenStatus={state:'ORIGINAL_TUBE_FALLBACK',reason:String(e?.message||e).slice(0,120)};console.warn('PulmoSIMU lumen fallback',e);}
  return unifiedLumen;
@@ -2729,10 +2741,12 @@ function updateScope(){
   const basis=window.PulmoXRVideoScope.poseBasis(THREE,tang,scope.roll,scope.deflH,scope.deflV,CFG.deflMax);
   const rolledUp=basis.up,deflDir=basis.direction;
   scope.pos.copy(pos);scope.dir.copy(tang);
-  const worldPos=pos.clone().applyMatrix4(mGrp.matrixWorld);
-  const worldTang=tang.clone().transformDirection(mGrp.matrixWorld).normalize();
-  const worldRolledUp=rolledUp.clone().transformDirection(mGrp.matrixWorld).normalize();
-  const worldDefl=deflDir.clone().transformDirection(mGrp.matrixWorld).normalize();
+  const frame=motionFactor!==1&&meshMode==='reference'?motionGrp:mGrp;
+  frame.updateWorldMatrix(true,false);
+  const worldPos=pos.clone().applyMatrix4(frame.matrixWorld);
+  const worldTang=tang.clone().transformDirection(frame.matrixWorld).normalize();
+  const worldRolledUp=rolledUp.clone().transformDirection(frame.matrixWorld).normalize();
+  const worldDefl=deflDir.clone().transformDirection(frame.matrixWorld).normalize();
   const displayScale=Math.max(.0001,mGrp.getWorldScale(new THREE.Vector3()).x);
   camScope.position.copy(worldPos);
   const scopeNear=Math.max(.00005,.001*displayScale);
@@ -4125,6 +4139,8 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   getEndoscopeHiddenObjects:()=>[...referenceMeshes,...outerAirwayMeshes,probeGrp,gnd,vignPlane],
   renderEndoscope:renderOriginalEndoscopy,
   getLumenEvidence:()=>({...lumenStatus}),
+  setReferenceMotion,
+  getReferenceMotionFactor:()=>motionFactor,
   getLumenField:()=>{ensureUnifiedLumen();return lumenPieces?(point=>window.PulmoXRUnifiedLumen.fieldAt(lumenPieces,point)):null;},
   getReferenceLobes:()=>[
     {id:'RUL',name:'Right upper lobe',mesh:rUpperL,offset:[.32,.38,0]},
