@@ -2509,7 +2509,12 @@ function ensureUnifiedLumen(){
   const model=window.PulmoXRUnifiedLumen;
   if(!model)throw Error('LUMEN_MODULE_MISSING');
   const pieces=model.sourcePieces(SEGS,pathCurves);
-  const result=model.build(pieces);
+  let result;
+  try{result=model.build(pieces,{step:.011,maxTriangles:240000});}
+  catch(error){
+    if(!String(error?.message).includes('BUDGET'))throw error;
+    result=model.build(pieces,{step:.014,maxTriangles:180000});
+  }
   const geo=new THREE.BufferGeometry();
   geo.setAttribute('position',new THREE.BufferAttribute(result.positions,3));
   geo.setAttribute('normal',new THREE.BufferAttribute(result.normals,3));

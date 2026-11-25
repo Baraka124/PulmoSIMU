@@ -79,7 +79,11 @@ function build(pieces,{step=.011,maxGrid=4_500_000,maxTriangles=160000}={}){
   for(let i=0;i<3;i++){positions.push(...verts[i].p);normals.push(...verts[i].n);uvs.push(...tex[i]);}
  }
  for(let z=1;z<nz-2;z++)for(let y=1;y<ny-2;y++)for(let x=1;x<nx-2;x++){
-  const k=idx(x,y,z),ks=[k,k+1,k+1+nx,k+nx,k+slice,k+slice+1,k+slice+1+nx,k+slice+nx];
+  const k=idx(x,y,z);
+  // Most of the volume is homogeneous exterior: avoid allocating a
+  // corner array per empty cell on memory-constrained headset browsers.
+  if(field[k]>=0&&field[k+1]>=0&&field[k+nx]>=0&&field[k+nx+1]>=0&&field[k+slice]>=0&&field[k+slice+1]>=0&&field[k+slice+nx]>=0&&field[k+slice+nx+1]>=0)continue;
+  const ks=[k,k+1,k+1+nx,k+nx,k+slice,k+slice+1,k+slice+1+nx,k+slice+nx];
   let mask=0;for(let i=0;i<8;i++)if(field[ks[i]]<0)mask|=1<<i;
   if(mask===0||mask===255)continue;
   const xyz=[x,y,z],edge=(a,b)=>interpolate(a,b,ks[a],ks[b],xyz);

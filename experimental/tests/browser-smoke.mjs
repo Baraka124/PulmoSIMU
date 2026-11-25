@@ -811,6 +811,32 @@ try {
    assert.equal(spatialSource.physics,'NOT_ATTACHED');
    assert.equal(spatialSource.procedure,'CT_SPECIFIC_PROCEDURE_BLOCKED');
    console.log('PASS E1–E4 XR: source MPR three-plane rendering, cleanup, source-science safety');
+   const lumenEvidence=await legacy.evaluate(()=>{
+     if(typeof window.ensureUnifiedLumen!=='function')throw Error('XR22 lumen builder unavailable');
+     const mesh=window.ensureUnifiedLumen();
+     if(!mesh)throw Error('XR22 actual source lumen fell back: '+JSON.stringify(lumenStatus));
+     mesh.updateWorldMatrix(true,false);
+     const tests=[];
+     for(const parent of SEGS){
+       if(!parent.children.length)continue;
+       for(const childId of parent.children){
+         const curve=pathCurves[childId];
+         const a=pathCurves[parent.id].getPoint(1).applyMatrix4(mesh.matrixWorld);
+         const b=curve.getPoint(.08).applyMatrix4(mesh.matrixWorld);
+         const delta=b.clone().sub(a),len=delta.length();
+         const ray=new THREE.Raycaster(a,delta.normalize(),.00001,len*.92);
+         tests.push({parent:parent.id,child:childId,wallHits:ray.intersectObject(mesh,false).length});
+       }
+     }
+     return {triangles:mesh.geometry.attributes.position.count/3,visible:mesh.visible,
+       status:lumenStatus.state,step:lumenStatus.step,tests};
+   });
+   assert.equal(lumenEvidence.status,'UNIFIED_REFERENCE_SURFACE');
+   assert.equal(lumenEvidence.visible,false,'Lumen is isolated from the external anatomical scene');
+   assert.ok(lumenEvidence.triangles>1000&&lumenEvidence.triangles<=240000);
+   assert.ok(lumenEvidence.tests.length>10);
+   assert.ok(lumenEvidence.tests.every(t=>t.wallHits===0),'Actual source junctions are obstructed: '+JSON.stringify(lumenEvidence.tests));
+   console.log('PASS XR22 actual reference lumen: '+lumenEvidence.triangles+' triangles / '+lumenEvidence.tests.length+' open junction paths / step '+lumenEvidence.step);
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 
