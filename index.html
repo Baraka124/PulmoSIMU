@@ -25,6 +25,7 @@
 <script src="./experimental/xr/spatial-target.js?v=XR12-ROUTER"></script>
 <script src="./experimental/xr/stage-presence.js?v=XR13-ARCHITECTURE"></script>
 <script src="./experimental/xr/procedure-guide.js?v=XR14-SOURCE-GUIDE-XR21"></script>
+<script src="./experimental/xr/unified-lumen.js?v=XR22"></script>
 <script src="./experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 <script src="./experimental/xr/mr-placement.js?v=XR17B-SURFACE-PLACEMENT"></script>
 <script src="./experimental/xr/bronchoscopy-station.js?v=XR16-INSTRUMENT-STATION"></script>
@@ -38,7 +39,7 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR21B"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR22"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -2226,7 +2227,8 @@ const mGrp=new THREE.Group();scene.add(mGrp);
 const pathCurves={};
 const mucoMats=[];
 const bronchMatsMap={};
-const proceduralMeshes=[],outerAirwayMeshes=[];
+const proceduralMeshes=[],outerAirwayMeshes=[],innerAirwayMeshes=[];
+let unifiedLumen=null,lumenAttempted=false,lumenStatus={state:'NOT_BUILT'};
 var patientData = {
   gltf:     null,
   meta:     null,
@@ -2367,7 +2369,7 @@ SEGS.forEach(seg=>{
   mGrp.add(om);proceduralMeshes.push(om);outerAirwayMeshes.push(om);
   const mm=mkTrachMat();mucoMats.push(mm);
   const im=new THREE.Mesh(buildTube(curve,segs2,seg.r0,seg.r1,28),mm);
-  mGrp.add(im);proceduralMeshes.push(im);
+  mGrp.add(im);proceduralMeshes.push(im);innerAirwayMeshes.push(im);
 });
 
 // ==================== PATHOLOGY MESHES ====================
@@ -2496,6 +2498,44 @@ const vignMat=new THREE.ShaderMaterial({
 const vignPlane=new THREE.Mesh(vignGeo,vignMat);
 vignPlane.rotation.x=-Math.PI/2;vignPlane.position.y=-2.19;scene.add(vignPlane);
 // grid removed — replaced with subtle floor plane below
+
+
+// Reference-only optical surface. It shares the existing graph and never
+// enters anatomical picking, CT workflows, clearance or instrument mechanics.
+function ensureUnifiedLumen(){
+ if(lumenAttempted)return unifiedLumen;
+ lumenAttempted=true;
+ try{
+  const model=window.PulmoXRUnifiedLumen;
+  if(!model)throw Error('LUMEN_MODULE_MISSING');
+  const pieces=model.sourcePieces(SEGS,pathCurves);
+  const result=model.build(pieces);
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(result.positions,3));
+  geo.setAttribute('normal',new THREE.BufferAttribute(result.normals,3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(result.uvs,2));
+  geo.computeBoundingSphere();
+  // Share an existing source material so pathology/lighting updates remain
+  // synchronized. The generated mesh is never a second procedural engine.
+  unifiedLumen=new THREE.Mesh(geo,mucoMats[0]);unifiedLumen.name='XR22 unified reference lumen';
+  unifiedLumen.visible=false;mGrp.add(unifiedLumen);
+  lumenStatus={state:'UNIFIED_REFERENCE_SURFACE',triangles:result.triangles,gridCells:result.gridCells,step:result.step,pieces:result.pieceCount};
+ }catch(e){lumenStatus={state:'ORIGINAL_TUBE_FALLBACK',reason:String(e?.message||e).slice(0,120)};console.warn('PulmoSIMU lumen fallback',e);}
+ return unifiedLumen;
+}
+function renderOriginalEndoscopy(){
+ if(meshMode!=='reference'){rBro.render(scene,camScope);return;}
+ const lumen=ensureUnifiedLumen();
+ const hidden=[...referenceMeshes,...outerAirwayMeshes,probeGrp,gnd,vignPlane,...(lumen?innerAirwayMeshes:[])].map(o=>[o,o.visible]);
+ try{
+  for(const [o] of hidden)o.visible=false;
+  if(lumen)lumen.visible=true;
+  rBro.render(scene,camScope);
+ }finally{
+  if(lumen)lumen.visible=false;
+  for(const [o,visible] of hidden)o.visible=visible;
+ }
+}
 
 // ==================== SCOPE STATE ====================
 const scope={segId:0,t:0.01,depth:0,roll:0,deflH:0,deflV:0,velocity:0,velocityDecay:0.96,
@@ -3944,7 +3984,7 @@ function animate(){
   const ev=document.getElementById('ext-view'),bv=document.getElementById('bro-view');
   if(!rBro.xr.isPresenting){
     if(viewMode!=='scope'&&ev&&ev.clientWidth>1)rExt.render(scene,camExt);
-    if(viewMode!=='overview'&&bv&&bv.clientWidth>1)rBro.render(scene,camScope);
+    if(viewMode!=='overview'&&bv&&bv.clientWidth>1)renderOriginalEndoscopy();
   }
 }
 animate();
@@ -4001,7 +4041,7 @@ async function openDesktopWorkstation({requestCamera=true}={}){
   // through the original INITIALISE SYSTEM button.
   document.getElementById('splash').style.display='none';
   document.getElementById('app').style.display='flex';
-  setTimeout(()=>{onResize();setView('dual');setClinMode('nav');updateScope();drawMap();applyModeUI();rExt.render(scene,camExt);rBro.render(scene,camScope);},130);
+  setTimeout(()=>{onResize();setView('dual');setClinMode('nav');updateScope();drawMap();applyModeUI();rExt.render(scene,camExt);renderOriginalEndoscopy();},130);
   const dot=document.getElementById('sdot'),lbl=document.getElementById('sdot-l');
   if(dot)dot.className='sdot w';if(lbl)lbl.textContent='CAMERA';
   if(!requestCamera){
@@ -4036,7 +4076,7 @@ setTimeout(()=>{
   if(document.getElementById('app').style.display==='flex'||document.getElementById('patient-shell')?.classList.contains('show')){
     onResize();
     if(viewMode!=='scope'&&document.getElementById('ext-view').clientWidth>1)rExt.render(scene,camExt);
-    if(viewMode!=='overview'&&document.getElementById('bro-view').clientWidth>1)rBro.render(scene,camScope);
+    if(viewMode!=='overview'&&document.getElementById('bro-view').clientWidth>1)renderOriginalEndoscopy();
   }
 },2000);
 
@@ -4078,6 +4118,8 @@ const xrProcedural=window.PulmoImmersiveXR?.install({
   getScopeDiameterMm:()=>scopeDiamMm,
   getMRHiddenObjects:()=>[gnd,vignPlane],
   getEndoscopeHiddenObjects:()=>[...referenceMeshes,...outerAirwayMeshes,probeGrp,gnd,vignPlane],
+  renderEndoscope:renderOriginalEndoscopy,
+  getLumenEvidence:()=>({...lumenStatus}),
   getReferenceLobes:()=>[
     {id:'RUL',name:'Right upper lobe',mesh:rUpperL,offset:[.32,.38,0]},
     {id:'RML',name:'Right middle lobe',mesh:rMidL,offset:[.45,.02,.22]},

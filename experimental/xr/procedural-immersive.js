@@ -1522,7 +1522,7 @@ function install(ctx){
       camScope.updateProjectionMatrix();
       rBro.setRenderTarget(scopeTarget);
       rBro.clear(true,true,true);
-      rBro.render(scene,camScope);
+      if(ctx.renderEndoscope)ctx.renderEndoscope();else rBro.render(scene,camScope);
       monitorStatus='live';monitorError=null;monitorFrames++;
       monitorImage.visible=true;
     }catch(error){
@@ -1692,6 +1692,7 @@ function install(ctx){
       actions:guideActions,lastSourceState:guideLastState},
     procedureStation:station.snapshot(),
     XR17CDisplayPath:displayPath.snapshot(),
+    lumenSurface:ctx.getLumenEvidence?.()||null,
     nativeQuadEvidence:endedXRGeometry?.nativeQuadEvidence||nativeQuad?.snapshot()||null,
     calibratedSimulatorInput:physicalControl?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),

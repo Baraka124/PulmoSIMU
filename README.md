@@ -60,3 +60,7 @@ Corrected the original clearance gate's undefined diameter variable, added expli
 ## XR-21 inspection and optics
 
 Reduced reference mucosal specular glare and normalized optical falloff and scope offset to model display scale. Three light profiles, original source route breadcrumb and cumulative reference path distance, all source junction choices, and reversible individual-lobe inspection using the existing five reference meshes. Reassembly is automatic before bronchoscopy and on XR exit. This is a visual reference exploration mode, not physical tissue separation or clinical anatomy validation.
+
+## XR-22 continuous reference lumen
+
+A bounded implicit union of the existing tapered centerline pieces provides one continuous endoscopic viewing surface, removing overlap walls at bifurcations and trifurcations. Original source graph, radii, scope kinematics and external anatomical meshes are unchanged. Shared optical rendering across desktop and XR, with automatic fallback to original tubes on construction/budget error. Terminal closures are numerical reference boundaries, not inferred distal airways. Headset rendering and orifice appearance require physical acceptance.
