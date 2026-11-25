@@ -63,6 +63,8 @@ The same `experimental/validation-lab.html` now exposes the optional read-only l
 
 Protocol: `PULMOSIMU-BENCH/1` with a monotonically increasing non-negative integer `seq` and finite `insertionMm`, `shaftRollDeg`, `tipPitchDeg`, `tipYawDeg` fields. The generic parser rejects frames over 512 characters, missing fields, replayed sequence numbers, stale samples and out-of-range values. A sample must remain under 250 ms old to be considered fresh. Read-only zero-reference offsets are operator-entered and **not** certified sensor calibration. The software records `clinicalUse:false` and `deviceToScopeCoupled:false`; it does not request Bluetooth, serial or any other physical device pairing.
 
+An optional read-only Web Serial intake is now available behind a user-clicked **Connect serial bench (read-only)** button. It is implemented by `experimental/xr/instrument-serial.js`, accepts newline-delimited packets at 115200 baud, and never writes to the instrument. The browser must support Web Serial and request the user's device permission. Disconnect terminates the reading loop and closes the port; a headset or device without Web Serial remains eligible for manual packet inspection. No physical device, encoder, mechanical fixture or reference measurement has yet been tested by the software developer.
+
 This packet verifier is intended for bench protocol development and measurement-quality debugging. **It does not replace** the external-trace comparison, clinician review or headset tests.
 
 ## D. Quest XR-16 final physical acceptance matrix
@@ -98,6 +100,7 @@ XR-16 software can be frozen independently once its unit/browser suite passes, b
 
 The independent evidence schema and local UI are source-controlled under:
 - `experimental/xr/instrument-bench.js` (read-only individual telemetry packet checks)
+- `experimental/xr/instrument-serial.js` (explicitly approved read-only serial acquisition; no device actuation)
 - `experimental/xr/physical-instrument-bench.js`
 - `experimental/xr/clinical-review-gate.js`
 - `experimental/validation-lab.html`
