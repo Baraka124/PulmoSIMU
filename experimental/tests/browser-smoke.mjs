@@ -322,6 +322,39 @@ try {
     'Physical MR placement must never run in ordinary desktop canvas mode');
   assert.equal(xr16.mrPlacementEvidence.userConfirmed,false);
   assert.equal(xr16.mrPlacementEvidence.physicalDepthOcclusion,false);
+  assert.equal(xr16.XR17CInstrumentTrace.loaded,false);
+  assert.equal(xr16.XR17CInstrumentTrace.deviceToScopeCoupled,false);
+  assert.equal(xr16.XR17CDisplayPath.compositorQuadActive,false);
+  assert.equal(xr16.XR17CTrackedControllerProxy.enabled,false);
+  assert.equal(await proceduralXR.locator('#pulmo-xr-trace-file').count(),1);
+  const scopeBeforeImport=xr16.scopeBranch;
+  const fakeBenchFixture={
+    version:'pulmosimu-instrument-trace/1',
+    provenance:{deviceModel:'Synthetic software test fixture',
+      instrumentId:'TEST-ONLY-001',referenceSensor:'SYNTHETIC-TEST-ENCODER',
+      operator:'Automated CI fixture',measuredAt:'2026-11-25T09:00:00.000Z',
+      measurementSource:'external-bench'},
+    units:{time:'ms',insertion:'mm',angles:'deg'},
+    samples:Array.from({length:60},(_,i)=>({
+      tMs:100*i,cmdInsertionMm:2*i,measInsertionMm:2*i+1,
+      cmdTipHDeg:4,measTipHDeg:4.5,cmdTipVDeg:-2,measTipVDeg:-2,
+      cmdRollDeg:10,measRollDeg:11,tracking:true
+    }))
+  };
+  await proceduralXR.locator('#pulmo-xr-trace-file').setInputFiles({
+    name:'xr17c-synthetic-ci-fixture.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify(fakeBenchFixture))
+  });
+  await proceduralXR.waitForFunction(()=>window.pulmoProceduralXRDebug?.()?.XR17CInstrumentTrace.loaded===true,
+    null,{timeout:20000});
+  const postImport=await proceduralXR.evaluate(()=>window.pulmoProceduralXRDebug());
+  assert.equal(postImport.XR17CInstrumentTrace.total,60);
+  assert.equal(postImport.XR17CInstrumentTrace.clinicalValidated,false);
+  assert.equal(postImport.XR17CInstrumentTrace.deviceToScopeCoupled,false);
+  assert.equal(postImport.scopeBranch,scopeBeforeImport,
+    'Independent measured trace import must never move original scope');
+  assert.equal(postImport.XR17CTrackedControllerProxy.physicalBronchoscopeConnected,false);
+  console.log('PASS XR17C browser: local measured-trace import, safe display and tracked-proxy boundaries');
   assert.equal(await proceduralXR.evaluate(()=>typeof window.PulmoXRMRPlacement?.create),'function');
   const mrProbe=await proceduralXR.evaluate(async()=>{
     const m=window.PulmoXRMRPlacement.create();
