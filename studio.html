@@ -54,7 +54,7 @@ iframe{display:block;min-width:0;width:100%;height:100%;border:0;background:#0b1
 <button type="button" class="mode" id="modeMechanisms" aria-pressed="false"><strong>Mechanistic laboratory</strong><small>Regional numerical models and physiological hypotheses</small></button>
 <button type="button" class="mode" id="modeSource" aria-pressed="false"><strong>CT anatomical source</strong><small>Local NIfTI · original meshes · multiplanar review</small></button>
 <button type="button" class="mode" id="modeXR" aria-pressed="false"><strong>Immersive procedural XR</strong><small>Original anatomical scene, registered imaging and bronchoscopy</small></button>
-<a href="./index.html?xr=procedural&amp;release=XR09-UNIFIED" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open original-engine XR in new tab ↗</a>
+<a href="./index.html?entry=vr" id="launchXR" target="_blank" rel="noopener noreferrer" style="display:block;margin:15px 11px 0;padding:10px 12px;border:1px solid #455b66;border-radius:4px;color:#d7e5eb;text-decoration:none;font-size:12px">Open original-engine XR in new tab ↗</a>
 <div class="foot">Experimental research platform.<p>Procedural and immersive XR workspaces use the original application scene. Research focus transfers only as reference-region context, never as patient data, treatment state, or instrument commands. Physics and imported imaging require independent validation.</p>Not clinically validated.</div>
 </aside>
 <main class="stage"><header class="head"><div><h1 id="workspaceTitle">Procedural simulation</h1><p id="workspaceSubtitle">PNEUMO·VR · focus-first clinical workspace</p></div><div style="display:flex;align-items:center;gap:11px"><div class="context" id="workspaceContext">ORIGINAL PROCEDURE</div><button id="guideToggle" class="guide-toggle" type="button" aria-controls="guidePanel" aria-expanded="false">Guided session</button></div></header>
@@ -75,7 +75,7 @@ const modes={
  procedure:{src:'./procedural-workspace.html',title:'Procedural simulation',subtitle:'Original PNEUMO·VR — preserved',context:'ORIGINAL PROCEDURE',note:'The original procedure is unchanged. Choose the mechanistic laboratory for research modules.'},
  mechanisms:{src:'./experimental/lab.html',title:'Mechanistic laboratory',subtitle:'Quantitative physiology · disease hypotheses · intervention experiments',context:'EXPERIMENTAL / UNVALIDATED',note:'Source-only 3D; regional charts are calculations, not fabricated lung anatomy. No patient-specific treatment prediction.'},
  source:{src:'./experimental/anatomy-inspector.html',title:'CT anatomical source inspector',subtitle:'Original NIfTI · derived GLB · independently checked spatial metadata',context:'SOURCE RESEARCH / UNVALIDATED',note:'All CT and GLB files are loaded locally. No bronchoscopic instrument registration or validated lung segmentation is implied.'},
- xr:{src:'./index.html?xr=procedural&release=XR09-UNIFIED',title:'Immersive procedural laboratory',subtitle:'Original PulmoSIMU geometry · tracked interaction · bronchoscopy',context:'ORIGINAL SOURCE / XR RESEARCH',note:'Same original procedural scene. To enter immersive VR in Quest, use the direct top-level XR link. Source calibration is not clinical validation.'}
+ xr:{src:'./index.html?entry=vr',title:'Immersive procedural laboratory',subtitle:'Original PulmoSIMU geometry · tracked interaction · bronchoscopy',context:'ORIGINAL SOURCE / XR RESEARCH',note:'Same original procedural scene. To enter immersive VR in Quest, use the direct top-level XR link. Source calibration is not clinical validation.'}
 };
 let current='procedure';
 function activate(which){
@@ -119,7 +119,7 @@ if(initial.regionId)focus=createFocus({regionId:initial.regionId,origin:'studio'
 window.pulmoStudioFocusRegion=focus?.regionId||null;
 if(initial.mode!=='procedure')activate(initial.mode);
 function updateQuestLink(){
- const url=new URL('./index.html?xr=procedural&release=XR09-UNIFIED',location.href);
+ const url=new URL('./index.html?entry=vr',location.href);
  if(focus?.regionId)url.searchParams.set('focus',focus.regionId);
  xrLink.href=url.toString();
 }
