@@ -33,11 +33,21 @@ function install(ctx){
     throw Error('XR-17A capability-negotiated XR runtime unavailable');
   if(!global.PulmoXRMRPlacement?.create)
     throw Error('XR-17B spatial MR placement runtime unavailable');
+  if(!global.PulmoXRInstrumentReplay?.create||!global.PulmoXRInstrumentBench?.assess)
+    throw Error('XR-17C read-only measured instrument review unavailable');
+  if(!global.PulmoXRDisplayPath?.create)
+    throw Error('XR-17C display compositor assessment unavailable');
   const limits=global.PulmoXRInteractionMath;
   const health=global.PulmoXRSessionHealth.createSessionHealth();
   const station=global.PulmoXRBronchoscopyStation.create();
   const xrCapabilities=global.PulmoXRCapabilities.create({xr:navigator.xr||null});
   const mrPlacement=global.PulmoXRMRPlacement.create();
+  const replay=global.PulmoXRInstrumentReplay.create({
+    assess:global.PulmoXRInstrumentBench.assess
+  });
+  const displayPath=global.PulmoXRDisplayPath.create({
+    bindingConstructor:global.XRWebGLBinding||null
+  });
   let mrReticle=null,originalModelVisibility=true,mrMenuPositioned=false;
   const instrument=global.PulmoXRBronchoscopyStation;
   const originalScopeFov=camScope.fov;
@@ -965,12 +975,14 @@ function install(ctx){
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     station:[
-      {id:'station-layout',label:'LAYOUT',u:.05,v:.54,w:.43,h:.12},
-      {id:'station-video',label:'VIDEO DETAIL',u:.52,v:.54,w:.43,h:.12},
-      {id:'station-optics',label:'ENDOSCOPE VIEW',u:.05,v:.69,w:.43,h:.12},
-      {id:'station-control',label:'FINE CONTROL',u:.52,v:.69,w:.43,h:.12},
-      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+      {id:'station-layout',label:'LAYOUT',u:.05,v:.54,w:.43,h:.095},
+      {id:'station-video',label:'VIDEO DETAIL',u:.52,v:.54,w:.43,h:.095},
+      {id:'station-optics',label:'ENDOSCOPE VIEW',u:.05,v:.65,w:.43,h:.095},
+      {id:'station-control',label:'FINE CONTROL',u:.52,v:.65,w:.43,h:.095},
+      {id:'trace-open',label:'INSTRUMENT TRACE',u:.05,v:.76,w:.43,h:.095},
+      {id:'display-path',label:'DISPLAY EVIDENCE',u:.52,v:.76,w:.43,h:.095},
+      {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
+      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     mr:[
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
@@ -978,6 +990,14 @@ function install(ctx){
       {id:'mr-preview',label:'FLOATING PREVIEW',u:.05,v:.69,w:.43,h:.12},
       {id:'mr-status',label:'PLACEMENT STATUS',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
+      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+    ],
+    trace:[
+      {id:'trace-play',label:'PLAY TRACE',u:.05,v:.54,w:.43,h:.12},
+      {id:'trace-pause',label:'PAUSE',u:.52,v:.54,w:.43,h:.12},
+      {id:'trace-prev',label:'PREV SAMPLE',u:.05,v:.69,w:.43,h:.12},
+      {id:'trace-next',label:'NEXT SAMPLE',u:.52,v:.69,w:.43,h:.12},
+      {id:'trace-back',label:'BACK TO STATION',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
     precision:[
@@ -1007,25 +1027,35 @@ function install(ctx){
     c.fillText(('PULMOSIMU XR-14 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
+      menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
       menuPage==='ct'?'Source CT / spatial sections':
       mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
     c.fillStyle='#d3e0e5';c.font='28px system-ui';
-    c.fillText((mode==='procedure'
+    c.fillText((menuPage==='trace'?
+      (replay.snapshot().loaded?
+        'READ-ONLY RECORD · '+replay.snapshot().reviewIndex+' / '+(replay.snapshot().total-1):
+        'NO BENCH TRACE · LOAD FROM DESKTOP FIRST')
+      :mode==='procedure'
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
       :menuPage==='ct'&&ctSpatial
         ?'CT '+ctAxis.toUpperCase()+' / slice '+ctSpatial.snapshot().sections[ctAxis]
         :'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
     c.fillStyle='#a8c4cc';c.font='23px system-ui';
-    c.fillText(mode==='procedure'
+    c.fillText(menuPage==='trace'
+       ?'PHYSICAL MEASUREMENT REVIEW · NEVER DRIVES THE ORIGINAL SCOPE'
+       :mode==='procedure'
        ?'L STICK: INSERT / ROLL · R STICK: TIP · R GRIP: STEER'
        :xrPresentation==='ar'&&!placed
          ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
          :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
     c.fillStyle='#95bdc8';c.font='23px system-ui';
-    c.fillText((xrPresentation==='ar'?
+    c.fillText((menuPage==='trace'
+      ?('TRACE QA '+replay.snapshot().engineeringStatus+' / '+
+        (replay.snapshot().observation?.tracking?'TRACKING OK':'TRACKING NOT VERIFIED'))
+      :xrPresentation==='ar'?
       'MR '+mrPlacement.snapshot().state.toUpperCase()+' / '+
       mrPlacement.snapshot().anchorStatus.toUpperCase()+' · UNVERIFIED ROOM DEPTH'
       :source).slice(0,83),48,274);
@@ -1040,7 +1070,13 @@ function install(ctx){
        :role==='reference'
         ?'R3 REDUCED-ORDER RESEARCH · LOADING / UNAVAILABLE'
         :'CT SOURCE SCALE IS METADATA-DERIVED, NOT CLINICALLY VERIFIED');
-    c.fillText(clinicalLabel.slice(0,83),48,311);
+    const traceObs=replay.snapshot().observation;
+    c.fillText((menuPage==='trace'&&traceObs
+      ?'MEAS INS '+traceObs.measured.insertionMm.toFixed(1)+' mm · ERR '+
+        traceObs.residual.insertionMm.toFixed(1)+' mm · TIP H '+traceObs.measured.tipHDeg.toFixed(1)+'°'
+      :menuPage==='trace'
+        ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
+        :clinicalLabel).slice(0,83),48,311);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
@@ -1048,9 +1084,12 @@ function install(ctx){
       const available=(a.id!=='scale'||Boolean((audit?.sourceScaleEligible||getCTStudy?.())&&role==='patient')) &&
         (a.id!=='undo'||viewHistory.status().undo>0) &&
         (a.id!=='redo'||viewHistory.status().redo>0) &&
+        (!a.id.startsWith('trace-')||a.id==='trace-open'||a.id==='trace-back'||replay.snapshot().loaded) &&
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
-      const label=a.id==='station-layout'?'LAYOUT '+settings.pose.label:
+      const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='display-path'?'DISPLAY PATH':
+        a.id==='station-layout'?'LAYOUT '+settings.pose.label:
         a.id==='station-video'?'VIDEO '+settings.capture.label:
         a.id==='station-optics'?'VIEW '+settings.fovDegrees+' DEG':
         a.id==='station-control'?(settings.control==='fine'?'FINE INSERTION':'STANDARD INSERTION'):
