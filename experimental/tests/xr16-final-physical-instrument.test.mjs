@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 const load=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const ctx={window:{}};runInNewContext(load('../xr/instrument-bench.js'),ctx);
-const API=ctx.window.PulmoXRInstrumentBench;
+const API=ctx.window.PulmoXRInstrumentTelemetry;
 const packet=(seq=0,o={})=>JSON.stringify({protocol:'PULMOSIMU-BENCH/1',seq,
  insertionMm:43,shaftRollDeg:18,tipPitchDeg:20,tipYawDeg:-5,...o});
 test('XR16-FINAL rejects malformed, nonfinite, out-of-range and stale telemetry',()=>{
@@ -51,7 +51,7 @@ test('XR16-FINAL module is source-isolated, never streams or actuates the scope'
  const root=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
  const bench=readFileSync(new URL('../instrument-bench.html',import.meta.url),'utf8');
  assert.ok(root.includes('instrument-bench.js?v=XR16-FINAL-ISOLATED-BENCH'));
- assert.ok(xr.includes('const physicalBench=global.PulmoXRInstrumentBench?.create?.()||null'));
+ assert.ok(xr.includes('const physicalBench=global.PulmoXRInstrumentTelemetry?.create?.()||null'));
  assert.ok(xr.includes("station.set('video',recommended)"));
  assert.ok(xr.includes('physicalInstrumentBench:physicalBench?.snapshot'));
  for(const keyword of ['fetch(', 'WebSocket(', 'navigator.serial.requestPort(', 'navigator.bluetooth.requestDevice('])
