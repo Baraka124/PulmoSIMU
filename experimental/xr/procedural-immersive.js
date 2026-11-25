@@ -53,6 +53,11 @@ function install(ctx){
   const nativeQuad=global.PulmoXRNativeQuad?.create();
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
+  const deviceLab=global.PulmoXRDeviceLab;
+  const insertedShaft=deviceLab.createShaft(THREE,mGrp);
+  const channel=deviceLab.createChannel();
+  const accessory=deviceLab.createAccessory(THREE,scene);
+  let opticsEnabled=true,shaftEvidence={state:'UNAVAILABLE'};
   const shaftClutch=global.PulmoXRVideoScope.createClutch();
   let deviceVisible=true,clutchAxis=null,clutchHeld=false;
   scene.add(videoScope.group);
@@ -357,7 +362,7 @@ function install(ctx){
     mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;}
+    if(next!=='procedure'){videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -843,6 +848,7 @@ function install(ctx){
       // A short unmoved tap summons the same original mesh within reach.
       startGrab(i,'controller','trigger');
     }else if(side==='right'){
+      if(channel.snapshot().tool!=='none'){channel.action();paint();return;}
       if(scope.atBranch){enterBranch(Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1))}
       else fireAction();
     }else if(scope.atBranch)enterBranch(0);
@@ -884,6 +890,12 @@ function install(ctx){
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='channel-open'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
+    if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
+    if(action==='optics-toggle'){opticsEnabled=!opticsEnabled;lastFeed=0;paint();return;}
+    if(action==='channel-cycle'){channel.cycle();paint();return;}
+    if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference')channel.extend(action==='channel-extend'?2:-2);paint();return;}
+    if(action==='channel-action'){if(mode==='procedure')channel.action();paint();return;}
     if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
     if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
     if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
@@ -1251,8 +1263,18 @@ function install(ctx){
       {id:'station-control',label:'FINE CONTROL',u:.52,v:.65,w:.43,h:.095},
       {id:'device-visible',label:'VIRTUAL SCOPE',u:.05,v:.76,w:.43,h:.095},
       {id:'optical-light',label:'LIGHTING',u:.52,v:.76,w:.43,h:.095},
-      {id:'trace-open',label:'INSTRUMENT TRACE',u:.05,v:.87,w:.43,h:.095},
+      {id:'channel-open',label:'WORKING CHANNEL',u:.05,v:.87,w:.43,h:.095},
       {id:'back-expert',label:'BACK',u:.52,v:.87,w:.43,h:.095}
+    ],
+    channel:[
+      {id:'channel-cycle',label:'SELECT ACCESSORY',u:.05,v:.54,w:.43,h:.095},
+      {id:'channel-action',label:'ACTUATE',u:.52,v:.54,w:.43,h:.095},
+      {id:'channel-extend',label:'EXTEND',u:.05,v:.65,w:.43,h:.095},
+      {id:'channel-retract',label:'RETRACT',u:.52,v:.65,w:.43,h:.095},
+      {id:'optics-toggle',label:'OPTICAL RESPONSE',u:.05,v:.76,w:.43,h:.095},
+      {id:'trace-open',label:'INSTRUMENT TRACE',u:.52,v:.76,w:.43,h:.095},
+      {id:'channel-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
+      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     mr:[
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
@@ -1301,6 +1323,7 @@ function install(ctx){
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
+      menuPage==='channel'?'Working channel':
       menuPage==='inspection'?'Anatomical disassembly':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
@@ -1311,6 +1334,7 @@ function install(ctx){
       (replay.snapshot().loaded?
         'READ-ONLY RECORD · '+replay.snapshot().reviewIndex+' / '+(replay.snapshot().total-1):
         'NO BENCH TRACE · LOAD FROM DESKTOP FIRST')
+      :menuPage==='channel'?channel.snapshot().label+' / '+channel.snapshot().extensionMm+' MM'
       :mode==='procedure'
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
       :menuPage==='ct'&&ctSpatial
@@ -1361,6 +1385,8 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='optics-toggle'?(opticsEnabled?'OPTICS ON':'OPTICS OFF'):
+        a.id==='channel-action'?(channel.snapshot().tool==='suction'?(channel.snapshot().suction?'STOP INDICATOR':'SUCTION INDICATOR'):channel.snapshot().jawsOpen?'CLOSE JAWS':'ACTUATE'):
         a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
         a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
         a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
@@ -1400,6 +1426,9 @@ function install(ctx){
     format:THREE.RGBAFormat,depthBuffer:true,stencilBuffer:false
   });
   scopeTexture=scopeTarget.texture;scopeTexture.encoding=THREE.sRGBEncoding;
+  const depthOpticsAvailable=rBro.capabilities.isWebGL2;
+  if(depthOpticsAvailable){scopeTarget.depthTexture=new THREE.DepthTexture(scopeTarget.width,scopeTarget.height,THREE.UnsignedIntType);}
+  const opticalResponse=depthOpticsAvailable?deviceLab.opticalMaterial(THREE,scopeTarget):null;
   let monitorStatus='not-started',monitorError=null,monitorFrames=0;
   let monitorFailures=0,monitorRecoveries=0,monitorRetryAt=0;
   let monitorBudget=instrument.videoCostGovernor();
@@ -1411,7 +1440,7 @@ function install(ctx){
   // Keep anatomical source pixels clear: identification and instrument data
   // are physically above/below the image, never drawn across the lumen.
   const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.94,.529),
-    new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
+    opticalResponse?.material||new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false}));
   monitorImage.position.y=-.012;
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   function monitorStrip(y){
@@ -1537,7 +1566,7 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,toolProxyOverlay,videoScope.group,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -1552,7 +1581,9 @@ function install(ctx){
       camScope.updateProjectionMatrix();
       rBro.setRenderTarget(scopeTarget);
       rBro.clear(true,true,true);
+      accessory.update(camScope,channel.snapshot(),mGrp.getWorldScale(new THREE.Vector3()).x/getMmPerSceneUnit());
       if(ctx.renderEndoscope)ctx.renderEndoscope();else rBro.render(scene,camScope);
+      opticalResponse?.update({near:camScope.near,far:camScope.far,scale:mGrp.getWorldScale(new THREE.Vector3()).x,mmPerUnit:getMmPerSceneUnit(),enabled:opticsEnabled});
       monitorStatus='live';monitorError=null;monitorFrames++;
       monitorImage.visible=true;
     }catch(error){
@@ -1578,6 +1609,7 @@ function install(ctx){
       worldMenu.visible=menuWasVisible;
       if(guidePlane)guidePlane.visible=guideWasVisible;
       room.visible=roomWasVisible;
+      accessory.group.visible=false;
       scopeScreen.visible=monitorWasVisible;
       for(const [o,visible] of hidden)o.visible=visible;
       // One failed offscreen pass must not disable the monitor for the entire
@@ -1728,6 +1760,7 @@ function install(ctx){
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
     virtualVideoScope:{visible:videoScope.group.visible,clutchHeld,referenceDimensions:videoScope.reference,calibrated:false},
+    deviceLab:{depthOpticsAvailable,opticsEnabled,shaft:shaftEvidence,channel:channel.snapshot()},
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
     videoCapture:{width:scopeTarget.width,height:scopeTarget.height,
       requestedIntervalMs:station.snapshot().capture.intervalMs,
@@ -1951,7 +1984,7 @@ function install(ctx){
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
-    station.reset();
+    station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;
     toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
@@ -2087,6 +2120,8 @@ function install(ctx){
         scope.velocity*=Math.pow(scope.velocityDecay,step);
       }
       updateScope();updateRouteOverlay();
+      if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
+      else insertedShaft.hide();
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
       if(mode==='procedure'){
@@ -2152,6 +2187,7 @@ function install(ctx){
     mrPlacement.reset();
     mrReticle.visible=false;
     replay.pause(performance.now());
+    insertedShaft.hide();channel.reset();accessory.group.visible=false;
     toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
     health.end();reportButton.style.display='block';
