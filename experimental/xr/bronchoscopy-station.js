@@ -43,7 +43,11 @@ function make(){
   fovDegrees:OPTICS[state.optics],
   insertionMultiplier:state.control==='fine'?.42:1
  })}
- return Object.freeze({next,snapshot,reset(){
+ function set(which,value){
+  if(!keys[which]||!keys[which].includes(value))throw Error('Unknown station selection');
+  state[which]=value;return snapshot();
+ }
+ return Object.freeze({next,set,snapshot,reset(){
    Object.assign(state,{layout:'stacked',video:'balanced',optics:'standard',control:'standard'});
    return snapshot();
  }});
