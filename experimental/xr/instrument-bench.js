@@ -79,5 +79,5 @@ function acceptance(evidence){
    evaluated:GATES.length-missing.length,
    status:missing.length?'NOT_READY_FOR_CLINICAL_OR_PHYSICAL_CLAIM':'DOCUMENTED_GATES_PASSED_REQUIRES_REVIEW'});
 }
-root.PulmoXRInstrumentBench=Object.freeze({create:makeBench,parseFrame,acceptance,GATES,FIELDS,LIMITS});
+root.PulmoXRInstrumentTelemetry=Object.freeze({create:makeBench,parseFrame,acceptance,GATES,FIELDS,LIMITS});
 })(typeof window!=='undefined'?window:globalThis);
