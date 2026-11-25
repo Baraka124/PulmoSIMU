@@ -852,6 +852,29 @@ try {
    assert.ok(instrumentEvidence.rollChangesDirection>.2);
    assert.equal(instrumentEvidence.horizontalFov,110);
    console.log('PASS XR23 device assembly and roll-coupled camera basis');
+   const respiratoryEvidence=await legacy.evaluate(()=>{
+     const p=SEGS[0].pts[0],mesh=window.ensureUnifiedLumen();
+     const old=scope.t;scope.t=.65;setReferenceMotion(1);updateScope();
+     const initial=camScope.position.clone(),anchor=p.clone().applyMatrix4(mGrp.matrixWorld);
+     const originalParent=mesh.parent;
+     setReferenceMotion(1.05);updateScope();
+     const moved=camScope.position.distanceTo(initial);
+     const anchorError=p.clone().applyMatrix4(motionGrp.matrixWorld).distanceTo(anchor);
+     const attached=mesh.parent===motionGrp;
+     const scale=motionGrp.scale.x;
+     setReferenceMotion(1);updateScope();
+     const restored=camScope.position.distanceTo(initial);
+     const parentRestored=mesh.parent===originalParent;
+     scope.t=old;updateScope();
+     return {moved,anchorError,attached,scale,restored,parentRestored};
+   });
+   assert.ok(respiratoryEvidence.moved>1e-5);
+   assert.ok(respiratoryEvidence.anchorError<1e-6);
+   assert.equal(respiratoryEvidence.attached,true);
+   assert.equal(respiratoryEvidence.scale,1.05);
+   assert.ok(respiratoryEvidence.restored<1e-6);
+   assert.equal(respiratoryEvidence.parentRestored,true);
+   console.log('PASS XR29 original lumen and camera motion, anchor and reversible restoration');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 
