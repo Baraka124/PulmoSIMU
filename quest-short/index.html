@@ -42,6 +42,9 @@ h2{font-size:27px;line-height:1.16;letter-spacing:-.037em;font-weight:530;margin
 .mode p{max-width:360px;line-height:1.6;font-size:13px;color:#b7c9cf;margin:0}
 .mode-bottom{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:auto;padding-top:24px;color:#dce9ed;font-weight:600;font-size:12px}
 .mode-bottom small{font-size:11px;line-height:1.45;font-weight:400;color:#a6bbc4}
+.mode-capability{font-size:11px;line-height:1.55;color:#9cb6c1;margin-top:9px;min-height:18px}
+.mode-capability[data-status="supported"]{color:#b8d4d9}
+.mode-capability[data-status="unsupported"],.mode-capability[data-status="unavailable"],.mode-capability[data-status="error"]{color:#e6bda4}
 .arr{font-size:22px;line-height:1;color:#e1edef}
 .utility{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 0 19px;border-bottom:1px solid #2a414c}
 .utility a{font-size:13px;color:#d7e8ed;text-decoration:none;border-bottom:1px solid #718d9a}
@@ -74,6 +77,7 @@ footer strong{font-weight:550;color:#b4cbd4}
 }
 @media(prefers-reduced-motion:reduce){.mode{transition:none}.mode:hover{transform:none}}
 </style>
+<script src="../experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION"></script>
 </head>
 <body>
 <div class="shell">
@@ -105,6 +109,7 @@ footer strong{font-weight:550;color:#b4cbd4}
         </div>
         <h2>Virtual laboratory</h2>
         <p>Manipulate the original lung and follow guided bronchoscopy in a fully immersive environment.</p>
+        <div class="mode-capability" id="vr-capability" data-status="checking" role="status">Checking VR support on this device</div>
         <div class="mode-bottom"><small>Meta Quest 2 · Spatial VR</small><span>Enter VR <span class="arr" aria-hidden="true">↗</span></span></div>
       </a>
 
@@ -114,6 +119,7 @@ footer strong{font-weight:550;color:#b4cbd4}
         </div>
         <h2>Mixed reality</h2>
         <p>View the same anatomy over your real surroundings. Quest 2 passthrough is grayscale.</p>
+        <div class="mode-capability" id="mr-capability" data-status="checking" role="status">Checking passthrough support · no room anchors claimed</div>
         <div class="mode-bottom"><small>Experimental · AR support required</small><span>Open MR <span class="arr" aria-hidden="true">↗</span></span></div>
       </a>
     </nav>
@@ -146,5 +152,36 @@ footer strong{font-weight:550;color:#b4cbd4}
     <span>Research prototype · Desktop available · Quest validation pending</span>
   </footer>
 </div>
+<script>
+(function(){
+ 'use strict';
+ const runtime=window.PulmoXRCapabilities?.create({xr:navigator.xr||null});
+ if(!runtime)return;
+ window.pulmoXRLauncherStatus=()=>runtime.snapshot();
+ const labels={
+  vr:{supported:'Immersive VR supported · session starts on next page',
+      unsupported:'VR unavailable here · desktop always available',
+      unavailable:'No WebXR runtime · use desktop or a headset browser',
+      error:'VR support could not be checked',
+      checking:'Checking immersive VR support'},
+  mr:{supported:'Passthrough supported · no confirmed anchors or occlusion',
+      unsupported:'Passthrough unavailable on this device',
+      unavailable:'No mixed-reality session · desktop still available',
+      error:'MR support could not be checked',
+      checking:'Checking passthrough support'}
+ };
+ function show(){
+  const status=runtime.snapshot();
+  for(const mode of ['vr','mr']){
+   const node=document.getElementById(mode+'-capability');
+   const value=status.sessions[mode];
+   node.dataset.status=value;
+   node.textContent=labels[mode][value]||'XR capability not confirmed';
+  }
+ }
+ show();
+ void runtime.probe().then(show).catch(error=>{runtime.failure(error);show()});
+})();
+</script>
 </body>
 </html>
