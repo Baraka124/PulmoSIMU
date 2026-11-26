@@ -156,3 +156,7 @@ Local read-only source evidence transfer into existing XR console, separate exte
 ## P01–P03 — embodied reference XR
 
 Articulated tracked glove surfaces, estimated VR operator posture and experimental deliberate two-hand reference scope control. See [P foundation](experimental/P01_P03_EMBODIMENT.md).
+
+## Q01–Q03 — connected reference instruments and EBUS
+
+Visual external shaft connection, independent radial catheter extension and directional convex sector reference imaging. No validated acoustic or external shaft physics. See [Q foundation](experimental/Q01_Q03_EBUS.md).

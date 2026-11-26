@@ -70,11 +70,11 @@ function createVisual(THREE){
  leds.forEach(m=>m.rotation.y=Math.PI);
  const channel=mesh(new THREE.CircleGeometry(1,24),dark,tip);channel.rotation.y=Math.PI;
  const Y=new THREE.Vector3(0,1,0),Z=new THREE.Vector3(0,0,-1);
- function update({h=0,v=0,roll=0,diameterMm=REF.distalOdMm}={}){
+ function update({h=0,v=0,roll=0,diameterMm=REF.distalOdMm,connected=false}={}){
   const d=clamp(diameterMm,2.8,6.5)/1000,rad=d*.5;
   const shaftRad=rad*REF.shaftOdMm/REF.distalOdMm;
   lever.rotation.x=-clamp(v,-1,1)*.48;
-  shaftRoot.rotation.y=roll;
+  shaftRoot.visible=!connected;shaftRoot.rotation.y=roll;
   const points=[new THREE.Vector3(0,-.135,0)];
   // Piecewise constant-curvature distal bending; unloaded illustrative shape.
   // The visible 600 mm shaft is a separate handheld inspection model,
