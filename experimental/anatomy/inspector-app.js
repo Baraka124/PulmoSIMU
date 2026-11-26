@@ -13,6 +13,26 @@ let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,moti
 let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
 let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
 let intelEpoch=0,intelBusy=false,intelResult=null,intelReference=null,intelVideoURL=null,intelVideoSha=null,intelVideoEpoch=0;
+const scientificView=window.PulmoScientificView;
+let scientificQueued=false,scientificFrame=null,scientificVolume=null,scientificShaft=null,scientificShaftVox=null;
+function scheduleScientific(){if(scientificQueued)return;scientificQueued=true;requestAnimationFrame(()=>{scientificQueued=false;renderScientific();});}
+function renderScientific(){
+ const status=$('ui-layer-status');if(!state.volume){status.textContent='No source loaded';return;}
+ if(scientificVolume!==state.volume){scientificVolume=state.volume;scientificFrame=null;scientificShaft=null;scientificShaftVox=null;try{if(state.volume.spatialUnit===2)scientificFrame=window.PulmoStudy.frame(state.volume.affine,state.volume.dims);}catch{}}
+ const inv=scientificFrame?.ras_mm_to_voxel;
+ const validRoute=route&&route.ct_sha256===state.ctSha&&route.mask_sha256===segDigest&&seg?.metrics().edited_voxels===0?route:null;
+ const validShaft=shaftResult&&validRoute&&shaftResult.phase===0&&shaftResult.active_ct_sha256===state.ctSha&&shaftResult.active_mask_sha256===segDigest?shaftResult:null;
+ if(scientificShaft!==validShaft){scientificShaft=validShaft;scientificShaftVox=validShaft&&inv?validShaft.points_ras_mm.map(p=>scientificView.affine(inv,p)):null;}
+ const mode=$('ui-layer-field').value,phase=Number($('motion-phase').value);
+ let count=0;
+ for(const plane of ['axial','coronal','sagittal']){const base=$('mpr-'+plane),cv=$('layer-'+plane);if(cv.width!==base.width)cv.width=base.width;if(cv.height!==base.height)cv.height=base.height;
+ const result=scientificView.draw(cv,{plane,volume:state.volume,cross:state.cross,route:validRoute?.points_voxel,shaft:scientificShaftVox,field:motion,phase,inverse:inv,mode,scale:$('ui-layer-scale').checked&&!!inv,routeVisible:$('ui-layer-route').checked,shaftVisible:$('ui-layer-shaft').checked});count+=result.samples;}
+ const parts=['Source voxel slabs'];if(validRoute&&$('ui-layer-route').checked)parts.push('Route');if(validShaft&&$('ui-layer-shaft').checked)parts.push('Inspiration shaft');else if(shaftResult?.phase===1&&$('ui-layer-shaft').checked)parts.push('Expiration shaft excluded');if(mode!=='off')parts.push(motion?count+' valid field samples · '+Math.round(phase*100)+'% · '+(mode==='vectors'?'projected, length capped':'J <1 blue / >1 amber'):'No bound field');status.textContent=parts.join(' · ');
+}
+for(const id of ['ui-layer-route','ui-layer-shaft','ui-layer-field','ui-layer-scale'])$(id).addEventListener('change',scheduleScientific);
+$('ui-layer-mask').checked=$('seg-overlay').checked;
+$('ui-layer-mask').addEventListener('change',()=>{$('seg-overlay').checked=$('ui-layer-mask').checked;renderSlices();});
+$('seg-overlay').addEventListener('change',()=>{$('ui-layer-mask').checked=$('seg-overlay').checked;});
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -400,7 +420,7 @@ function renderSlices(){
   $('slice-readout').textContent='i '+state.cross[0]+' · j '+state.cross[1]+' · k '+state.cross[2];
   const [i,j,k]=state.cross;
   $('ras-readout').textContent='RAS '+state.volume.ras(i,j,k).map(x=>x.toFixed(1)).join(' / ')+' mm';
-  updateMarker();applyClipping();renderMetricStatus();renderMotion();
+  updateMarker();applyClipping();renderMetricStatus();renderMotion();scheduleScientific();
 }
 function updateMarker(){
   if(!marker)return;
@@ -466,6 +486,7 @@ function clickSlice(plane,ev){
   const factor=Math.min(rect.width/cv.width,rect.height/cv.height);
   const width=cv.width*factor,height=cv.height*factor;
   const left=rect.left+(rect.width-width)/2,top=rect.top+(rect.height-height)/2;
+  if(ev.clientX<left||ev.clientX>left+width||ev.clientY<top||ev.clientY>top+height)return;
   const x=Math.max(0,Math.min(1,(ev.clientX-left)/width));
   const y=Math.max(0,Math.min(1,(ev.clientY-top)/height));
   if(plane==='axial'){
@@ -648,6 +669,7 @@ $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Or
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function clearCandidate(){
+ scheduleScientific();
  route=null;resetIntelligence();resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
 }
@@ -695,7 +717,7 @@ function resetMotion(){
  resetShaftMoving();
  motionEpoch++;movingVolume=null;movingStudy=null;motionManifest=null;motionBytes=null;motionDigest=null;motion=null;
  $('motion-phase').disabled=true;$('motion-phase').value=0;$('motion-value').textContent='0%';$('motion-status').textContent='Awaiting paired CT';
- $('motion-detail').textContent='No mapped point. Original CT and route unchanged.';
+ $('motion-detail').textContent='No mapped point. Original CT and route unchanged.';scheduleScientific();
 }
 function tryMotion(){
  motion=null;$('motion-phase').disabled=true;
@@ -705,6 +727,7 @@ function tryMotion(){
  }catch(e){$('motion-status').textContent='Rejected: '+e.message;}finally{renderMotion();}
 }
 function renderMotion(){
+ scheduleScientific();
  if(!motion){$('motion-detail').textContent='No mapped point. Original CT and route unchanged.';return;}
  const phase=Number($('motion-phase').value);$('motion-value').textContent=Math.round(100*phase)+'%';
  try{const p=motion.map(state.volume.ras(...state.cross),phase);
@@ -731,6 +754,7 @@ for(const [id,kind] of [['motion-ct','ct'],['motion-manifest','manifest'],['moti
 $('motion-phase').addEventListener('input',renderMotion);$('motion-clear').addEventListener('click',resetMotion);
 
 function drawShaft(){
+ scheduleScientific();
  const cv=$('shaft-plot'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
  ctx.font='12px system-ui';ctx.fillStyle='#9ab0bc';
  if(!shaftResult){ctx.fillText('No shaft solution',20,28);return;}

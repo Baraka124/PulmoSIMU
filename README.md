@@ -188,3 +188,7 @@ Instanced architectural finishes, perimeter casework and refined approximate man
 ## UI09 — physical procedural workstation
 
 Independent EBUS display, full-size optical image, dedicated EBUS controls and conditional floor-supported equipment. See [UI09](experimental/UI09_PROCEDURE_STATION.md).
+
+## UI10 — scientific visualization
+
+Independent slice-local route, shaft and sampled deformation overlays, synchronized mask visibility and horizontal physical scale. See [UI10](experimental/UI10_SCIENTIFIC_VISUALIZATION.md).
