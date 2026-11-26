@@ -83,6 +83,11 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
     <div class="mpr-pane"><div class="mpr-title"><span>02 / Coronal</span><span id="plane-coronal">—</span></div><canvas id="mpr-coronal" width="512" height="550" aria-label="Coronal CT source; click to position crosshair"></canvas><div class="empty-slice">2 mm original through-plane spacing</div></div>
     <div class="mpr-pane"><div class="mpr-title"><span>03 / Sagittal</span><span id="plane-sagittal">—</span></div><canvas id="mpr-sagittal" width="512" height="550" aria-label="Sagittal CT source; click to position crosshair"></canvas><div class="empty-slice" id="ras-readout">RAS coordinates appear when CT is loaded</div></div>
   </section>
+  <section class="review-panel" aria-label="Patient study infrastructure">
+    <div class="review-heading"><div><div class="eyebrow">H01–H03 / Patient model foundation</div><h2>Study integrity &amp; coordinate frame</h2><p>Local source identity, reversible voxel/RAS/LPS transforms and optional exact reconstruction linkage. A package records evidence, not clinical approval.</p></div><div id="study-status" class="review-status" role="status">Load a CT volume</div></div>
+    <pre id="study-summary" class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">No source available.</pre>
+    <div class="review-controls"><button id="study-export" disabled>Export study manifest</button><label class="review-import" for="study-import">Verify study manifest<input id="study-import" type="file" accept=".json" disabled></label><span class="muted" id="study-result" role="status"></span></div>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -110,9 +115,10 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="./anatomy/nifti-source.js"></script>
+<script src="./anatomy/nifti-source.js?v=H03"></script>
 <script src="./xr/ct-spatial-mpr.js?v=A24-SOURCE-SECTION"></script>
 <script src="./anatomy/a4-source-gate.js?v=A4-SOURCE"></script>
 <script src="./anatomy/source-review.js?v=A23-REVIEW"></script>
-<script src="./anatomy/inspector-app.js?v=A23-REVIEW"></script>
+<script src="./anatomy/patient-study.js?v=H03"></script>
+<script src="./anatomy/inspector-app.js?v=H03"></script>
 </body></html>

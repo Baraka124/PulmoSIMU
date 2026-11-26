@@ -15,6 +15,7 @@ function readNifti(buffer){
  if(dv.getInt32(0,true)===348)little=true;
  else if(dv.getInt32(0,false)===348)little=false;
  else throw new Error('Not a NIfTI-1 file (header size != 348).');
+ const spatialUnit=dv.getUint8(123)&7;
  const dimCount=dv.getInt16(40,little);
  assert(dimCount===3,'A single 3D NIfTI volume is required (4D/5D is not supported).');
  const dims=[42,44,46].map(off=>dv.getInt16(off,little));
@@ -47,7 +48,7 @@ function readNifti(buffer){
  };
  const ras=(i,j,k)=>affine.slice(0,3).map(row=>row[0]*i+row[1]*j+row[2]*k+row[3]);
  return Object.freeze({dims,spacing,datatype,slope,intercept,affine,sformCode,
-  littleEndian:little,byteLength:buffer.byteLength,voxel,ras,kind:'NIfTI-1/3D'});
+  spatialUnit,littleEndian:little,byteLength:buffer.byteLength,voxel,ras,kind:'NIfTI-1/3D'});
 }
 function matchQA(volume,qa){
  if(!volume||!qa)return {valid:false,reason:'CT volume and reconstruction manifest required'};

@@ -120,3 +120,7 @@ Semantic vector symbols accompany sufficiently large physical control faces; sma
 
 ## UI06 — spatial composition checkpoint
 A bounded viewer-relative angular-envelope layout heuristic estimates overlap with the current source-anatomy bounds and other interface surfaces, including the monitor control shelf. It chooses among authored poses only on explicit layout events, protects pinned windows, preserves normal/focus station presets and provides Arrange Workspace under Window Position. No continuous head-following, organ movement, physical collision claim or clinical change. Exported evidence records estimated overlaps and layout events. Actual stereo visibility, readability, comfort and Quest performance remain physical acceptance requirements. This is the final planned UI01–UI06 pass before measured headset feedback.
+
+## H01–H03 — patient-study foundation
+
+Existing Source Anatomy inspector now supports local versioned study manifest export/verification, explicit mm voxel/RAS/LPS transforms and exact optional reconstruction linkage. Offline classic single-series DICOM conversion is provided separately; no patient data is included. No CT-specific procedure authorization or segmentation validation. See [H01–H03 foundation](experimental/anatomy/H01_H03_PATIENT_STUDY.md).

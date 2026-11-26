@@ -1,0 +1,11 @@
+# H01–H03 | Patient study foundation
+
+Use the existing [Source Anatomy inspector](https://pulmosimu.vercel.app/experimental/anatomy-inspector.html). No new application or procedural engine.
+
+- H01: CT-only or CT+existing reconstruction study; local NIfTI reader, explicit mm units and SHA-256. Classic DICOM conversion is offline with `python experimental/anatomy/dicom_ingest.py INPUT_DIRECTORY OUTPUT.nii` (Python 3.11+, numpy, pydicom, nibabel; use only authorized, already de-identified data). Converter rejects mixed series, irregular/tilted stacks, enhanced multiframe CT and unsupported intensity calibration. Some compressed transfer syntaxes require additional pydicom decoders. It does not certify de-identification; pixel content and acquisition geometry can remain sensitive. The conversion sidecar is local and is not automatically linked to a browser study.
+- H02: Explicit voxel→RAS mm and voxel→LPS mm transforms and inverses, corner roundtrip, voxel spacing consistency; optional exact CT+GLB+reconstruction-manifest matching and model/RAS inverse. Coordinate algebra is not independent image registration or anatomical laterality approval.
+- H03: Export a metadata-only `pulmosimu.study/1` JSON manifest and verify it against currently loaded files. It is not a ZIP containing images, a digital signature, proof of segmentation, or a procedural authorization. Missing surface is explicit; identity and frame checks do not allow CT-specific bronchoscopy. No identifiers or filenames are written by the browser manifest. Keep hashes, geometry, source data and reports private.
+
+Load a CT, then optional GLB and its existing reconstruction manifest, then export study manifest; reload the exact source files and verify the exported JSON. Legacy NIfTI without explicit mm units remains inspectable in the existing viewer but is not H-ready. Existing A4 gate and reference simulation remain unchanged.
+
+Acceptance: Node tests in `experimental/tests/h03-patient-study.test.mjs`; test actual DICOM conversion on independently reviewed authorized oblique datasets and compare orientation, HU, dimensions and derived physical distances with a trusted workstation before scientific acceptance. No patient data is bundled. Proceed to I01–I03 only after software regression review.

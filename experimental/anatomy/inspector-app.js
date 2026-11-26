@@ -5,7 +5,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const state={volume:null,qa:null,structureQA:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
+const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
   window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[],metric:{a:null,b:null}};
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
@@ -84,7 +84,7 @@ function validate(){
   $('cross-3d').disabled=!enabled;
   $('section-plane').disabled=!enabled;
   if(!enabled){state.clip=false;$('clip-toggle').checked=false;}
-  updateMarker();applyClipping();updateResearchGates();renderReviewStatus();
+  updateMarker();applyClipping();updateResearchGates();renderReviewStatus();renderStudy();
 }
 let scene=null,renderer=null,camera=null,orbit=null,modelGroup=null,marker=null,
   sourceSection=null,sourceSectionKey=null,workLight=null,originalMaterials=[];
@@ -179,9 +179,11 @@ async function loadModel(file){
   if(!/\.glb$/i.test(file.name))throw new Error('Choose a binary .glb model');
   if(file.size>160*1024*1024)throw new Error('GLB too large for browser inspection');
   const bytes=await file.arrayBuffer();
-  state.meshSha=await sha256(bytes);
+  const nextMeshSha=await sha256(bytes);
   const gltf=await new Promise((resolve,reject)=>new THREE.GLTFLoader().parse(bytes,'',resolve,reject));
-  resetReview();clear3d();
+  if(!gltf.scene)throw Error('GLB scene unavailable');
+  let meshCount=0;gltf.scene.traverse(o=>{if(o.isMesh)meshCount++});if(!meshCount)throw Error('GLB has no surface meshes');
+  resetReview();clear3d();state.meshSha=nextMeshSha;
   state.gltf=gltf;state.model=gltf.scene;modelGroup.add(gltf.scene);
   const meshes=[];
   gltf.scene.traverse(obj=>{
@@ -221,8 +223,8 @@ async function loadNifti(file){
   if(file.size>800*1024*1024)throw new Error('CT file exceeds local browser size limit');
   setMessage('Reading local 3D NIfTI volume…');
   const bytes=await file.arrayBuffer();
-  resetReview();state.ctSha=await sha256(bytes);
-  state.volume=window.PulmoNiftiSource.readNifti(bytes);
+  const nextVolume=window.PulmoNiftiSource.readNifti(bytes),nextCtSha=await sha256(bytes);
+  resetReview();state.ctSha=nextCtSha;state.volume=nextVolume;
   state.cross=state.volume.dims.map(n=>Math.floor(n/2));
   $('ct-state').textContent='Loaded locally · '+(file.size/1024/1024).toFixed(1)+' MiB';
   $('source-shape').textContent=state.volume.dims.join(' × ');
@@ -235,12 +237,13 @@ async function loadNifti(file){
 async function loadManifest(file){
   disposeSourceSection();
   if(!/\.json$/i.test(file.name))throw new Error('Choose a reconstruction manifest .json file');
-  const data=JSON.parse(await file.text());
+  if(file.size>2*1024*1024)throw Error('Reconstruction manifest exceeds 2 MiB');
+  const bytes=await file.arrayBuffer(),data=JSON.parse(new TextDecoder().decode(bytes)),qaSha=await sha256(bytes);
   if(!Array.isArray(data.source_shape_vox)||!Array.isArray(data.sform_RAS_mm)||
      String(data.validation||'').toUpperCase().includes('CLINICAL')){
     throw new Error('This is not a supported research CT geometry manifest.');
   }
-  resetReview();state.qa=data;applyQa();renderSlices();
+  resetReview();state.qa=data;state.qaSha=qaSha;applyQa();renderSlices();
   setMessage(a2LateralityConflict()?a2Warning:
     a2CandidateReviewPending()?a2CandidateWarning:
     'Local manifest loaded. Registration and tissue segmentation are separate validations.',
@@ -585,5 +588,26 @@ window.PulmoAnatomyInspector=Object.freeze({get status(){return{
   meshNames:state.meshNames.slice(),cross:state.cross.slice(),
    reviewCount:state.reviewMarks.length,reviewReady:Boolean(reviewIdentity()),
    metricReady:!!(reviewIdentity()&&state.metric.a&&state.metric.b)}}});
+
+function currentStudy(){
+ return window.PulmoStudy.build({volume:state.volume,ctSha:state.ctSha,meshSha:state.meshSha,qa:state.qa,qaSha:state.qaSha,meshLoaded:!!state.model,headerMatched:!!(state.volume&&state.qa&&window.PulmoNiftiSource.matchQA(state.volume,state.qa).valid)});
+}
+function renderStudy(){
+ const summary=$('study-summary');if(!summary)return;
+ $('study-result').textContent='';
+ try{
+  const s=currentStudy();$('study-status').textContent=s.surface?'CT + reconstruction matched':'CT frame verified · surface not linked';
+  summary.textContent='SHA-256  '+s.source.sha256+'\n'+s.source.dimensions.join(' × ')+' voxels · '+s.spatial.spacing_mm.map(x=>x.toFixed(3)).join(' / ')+' mm\nVoxel ↔ RAS ↔ LPS · roundtrip '+s.spatial.roundtrip_max_vox.toExponential(2)+' voxels\n'+(s.surface?'Exact GLB and reconstruction manifest linked (unreviewed).':'No matched surface attached.')+'\nPatient-specific procedure blocked.';
+  $('study-export').disabled=false;$('study-import').disabled=false;
+ }catch(e){$('study-status').textContent='Study not ready';summary.textContent=e.message;$('study-export').disabled=true;$('study-import').disabled=true;}
+}
+$('study-export').addEventListener('click',()=>{
+ try{const s=currentStudy(),url=URL.createObjectURL(new Blob([JSON.stringify(s,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Study_'+s.source.sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);$('study-result').textContent='Manifest exported locally; no image bytes.';}catch(e){$('study-result').textContent=e.message;}
+});
+$('study-import').addEventListener('change',async ev=>{
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;
+ try{if(f.size>64*1024)throw Error('Study manifest exceeds 64 KiB');const imported=JSON.parse(await f.text());window.PulmoStudy.verify(imported,currentStudy());$('study-result').textContent='Exact local package match. Clinical review remains pending.';}catch(e){$('study-result').textContent='Rejected: '+e.message;}
+});
+
 applyQa();renderReviewStatus();start3d();
 })();
