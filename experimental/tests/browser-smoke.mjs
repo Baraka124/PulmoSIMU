@@ -981,6 +981,9 @@ try {
    const labEvidence=await legacy.evaluate(()=>{const T=window.THREE,G=window.PulmoXRSpatialGeometry,r=new T.Group();const lab=G.createLaboratory(T,r);return {objects:lab.root.children.length,geometry:lab.root.children.every(o=>o.isMesh),evidence:lab.snapshot()}});
    assert.ok(labEvidence.objects>=15&&labEvidence.geometry);assert.equal(labEvidence.evidence.physicalRoomReconstructed,false);
    console.log('PASS UI03 authored laboratory geometry and explicit virtual-only evidence');
+   const ui04=await legacy.evaluate(()=>{const U=window.PulmoXRSpatialExperience,T=window.THREE,G=window.PulmoXRSpatialGeometry;const root=new T.Mesh(new T.PlaneGeometry(1,.5),new T.MeshBasicMaterial());const texture=new T.CanvasTexture(document.createElement('canvas'));const s=G.create(T,root,{width:1,height:.5,texture});const action={id:'focus',u:.1,v:.6,w:.3,h:.2};s.setActions([action]);const p=G.point(.25,.7,1,.5,1.8,.012);const ray=new T.Raycaster(new T.Vector3(p[0],p[1],1),new T.Vector3(0,0,-1));const before=s.hit(ray).hit.point.z;s.press('focus',100);s.update([],185);const after=s.hit(ray).hit.point.z;return {delta:before-after,id:s.hit(ray).id,anatomy:U.layoutRail('anatomy').map(a=>a.id),procedure:U.layoutRail('procedure').map(a=>a.id),near:U.readability({heightM:.48,canvasHeight:600,fontPx:21,distanceM:.7}),far:U.readability({heightM:.48,canvasHeight:600,fontPx:21,distanceM:2})};});
+   assert.ok(ui04.delta>.006&&ui04.id==='focus',JSON.stringify(ui04));assert.ok(ui04.procedure.includes('dock-channel')&&!ui04.anatomy.includes('dock-channel'));assert.ok(ui04.near.estimatedGlyphArcmin>ui04.far.estimatedGlyphArcmin);assert.equal(ui04.near.physicalReadabilityVerified,false);
+   console.log('PASS UI04 context rail, physical key travel and angular size evidence');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

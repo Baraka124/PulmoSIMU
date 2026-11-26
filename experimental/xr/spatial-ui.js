@@ -13,10 +13,10 @@ function control(c,{x,y,w,h,title,hovered=false,selected=false,available=true,ac
  if(hovered&&available){c.fillStyle=C.accent;c.fillRect(x+3,y+11,3,h-22);}
  const navigation=/^(back|more|.*-open|view|precision|guide|tool)$/.test(action);
  const glyph=navigation?'›':action==='exit'?'↗':selected?'•':'';
- text(c,label(title),x+16,y+h*.62,w-(glyph?55:30),{size:h>100?44:h<55?25:29,min:h>100?32:21,weight:hovered||selected?600:500,color});
+ text(c,label(title),x+16,y+h*.62,w-(glyph?55:30),{size:h>100?44:h<45?24:h<55?25:29,min:h>100?32:21,weight:hovered||selected?600:500,color});
  if(glyph)text(c,glyph,x+w-15,y+h*.63,32,{size:30,min:25,weight:500,color:available?C.accent:C.fine,align:'right'});
  // Visual bounds and hit target are exactly the same normalized rectangle.
 }
-function header(c,w,kicker,title){text(c,kicker,42,45,w-84,{size:23,weight:560,color:C.muted});text(c,title,42,111,w-84,{size:49,min:38,weight:520});}
+function header(c,w,kicker,title){text(c,kicker,42,45,w*.60,{size:23,weight:560,color:C.muted});text(c,title,42,111,w-84,{size:49,min:38,weight:520});}
 root.PulmoXRSpatialUI=Object.freeze({C,frame,line,text,label,control,header});
 })(typeof window!=='undefined'?window:globalThis);

@@ -111,3 +111,6 @@ The main console and procedure guide now use curved, depth-tested spatial substr
 
 ## UI03 — spatial architecture and unobstructed start
 Virtual-reality entry defaults to the compact command rail rather than the full console; MR still begins with explicit placement controls. Authored matte room surfaces, quiet architectural lighting cues and wall signage replace the grid/sphere presentation in studio mode; focus retains a minimal context. Monitor geometry blocks underlying pointer actions; compact rail has an exit and MR recenter routes to placement options rather than bypassing placement. Actual Quest ergonomics, room appearance and physical display readability remain untested. No LUNGx changes.
+
+## UI04 — contextual spatial interaction
+Mode-dependent command rail; independent monitor shelf for image focus, guide visibility and station settings; full-console minimize and explicit enlarged reading mode; raised-key press travel and source-preserving procedure interlocks. Sample nominal glyph angular size from actual world scale, distance and viewing incidence, using a 24 arcminute design target (not headset-validated acuity). The monitor remains live during layout changes; no image processing or source changes. MR placement remains explicit. Physical acceptance is pending.

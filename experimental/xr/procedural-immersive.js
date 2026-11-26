@@ -56,6 +56,8 @@ function install(ctx){
   const deviceLab=global.PulmoXRDeviceLab;
   const spatialUI=global.PulmoXRSpatialUI;
   const spatialGeometry=global.PulmoXRSpatialGeometry;
+  const spatialExperience=global.PulmoXRSpatialExperience;
+  let readingMode=false,monitorFocus=false,visualEvidence={},visualLast=-Infinity,contextActions=0;
   const upgrade=global.PulmoXRIntegratedUpgrade;
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
   let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
@@ -391,6 +393,7 @@ function install(ctx){
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
     if(next!=='procedure'){radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(previousMode!==next){monitorFocus=false;menuPage=next==='procedure'?'station':xrPresentation==='ar'&&!placed?'mr':'primary';actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
@@ -539,7 +542,7 @@ function install(ctx){
       // changes or recenter. It does not follow the viewer every XR frame.
       worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.72+panelOffset);
       worldMenu.position.y-=.02;
-      worldMenu.lookAt(head);
+      worldMenu.scale.setScalar(readingMode?1.24:1);worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
     }
     if(compactDock){compactDock.position.copy(head).addScaledVector(forward,.98).addScaledVector(right,-.46+panelOffset*.65);compactDock.position.y-=.43;compactDock.lookAt(head);compactDock.updateWorldMatrix(true,false);}
@@ -549,11 +552,11 @@ function install(ctx){
       object.position.copy(head).addScaledVector(forward,spec.depth)
         .addScaledVector(right,spec.right);
       object.position.y+=spec.y;
-      object.scale.setScalar(spec.scale);
+      object.scale.setScalar(spec.scale*(object===guidePlane&&readingMode?1.18:1));
       object.lookAt(head);object.updateWorldMatrix(true,false);
     }
-    place(scopeScreen,pose.monitor);
-    place(guidePlane,pose.guide);
+    place(scopeScreen,monitorFocus?{depth:1.12,right:.62,y:.16,scale:1.23}:pose.monitor);
+    place(guidePlane,monitorFocus?{depth:1.27,right:.91,y:-.62,scale:.88}:pose.guide);
   }
   let lastContact=null;
   function surfaceContact(i,source='controller'){
@@ -805,6 +808,7 @@ function install(ctx){
       {object:worldMenu,actions:actionHitbox,role:'menu'},
       {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'},
       {object:compactDock,actions:railActions,role:'compact-command-rail'},
+      {object:scopeScreen?.visible?monitorToolbar:null,actions:monitorActions,role:'monitor-controls'},
       {object:scopeScreen?.visible?monitorFrame:null,actions:[],role:'endoscopy-monitor'}
     ]){
       if(!panel.object?.visible)continue;
@@ -922,6 +926,12 @@ function install(ctx){
   function actuateAccessory(){const state=channel.snapshot();if(state.tool==='forceps'&&!state.jawsOpen&&state.extensionMm>=3){accessoryEvidence=checkAccessory(state.extensionMm,true);if(!accessoryEvidence.allowed){grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;return;}}channel.action();}
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
+    if(active){for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.press(action,performance.now());}
+    if(action==='console-collapse'){worldMenu.visible=false;compactDock.visible=true;hoverPanels.fill(null);stopPanelEdit();paint();return;}
+    if(action==='console-reading'){readingMode=!readingMode;panelPinned.delete(worldMenu);panelPinned.delete(guidePlane);positionPanels();contextActions++;paint();return;}
+    if(action==='dock-channel'||action==='monitor-station'){if(mode!=='procedure')return;menuPage=action==='dock-channel'?'channel':'station';actionHitbox=panelLayouts[menuPage];worldMenu.visible=true;compactDock.visible=false;positionPanels();contextActions++;paint();return;}
+    if(action==='dock-guide'||action==='monitor-guide'){if(mode!=='procedure')return;guideVisible=!guideVisible;guidePlane.visible=guideVisible;contextActions++;paint();return;}
+    if(action==='monitor-focus'){if(mode!=='procedure')return;monitorFocus=!monitorFocus;panelPinned.delete(scopeScreen);panelPinned.delete(guidePlane);positionPanels();contextActions++;paint();return;}
     if(action==='dock-open'){worldMenu.visible=true;compactDock.visible=false;positionPanels();paint();return;}
     if(action==='dock-mode'){setMode(mode==='anatomy'?'procedure':'anatomy');paint();return;}
     if(action==='dock-recenter'){if(xrPresentation==='ar'){worldMenu.visible=true;menuPage='mr';actionHitbox=panelLayouts.mr;positionPanels();}else frameGroup();paint();return;}
@@ -1320,7 +1330,7 @@ function install(ctx){
   const mainSpatialSurface=spatialGeometry.create(THREE,worldMenu,{width:.82,height:.48,radius:1.65,deckStart:.535,texture:panelTex});
   const dockCanvas=document.createElement('canvas');dockCanvas.width=1024;dockCanvas.height=180;const dockCtx=dockCanvas.getContext('2d'),dockTex=new THREE.CanvasTexture(dockCanvas);dockTex.encoding=THREE.sRGBEncoding;
   const compactDock=new THREE.Mesh(new THREE.PlaneGeometry(.76,.112),new THREE.MeshBasicMaterial({map:dockTex}));compactDock.name='xr-compact-command-rail';compactDock.visible=false;scene.add(compactDock);
-  const railActions=[{id:'dock-open',label:'Controls',u:.02,v:.10,w:.265,h:.80},{id:'dock-mode',label:'Mode',u:.305,v:.10,w:.32,h:.80},{id:'dock-recenter',label:'Recenter',u:.645,v:.10,w:.20,h:.80},{id:'dock-exit',label:'Exit',u:.865,v:.10,w:.115,h:.80}];
+  let railActions=spatialExperience.layoutRail('anatomy');
   const railSurface=spatialGeometry.create(THREE,compactDock,{width:.76,height:.112,radius:1.6,deckStart:0,texture:dockTex,depth:.019});
   railSurface.setActions(railActions);
   // Two focused pages, six generous targets each. The expert controls do
@@ -1440,6 +1450,7 @@ function install(ctx){
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ]
   };
+  for(const actions of Object.values(panelLayouts))actions.push({id:'console-reading',label:'Read',u:.68,v:.018,w:.14,h:.066},{id:'console-collapse',label:'Minimize',u:.83,v:.018,w:.14,h:.066});
   actionHitbox=panelLayouts.primary;
   function paint(){
     const c=panelCtx,w=1024,h=600;
@@ -1521,7 +1532,7 @@ function install(ctx){
         (a.id!=='procedure'||role==='reference');
       a.disabled=!available;
       const settings=station.snapshot();
-      const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+      const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
         a.id==='radial-toggle'?(radialEnabled?'RADIAL ON':'RADIAL OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
@@ -1556,9 +1567,10 @@ function install(ctx){
       spatialUI.control(c,{x,y,w:width,h:height,title:label,hovered,selected,available,action:a.id,physical:true});
     }
     mainSpatialSurface.setActions(actionHitbox);mainSpatialSurface.update(hoverPanels);
-    dockCtx.clearRect(0,0,1024,180);for(const a of railActions){const title=a.id==='dock-mode'?(mode==='anatomy'?'Bronchoscopy':'Anatomy'):a.label;spatialUI.control(dockCtx,{x:a.u*1024,y:a.v*180,w:a.w*1024,h:a.h*180,title,hovered:hoverPanels.includes(a.id),available:!(a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference'),action:a.id,physical:true});a.disabled=a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference';}railSurface.setActions(railActions);railSurface.update(hoverPanels);dockTex.needsUpdate=true;
+    railActions=spatialExperience.layoutRail(mode);
+    dockCtx.clearRect(0,0,1024,180);for(const a of railActions){const title=a.id==='dock-mode'?(mode==='anatomy'?'Bronchoscopy':'Anatomy'):a.id==='dock-guide'?(guideVisible?'Hide guide':'Guide'):a.label;spatialUI.control(dockCtx,{x:a.u*1024,y:a.v*180,w:a.w*1024,h:a.h*180,title,hovered:hoverPanels.includes(a.id),available:!(a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference'),action:a.id,physical:true});a.disabled=a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference';}railSurface.setActions(railActions);railSurface.update(hoverPanels);dockTex.needsUpdate=true;
     panelTex.needsUpdate=true;
-    paintGuide();
+    paintMonitorControls();paintGuide();
   }
   // Live bronchoscopy is rendered from the ORIGINAL camScope directly
   // into a render target owned by the SAME VR WebGL context. No canvas
@@ -1581,6 +1593,11 @@ function install(ctx){
     new THREE.MeshBasicMaterial({color:0x171b1e,side:THREE.DoubleSide}));
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
   const monitorHousing=spatialGeometry.monitorHousing(THREE,monitorRoot);
+  const monitorControlsCanvas=document.createElement('canvas');monitorControlsCanvas.width=1024;monitorControlsCanvas.height=128;const monitorControlsCtx=monitorControlsCanvas.getContext('2d'),monitorControlsTex=new THREE.CanvasTexture(monitorControlsCanvas);monitorControlsTex.encoding=THREE.sRGBEncoding;
+  const monitorToolbar=new THREE.Mesh(new THREE.PlaneGeometry(.70,.078),new THREE.MeshBasicMaterial({map:monitorControlsTex}));monitorToolbar.name='endoscope-independent-control-shelf';monitorToolbar.position.set(0,-.395,.005);monitorRoot.add(monitorToolbar);
+  const monitorActions=[{id:'monitor-focus',label:'Focus image',u:.02,v:.10,w:.34,h:.80},{id:'monitor-guide',label:'Guide',u:.38,v:.10,w:.28,h:.80},{id:'monitor-station',label:'Settings',u:.68,v:.10,w:.30,h:.80}];
+  const monitorControlSurface=spatialGeometry.create(THREE,monitorToolbar,{width:.70,height:.078,radius:2.5,deckStart:0,depth:.017,texture:monitorControlsTex});
+  function paintMonitorControls(){monitorControlsCtx.clearRect(0,0,1024,128);for(const a of monitorActions){const title=a.id==='monitor-focus'?(monitorFocus?'Restore layout':'Focus image'):a.id==='monitor-guide'?(guideVisible?'Hide guide':'Show guide'):a.label;spatialUI.control(monitorControlsCtx,{x:a.u*1024,y:a.v*128,w:a.w*1024,h:a.h*128,title,hovered:hoverPanels.includes(a.id),available:true,action:a.id,physical:true});}monitorControlSurface.setActions(monitorActions);monitorControlSurface.update(hoverPanels);monitorControlsTex.needsUpdate=true;}
   // Keep anatomical source pixels clear: identification and instrument data
   // are physically above/below the image, never drawn across the lumen.
   const rawMonitorMaterial=new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false,toneMapped:false});
@@ -1682,12 +1699,12 @@ function install(ctx){
     const branches=Array.from({length:Math.max(2,state.branches.length)},(_,i)=>({id:'guide-branch'+i,label:state.branches[i]?.label||'NO SOURCE BRANCH',disabled:!state.branches[i]?.enabled,u:.04+i*.92/Math.max(2,state.branches.length),v:.60,w:.88/Math.max(2,state.branches.length),h:.14}));
     guideHitboxes=[
       ...branches,
-      {id:'scope-back',label:'RETRACT',disabled:false,u:.04,v:.76,w:.43,h:.10},
-      {id:'scope-forward',label:'ADVANCE',disabled:false,u:.52,v:.76,w:.43,h:.10},
+      {id:'scope-back',label:'RETRACT',disabled:accessoryDeployed()||Boolean(physicalControl?.snapshot().armed),u:.04,v:.76,w:.43,h:.10},
+      {id:'scope-forward',label:'ADVANCE',disabled:accessoryDeployed()||Boolean(physicalControl?.snapshot().armed),u:.52,v:.76,w:.43,h:.10},
       {id:'guide-prev',label:'PREVIOUS',disabled:guideStep===0,u:.04,v:.88,w:.20,h:.08},
       {id:'guide-next',label:'NEXT STEP',disabled:guideStep===4,u:.27,v:.88,w:.20,h:.08},
       {id:'guide-tool',label:'TOOL MODE',disabled:false,u:.50,v:.88,w:.21,h:.08},
-      {id:'guide-hide',label:'HIDE',disabled:false,u:.74,v:.88,w:.22,h:.08}
+      {id:'guide-hide',label:'MINIMIZE',disabled:false,u:.74,v:.88,w:.22,h:.08}
     ];
     for(const a of guideHitboxes){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
@@ -1780,6 +1797,7 @@ function install(ctx){
       new THREE.MeshBasicMaterial({color:0xc0dce0,transparent:true,opacity:.76,depthTest:false}));
     marker.visible=false;marker.renderOrder=36;scene.add(marker);contactMarkers.push(marker);
   }
+  function sampleVisualGeometry(now){if(now-visualLast<500)return;visualLast=now;for(const [name,obj,height,canvas,font] of [['console',worldMenu,.48,600,21],['guide',guidePlane,.60,680,21],['rail',compactDock,.112,180,32],['monitorControls',monitorToolbar,.078,128,32]]){if(!obj.visible||(name==='monitorControls'&&!scopeScreen.visible))continue;const p=obj.getWorldPosition(new THREE.Vector3()),s=obj.getWorldScale(new THREE.Vector3()),q=obj.getWorldQuaternion(new THREE.Quaternion()),toHead=head.clone().sub(p);const d=toHead.length(),normal=new THREE.Vector3(0,0,1).applyQuaternion(q);const observation=spatialExperience.readability({heightM:height,canvasHeight:canvas,fontPx:font,scale:s.y,distanceM:d,incidence:Math.min(1,Math.abs(normal.dot(toHead.normalize())))});if(observation)visualEvidence[name]=observation;}}
   function updatePointerAim(now){
     if(!active||now-lastAimTime<45)return;
     lastAimTime=now;
@@ -1898,7 +1916,8 @@ function install(ctx){
     geometryValidated:false,airwayReviewed:false,motionStudy:null
   })||null;
   const localSessionReport=()=>({
-    release:'AG03 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
+    release:'AG03 / UI04 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
+    spatialErgonomics:{observations:visualEvidence,contextActions,physicalReadabilityVerified:false},
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
@@ -2163,6 +2182,7 @@ function install(ctx){
     orientationLocked=false;orientationAnchor=null;ctAxis='axial';
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     menuPage='primary';actionHitbox=panelLayouts.primary;
+    readingMode=false;monitorFocus=false;visualEvidence={};visualLast=-Infinity;contextActions=0;
     stage.setMode('studio');laboratory.root.visible=true;chamber.visible=false;floor.material.opacity=0;
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
@@ -2260,6 +2280,7 @@ function install(ctx){
       updateTrackedHands(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
       compactDock.visible=active&&viewerValid&&!worldMenu.visible;
       updateToolProxy();updateVideoScope(frame,dt);updatePointerAim(time);
+      for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.update(hoverPanels,time);sampleVisualGeometry(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -2437,7 +2458,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
-    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing,laboratory:laboratory.snapshot()},
+    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing,laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

@@ -31,7 +31,7 @@ function create(T,mesh,{width,height,radius=1.8,deckStart=.54,footerStart=1,dept
  add(patch(T,{...opts,z:-depth}),back,'spatial-back');
  add(sides(T,{...opts,front:0,back:-depth}),casing,'spatial-machined-edge');
  const keys=new T.Group();keys.name='spatial-physical-controls';mesh.add(keys);
- let signature='',records=[];
+ let signature='',records=[],pressedId=null,pressedAt=-Infinity;
  function setActions(actions){
   const sig=actions.map(a=>[a.id,a.u,a.v,a.w,a.h].join(':')).join('|');
   if(sig!==signature){
@@ -50,8 +50,9 @@ function create(T,mesh,{width,height,radius=1.8,deckStart=.54,footerStart=1,dept
   if(front&&(!base||front.distance<=base.distance+.002)){return {hit:front,id:front.object.userData.disabled?null:front.object.userData.spatialAction,control:true};}
   return base?{hit:base,id:null,control:false}:null;
  }
- function update(hovered){for(const r of records){const isHover=!r.disabled&&hovered.includes(r.id);r.key.position.z=isHover?.003:0;}}
- const api={setActions,hit,update,root:mesh,snapshot:()=>({kind:'CURVED_EXTRUDED_SPATIAL_SURFACE',controls:records.length,depthM:depth,radiusM:radius})};mesh.userData.spatialSurface=api;return api;
+ function press(id,time){if(records.some(r=>r.id===id&&!r.disabled)){pressedId=id;pressedAt=time;}}
+ function update(hovered,time=NaN){for(const r of records){const isHover=!r.disabled&&hovered.includes(r.id);const travel=r.id===pressedId?root.PulmoXRSpatialExperience?.pulse(time-pressedAt)||0:0;r.key.position.z=(isHover?.003:0)+travel;}}
+ const api={setActions,hit,update,press,root:mesh,snapshot:()=>({kind:'CURVED_EXTRUDED_SPATIAL_SURFACE',controls:records.length,depthM:depth,radiusM:radius})};mesh.userData.spatialSurface=api;return api;
 }
 function monitorHousing(T,root,{width=1,height=.665,depth=.047}={}){
  const metal=new T.MeshStandardMaterial({color:0x384249,metalness:.45,roughness:.56});

@@ -66,3 +66,8 @@ GPU timing and motion-to-photon latency are not proven by the exported CPU diagn
 - Q27: inspect the console and guide obliquely; confirm curved display, individual raised controls, correct nearest-hit selection, disabled controls non-actionable. Verify readability on Quest 2, at normal distance and resized.
 - Q28: enter procedure, verify monitor chassis, video and separate status strips; pointing at the monitor must not accidentally advance or actuate a procedure. Confirm native optical pixels unchanged and panels excluded from endoscopic feed.
 - Q29: inspect studio architecture, floor and wall orientation; switch focus and back, then MR. Authored room must not obscure passthrough. Record comfort, glare, clipping and any blocked controls.
+
+## UI04 extension
+- Q30: switch from anatomy to procedure; confirm the contextual rail changes, restore/minimize guide and open working channel directly. Exit must remain accessible. Return to anatomy and MR placement.
+- Q31: open the main console, enlarge the reading mode, minimize, restore and check that the pinned windows are deliberately repositioned only when requested. Inspect physical key travel and hover feedback. Export angular-size estimates; assess actual readability separately.
+- Q32: use the endoscope shelf to focus/restore the video, show/hide guide and open station settings. Verify live feed continues and no click passes through the monitor. With accessory deployed or calibrated control armed, guide movement targets must be disabled.
