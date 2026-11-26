@@ -20,7 +20,8 @@ function renderScientific(){
  const status=$('ui-layer-status');if(!state.volume){status.textContent='No source loaded';return;}
  if(scientificVolume!==state.volume){scientificVolume=state.volume;scientificFrame=null;scientificShaft=null;scientificShaftVox=null;try{if(state.volume.spatialUnit===2)scientificFrame=window.PulmoStudy.frame(state.volume.affine,state.volume.dims);}catch{}}
  const inv=scientificFrame?.ras_mm_to_voxel;
- const validRoute=route&&route.ct_sha256===state.ctSha&&route.mask_sha256===segDigest&&seg?.metrics().edited_voxels===0?route:null;
+ const maskMetrics=seg?.metrics();
+ const validRoute=route&&route.ct_sha256===state.ctSha&&route.mask_sha256===segDigest&&maskMetrics?.added===0&&maskMetrics?.removed===0?route:null;
  const validShaft=shaftResult&&validRoute&&shaftResult.phase===0&&shaftResult.active_ct_sha256===state.ctSha&&shaftResult.active_mask_sha256===segDigest?shaftResult:null;
  if(scientificShaft!==validShaft){scientificShaft=validShaft;scientificShaftVox=validShaft&&inv?validShaft.points_ras_mm.map(p=>scientificView.affine(inv,p)):null;}
  const mode=$('ui-layer-field').value,phase=Number($('motion-phase').value);

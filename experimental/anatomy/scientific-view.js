@@ -34,7 +34,7 @@ function draw(canvas,{plane,volume,cross,route=null,shaft=null,field=null,phase=
  const samples=mode!=='off'&&inverse?sampleField({project:p,w,h,volume,inverse,field,phase}):[];
  c.save();c.lineWidth=lw;c.globalAlpha=.87;
  for(const q of samples){
-  if(mode==='jacobian'){const log=Math.log(q.jacobian),v=Math.min(1,Math.abs(log)/Math.log(2));c.fillStyle=log<0?'#9bc7e2':'#efb986';c.globalAlpha=.24+.66*v;c.fillRect(q.a[0]-radius*1.4,q.a[1]-radius*1.4,radius*2.8,radius*2.8);continue;}
+  if(mode==='jacobian'){const log=Math.log(q.jacobian),v=Math.min(1,Math.abs(log)/Math.log(2));c.fillStyle=Math.abs(log)<1e-6?'#a9b8c0':log<0?'#9bc7e2':'#efb986';c.globalAlpha=.24+.66*v;c.fillRect(q.a[0]-radius*1.4,q.a[1]-radius*1.4,radius*2.8,radius*2.8);continue;}
   c.strokeStyle='#d2b0e2';c.fillStyle='#d2b0e2';const dx=q.b[0]-q.a[0],dy=q.b[1]-q.a[1],l=Math.hypot(dx,dy);
   if(l<1){c.beginPath();c.arc(...q.a,radius*.65,0,2*Math.PI);c.fill();continue;}
   const factor=Math.min(1,w*.18/l),b=[q.a[0]+dx*factor,q.a[1]+dy*factor],angle=Math.atan2(dy,dx),s=Math.max(3,lw*3);
