@@ -54,8 +54,9 @@ function install(ctx){
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const spatialCal=global.PulmoXRSpatialCalibration.create(),spatialVisual=global.PulmoXRSpatialCalibration.createVisual(THREE,scene),planeMask=global.PulmoXRSpatialCalibration.createOccluder(THREE,scene);
   let calibrationPose=null,calibrationCaptureAt=-Infinity,calibrationSpace=null,benchAligned=false,planeMaskEnabled=false,showPassiveProxy=false,spatialFinal=null;
-  function clearSpatialCalibration(){spatialCal.reset();spatialVisual.hide();planeMask.clear();calibrationPose=null;calibrationSpace=null;benchAligned=false;showPassiveProxy=false;}
-  function observeCalibration(frame){const space=rBro.xr.getReferenceSpace();if(calibrationSpace&&space!==calibrationSpace){if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();}calibrationSpace=space;const source=Array.from(rBro.xr.getSession()?.inputSources||[]).find(s=>s.handedness==='right'&&!s.hand&&s.gripSpace);const p=source&&frame?.getPose(source.gripSpace,space)?.transform;calibrationPose=p&&[p.position.x,p.position.y,p.position.z,p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w].every(Number.isFinite)?{position:[p.position.x,p.position.y,p.position.z],orientation:[p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w]}:null;spatialVisual.update(calibrationPose,spatialCal,showPassiveProxy||menuPage==='spatial-cal'||benchAligned);planeMask.step(frame,space,xrPresentation==='ar'&&planeMaskEnabled);}
+  function clearSpatialCalibration(){calibrationSpace?.removeEventListener?.('reset',onCalibrationSpaceReset);spatialCal.reset();spatialVisual.hide();planeMask.clear();calibrationPose=null;calibrationSpace=null;benchAligned=false;showPassiveProxy=false;}
+  function onCalibrationSpaceReset(){if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();}
+  function observeCalibration(frame){const space=rBro.xr.getReferenceSpace();if(calibrationSpace&&space!==calibrationSpace){if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();}if(space&&space!==calibrationSpace){calibrationSpace=space;space.addEventListener?.('reset',onCalibrationSpaceReset);}const source=Array.from(rBro.xr.getSession()?.inputSources||[]).find(s=>s.handedness==='right'&&!s.hand&&s.gripSpace);const p=source&&frame?.getPose(source.gripSpace,space)?.transform;calibrationPose=p&&[p.position.x,p.position.y,p.position.z,p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w].every(Number.isFinite)?{position:[p.position.x,p.position.y,p.position.z],orientation:[p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w]}:null;spatialVisual.update(calibrationPose,spatialCal,showPassiveProxy||menuPage==='spatial-cal'||benchAligned);planeMask.step(frame,space,xrPresentation==='ar'&&planeMaskEnabled);}
   function alignBench(){const j=spatialCal.jig();if(!j||xrPresentation!=='ar'||mode!=='anatomy'||getMeshMode()!=='reference'||!viewerValid){grabFeedback='MR REFERENCE ANATOMY AND VERIFIED JIG LANDMARKS REQUIRED';return false;}release(0);release(1);if(inspectMode)setInspection(false);summonGeneration++;summonTween=null;mrPlacement.preview();mrAnchorFault=false;const bounds=sourceBounds(),scale=getMmPerSceneUnit()/1000;if(!Number.isFinite(scale)||scale<=0||scale>.5)return false;boundsCache=bounds;const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(...j.basis.map(v=>new THREE.Vector3(...v))));mGrp.quaternion.copy(q);mGrp.scale.setScalar(scale);const center=new THREE.Vector3(...j.origin).add(new THREE.Vector3(.10,bounds.size.y*scale*.5+.025,.075).applyQuaternion(q));mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale).applyQuaternion(q));mGrp.visible=true;mGrp.updateMatrixWorld(true);placed=true;benchAligned=true;scaleMode='manual-reference-jig';positionPanels();grabFeedback='MANUAL JIG ALIGNMENT / REFERENCE ONLY';return true;}
   function invalidateBench(){if(!benchAligned)return;benchAligned=false;scaleMode='unregistered-preview';if(xrPresentation==='ar')mrPlacement.preview();}
 
@@ -338,6 +339,7 @@ function install(ctx){
     for(const l of lobes){l.mesh.position.copy(l.home);l.mesh.quaternion.copy(l.homeQuat);l.mesh.updateMatrixWorld(true);}
   }
   function setInspection(enabled){
+    if(enabled&&benchAligned)return false;
     if(enabled&&(mode!=='anatomy'||getMeshMode()!=='reference'||!lobes.length))return false;
     release(0);release(1);resetLobes();inspectMode=enabled;
     grabFeedback=enabled?'LOBE INSPECTION / AIM AND HOLD GRIP OR PINCH':'ASSEMBLED LUNG / WHOLE ORGAN GRAB';
@@ -1115,12 +1117,13 @@ function install(ctx){
     if(action==='body-toggle'){bodyEnabled=!bodyEnabled;paint();return;}
     if(action==='hand-procedure'){handProcedure=!handProcedure;resetEmbodiedGrip();scope.velocity=0;grabFeedback=handProcedure?'BARE-HAND MODE / OPEN HANDS THEN PINCH HANDLE':'CONTROLLER MODE';paint();return;}
     if(action==='spatial-open'){menuPage='spatial-cal';actionHitbox=panelLayouts['spatial-cal'];paint();return;}
-    if(action==='spatial-pivot'||action==='spatial-jig'){if(mode!=='anatomy'||!viewerValid){grabFeedback='CALIBRATE IN ANATOMY MODE';paint();return;}try{invalidateBench();spatialCal.begin(action==='spatial-pivot'?'pivot':'jig');showPassiveProxy=true;grabFeedback='ARM CAPTURE / RIGHT TRIGGER AT LANDMARK';}catch(e){grabFeedback=e.message;}paint();return;}
+    if(action==='spatial-pivot'||action==='spatial-jig'){if(mode!=='anatomy'||!viewerValid){grabFeedback='CALIBRATE IN ANATOMY MODE';paint();return;}try{invalidateBench();release(0);release(1);spatialCal.begin(action==='spatial-pivot'?'pivot':'jig');showPassiveProxy=true;grabFeedback='ARM CAPTURE / RIGHT TRIGGER AT LANDMARK';}catch(e){grabFeedback=e.message;}paint();return;}
     if(action==='spatial-capture'){spatialCal.arm();paint();return;}
     if(action==='spatial-align'){alignBench();paint();return;}
     if(action==='spatial-proxy'){showPassiveProxy=!showPassiveProxy;paint();return;}
     if(action==='spatial-planes'){planeMaskEnabled=xrPresentation==='ar'&&!planeMaskEnabled;if(!planeMaskEnabled)planeMask.clear();paint();return;}
     if(action==='spatial-clear'){invalidateBench();clearSpatialCalibration();grabFeedback='CALIBRATION CLEARED / UNREGISTERED';paint();return;}
+    if(action==='spatial-viewpoint'){moveWorkspace('viewpoint');paint();return;}
     if(action==='spatial-back'){menuPage=xrPresentation==='ar'?'mr':'advanced';actionHitbox=panelLayouts[menuPage];paint();return;}
     if(action==='patient-open'){menuPage='patient';actionHitbox=panelLayouts.patient;paint();return;}
     if(action==='patient-toggle'){if(patientReturn){if(probeLocked()||accessoryDeployed()){grabFeedback='RETRACT ACCESSORY BEFORE LEAVING STATION';paint();return;}leavePatientStation();grabFeedback='REFERENCE EXPLORATION RESTORED';}else enterPatientStation();paint();return;}
@@ -1502,7 +1505,7 @@ function install(ctx){
     'workspace-options':[
       {id:'spatial-open',label:'SPATIAL CALIBRATION',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
       {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},{id:'body-toggle',label:'BODY',u:.05,v:.76,w:.43,h:.095},{id:'hand-procedure',label:'HAND PROCEDURE',u:.52,v:.76,w:.43,h:.095},
-      {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'spatial-viewpoint',label:'JUMP TO VIEWPOINT',u:.52,v:.87,w:.43,h:.095}
     ],
     research:[{id:'research-clear',label:'CLEAR SNAPSHOT',u:.05,v:.69,w:.43,h:.12},{id:'workspace-options',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}],
     'panel-edit':[
