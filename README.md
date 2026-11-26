@@ -172,3 +172,7 @@ Local pivot-calibrated controller pointer, four-landmark reference jig alignment
 ## T01–T03 — instrument contact and haptic research interface
 
 Bounded geometry cues, read-only live motion/load observation and a local no-output dry run. See [T foundation](experimental/T01_T03_HAPTIC_LAB.md).
+
+## U01–U03 — reference motion recording and review
+
+Opt-in bounded local trajectory record, read-only replay and quantitative review, portable files and optional same-browser observer. Remote multi-headset infrastructure remains pending. See [U foundation](experimental/U01_U03_MOTION_REVIEW.md).

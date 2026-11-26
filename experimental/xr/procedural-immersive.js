@@ -66,6 +66,15 @@ function install(ctx){
   const spatialGeometry=global.PulmoXRSpatialGeometry;
   const spatialExperience=global.PulmoXRSpatialExperience;
   let researchSnapshot=null,researchCanvas=null,researchLoadEpoch=0;
+  const reviewEngine=global.PulmoXRSessionReview,localRecording=reviewEngine.create();let reviewPacket=null,reviewIndex=0,reviewPlaying=false,reviewStart=0,reviewBase=0,reviewCanvas=null,reviewEpoch=0,localShare=null,localShareCode=null,shareLast=-Infinity;
+  function stopLocalShare(){try{localShare?.postMessage({type:'ended',source:reviewEngine.source});localShare?.close();}catch{}localShare=null;localShareCode=null;}
+  function beginLocalShare(){if(!localRecording.snapshot().running||typeof BroadcastChannel!=='function'){grabFeedback='START RECORDING / LOCAL OBSERVER SUPPORT REQUIRED';return;}stopLocalShare();try{localShareCode=Array.from(crypto.getRandomValues(new Uint8Array(6)),x=>x.toString(16).padStart(2,'0')).join('');localShare=new BroadcastChannel('pulmosimu-review-'+localShareCode);shareLast=-Infinity;grabFeedback='LOCAL OBSERVER CODE '+localShareCode;}catch{stopLocalShare();grabFeedback='LOCAL OBSERVER UNAVAILABLE';}}
+  function stopRecording(why='STOPPED'){localRecording.stop(why);stopLocalShare();}
+  function observeRecording(frame,time){if(!localRecording.snapshot().running)return;if(!viewerValid||mode!=='procedure'||getMeshMode()!=='reference'||xrPresentation!=='vr'){localRecording.suspend();return;}const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace(),R=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();const hand=side=>{const sample=handSamples[side]?.points?.wrist;let p=sample?new THREE.Vector3(...sample):null,kind='HAND_WRIST',grip=side==='right'?handHeld:handGrasped[0];if(!p){const src=Array.from(session?.inputSources||[]).find(s=>s.handedness===side&&!s.hand&&s.gripSpace),pos=src&&frame?.getPose(src.gripSpace,space)?.transform?.position;if(!pos)return null;p=new THREE.Vector3(pos.x,pos.y,pos.z);kind='CONTROLLER_GRIP';grip=!!src.gamepad?.buttons?.[1]?.pressed;}const d=p.sub(head);return {kind,relative_m:[d.dot(R),d.y,-d.dot(forward)],grip:!!grip};};const eb=ebusProbe.snapshot(),row=localRecording.observe(time,{segment:scope.segId,t:scope.t,tip_mm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),roll_rad:((scope.roll+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI,deflection:[scope.deflH,scope.deflV],left:hand('left'),right:hand('right'),risk:hapticEvidence.risk??null,ebus:eb.mode,probe_mm:eb.extensionMm});if(row&&localShare&&time-shareLast>=500){shareLast=time;try{localShare.postMessage({type:'sample',source:reviewEngine.source,sample:row});}catch{stopLocalShare();}}if(!localRecording.snapshot().running)stopLocalShare();}
+  function loadRecordedReview(packet){reviewPacket=packet;reviewIndex=0;reviewPlaying=false;if(!reviewCanvas){reviewCanvas=document.createElement('canvas');reviewCanvas.width=440;reviewCanvas.height=164;}if(packet)reviewEngine.draw(reviewCanvas,packet.samples,0);}
+  function stepReview(delta){if(!reviewPacket)return;reviewPlaying=false;reviewIndex=Math.max(0,Math.min(reviewPacket.samples.length-1,reviewIndex+delta));reviewEngine.draw(reviewCanvas,reviewPacket.samples,reviewIndex);}
+  function tickReview(time){if(!reviewPlaying||!reviewPacket)return;const rows=reviewPacket.samples,target=reviewBase+time-reviewStart;let i=reviewIndex;while(i+1<rows.length&&rows[i+1].t_ms<=target)i++;if(i!==reviewIndex){reviewIndex=i;reviewEngine.draw(reviewCanvas,rows,i);}if(i===rows.length-1)reviewPlaying=false;}
+
   let readingMode=false,monitorFocus=false,visualEvidence={},visualLast=-Infinity,contextActions=0;
   let compositionEvidence=null,compositionCount=0;
   const upgrade=global.PulmoXRIntegratedUpgrade;
@@ -426,7 +435,7 @@ function install(ctx){
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){lastShaftAt=-Infinity;lastShaftSample=shaftEvidence;lastShaftKey=null;hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){if(localRecording.snapshot().running)stopRecording('PROCEDURE_EXIT');lastShaftAt=-Infinity;lastShaftSample=shaftEvidence;lastShaftKey=null;hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(previousMode!==next){monitorFocus=false;menuPage=next==='procedure'?'station':xrPresentation==='ar'&&!placed?'mr':'primary';actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
@@ -1145,6 +1154,14 @@ function install(ctx){
     if(action==='research-clear'){
       researchLoadEpoch++;researchSnapshot=null;researchCanvas=null;grabFeedback='RESEARCH SNAPSHOT CLEARED';paint();return;
     }
+    if(action==='session-review-open'){menuPage='session-review';actionHitbox=panelLayouts['session-review'];paint();return;}
+    if(action==='record-start'){if(mode!=='procedure'||xrPresentation!=='vr'||getMeshMode()!=='reference'||!viewerValid){grabFeedback='REFERENCE VR PROCEDURE REQUIRED';paint();return;}if(localRecording.snapshot().sampleCount&&!localRecording.snapshot().running){grabFeedback='EXPORT OR CLEAR PREVIOUS RECORDING FIRST';paint();return;}if(!localRecording.snapshot().running)localRecording.start(lastFrame||performance.now());grabFeedback='LOCAL MOTION RECORDING ACTIVE';paint();return;}
+    if(action==='record-stop'){stopRecording();const p=localRecording.packet();if(p)loadRecordedReview(p);paint();return;}
+    if(action==='record-clear'){stopRecording('CLEARED');localRecording.clear();loadRecordedReview(null);paint();return;}
+    if(action==='record-share'){if(localShare)stopLocalShare();else beginLocalShare();paint();return;}
+    if(action==='review-prev'||action==='review-next'){stepReview(action==='review-next'?10:-10);paint();return;}
+    if(action==='review-play'){if(reviewPacket){reviewPlaying=!reviewPlaying;reviewStart=lastFrame||performance.now();reviewBase=reviewPacket.samples[reviewIndex].t_ms;if(reviewIndex===reviewPacket.samples.length-1){reviewIndex=0;reviewBase=reviewPacket.samples[0].t_ms;reviewEngine.draw(reviewCanvas,reviewPacket.samples,0);}}paint();return;}
+    if(action==='review-back'){menuPage=mode==='procedure'?'station':'research';actionHitbox=panelLayouts[menuPage];paint();return;}
     if(action==='haptic-open'){menuPage='haptic-lab';actionHitbox=panelLayouts['haptic-lab'];paint();return;}
     if(action==='haptic-cue'){cueEngine.set(!cueEngine.snapshot().enabled);paint();return;}
     if(action==='haptic-arm'){if(mode!=='procedure'||xrPresentation!=='vr'||!physicalControl?.snapshot().armed||!sensorObserver.snapshot(performance.now()).motion){grabFeedback='FRESH CALIBRATED LOCAL INSTRUMENT REQUIRED';paint();return;}hapticDryRun.arm();grabFeedback='LOCAL DRY RUN / RELEASE LEFT GRIP FIRST';paint();return;}
@@ -1522,7 +1539,7 @@ function install(ctx){
       {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},{id:'body-toggle',label:'BODY',u:.05,v:.76,w:.43,h:.095},{id:'hand-procedure',label:'HAND PROCEDURE',u:.52,v:.76,w:.43,h:.095},
       {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'spatial-viewpoint',label:'JUMP TO VIEWPOINT',u:.52,v:.87,w:.43,h:.095}
     ],
-    research:[{id:'research-clear',label:'CLEAR SNAPSHOT',u:.05,v:.69,w:.43,h:.12},{id:'workspace-options',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}],
+    research:[{id:'research-clear',label:'CLEAR SNAPSHOT',u:.05,v:.69,w:.43,h:.12},{id:'session-review-open',label:'MOTION REVIEW',u:.52,v:.69,w:.43,h:.12},{id:'workspace-options',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}],
     'panel-edit':[
       {id:'panel-select',label:'SELECT WINDOW',u:.05,v:.54,w:.43,h:.095},{id:'panel-size',label:'RESIZE WINDOW',u:.52,v:.54,w:.43,h:.095},
       {id:'panel-reset',label:'RESET WINDOWS',u:.05,v:.65,w:.43,h:.095},{id:'panel-compose',label:'ARRANGE WORKSPACE',u:.52,v:.65,w:.43,h:.095},{id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
@@ -1598,7 +1615,8 @@ function install(ctx){
       {id:'trace-back',label:'BACK TO STATION',u:.05,v:.87,w:.43,h:.095},
       {id:'haptic-open',label:'HAPTIC LAB',u:.52,v:.87,w:.43,h:.095}
     ],
-    'haptic-lab':[{id:'haptic-cue',label:'CONTACT CUES',u:.05,v:.54,w:.43,h:.12},{id:'haptic-arm',label:'ARM LOCAL DRY RUN',u:.52,v:.54,w:.43,h:.12},{id:'haptic-stop',label:'STOP DRY RUN',u:.05,v:.69,w:.43,h:.12},{id:'haptic-back',label:'BACK TO TRACE',u:.52,v:.69,w:.43,h:.12},{id:'trace-back',label:'PROCEDURE STATION',u:.05,v:.84,w:.43,h:.12},{id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}],
+    'haptic-lab':[{id:'haptic-cue',label:'CONTACT CUES',u:.05,v:.54,w:.43,h:.12},{id:'haptic-arm',label:'ARM LOCAL DRY RUN',u:.52,v:.54,w:.43,h:.12},{id:'haptic-stop',label:'STOP DRY RUN',u:.05,v:.69,w:.43,h:.12},{id:'haptic-back',label:'BACK TO TRACE',u:.52,v:.69,w:.43,h:.12},{id:'session-review-open',label:'MOTION REVIEW',u:.05,v:.84,w:.43,h:.12},{id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}],
+    'session-review':[{id:'record-start',label:'START RECORDING',u:.05,v:.54,w:.43,h:.095},{id:'record-stop',label:'STOP / REVIEW',u:.52,v:.54,w:.43,h:.095},{id:'review-prev',label:'PREVIOUS SECOND',u:.05,v:.65,w:.43,h:.095},{id:'review-next',label:'NEXT SECOND',u:.52,v:.65,w:.43,h:.095},{id:'review-play',label:'PLAY / PAUSE',u:.05,v:.76,w:.43,h:.095},{id:'record-share',label:'LOCAL OBSERVER',u:.52,v:.76,w:.43,h:.095},{id:'review-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'record-clear',label:'CLEAR RECORDING',u:.52,v:.87,w:.43,h:.095}],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
       {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
@@ -1622,7 +1640,7 @@ function install(ctx){
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
     spatialUI.frame(c,w,h);
-    const pageTitle=menuPage==='haptic-lab'?'Instrument contact laboratory':menuPage==='spatial-cal'?'Spatial bench calibration':menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
+    const pageTitle=menuPage==='session-review'?'Reference motion review':menuPage==='haptic-lab'?'Instrument contact laboratory':menuPage==='spatial-cal'?'Spatial bench calibration':menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
@@ -1678,6 +1696,7 @@ function install(ctx){
         ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
         :clinicalLabel),42,272,w-84,{size:24,min:21,color:spatialUI.C.muted});
     spatialUI.text(c,spatialUI.label(active?grabFeedback:'Reference engine ready'),42,305,w-84,{size:23,min:20,color:/BLOCK|FAIL|UNAVAILABLE|INTERFERENCE/.test(grabFeedback)?spatialUI.C.warn:spatialUI.C.accent});
+    if(menuPage==='session-review'){const s=localRecording.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,s.reason.replaceAll('_',' ')+' · '+s.sampleCount+' samples',42,166,490,{size:23,min:17});spatialUI.text(c,localShareCode?'LOCAL OBSERVER '+localShareCode:'LOCAL RECORDING / NO AUTO UPLOAD',42,204,490,{size:19,min:15});spatialUI.text(c,reviewPacket?'Replay '+(reviewPacket.samples[reviewIndex].t_ms/1000).toFixed(1)+' s · '+(reviewIndex+1)+'/'+reviewPacket.samples.length:'Stop recording or import from session tools',42,245,490,{size:19,min:15});spatialUI.text(c,'READ-ONLY / REFERENCE MOTION',42,287,490,{size:18,min:14,color:spatialUI.C.warn});if(reviewPacket&&reviewCanvas)c.drawImage(reviewCanvas,535,149,440,164);c.restore();}
     if(menuPage==='haptic-lab'){const live=sensorObserver.snapshot(performance.now()),dry=hapticDryRun.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,'GEOMETRY · '+hapticEvidence.state.replaceAll('_',' '),42,165,w-84,{size:24,min:18});spatialUI.text(c,'Margin '+(hapticEvidence.marginMm===null?'—':hapticEvidence.marginMm.toFixed(2)+' mm')+' · Index '+(hapticEvidence.risk===null?'—':hapticEvidence.risk.toFixed(2)),42,205,w-84,{size:22,min:17});spatialUI.text(c,live.state.replaceAll('_',' ')+' / Load '+(live.reportedAxialForceN===null?'—':live.reportedAxialForceN.toFixed(2)+' N (device reported)'),42,245,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,dry.reason.replaceAll('_',' ')+' · NO PHYSICAL OUTPUT',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='spatial-cal'){const s=spatialCal.snapshot(),oc=planeMask.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);const instruction=s.kind==='pivot'?'FIX POINTER TIP / CAPTURE 5 DIFFERENT ORIENTATIONS':s.kind==='jig'?['TOUCH ORIGIN','TOUCH +X 200 mm','TOUCH +Z 150 mm','TOUCH OPPOSITE CORNER'][s.captured]:'START POINTER PIVOT OR JIG LANDMARKS';spatialUI.text(c,instruction,42,165,w-84,{size:23,min:17});spatialUI.text(c,s.state.replaceAll('_',' ')+' · '+s.captured+' samples',42,205,w-84,{size:21,min:17});spatialUI.text(c,'Pointer check '+(s.pointerHoldoutMm===null?'—':s.pointerHoldoutMm.toFixed(1)+' mm')+' / Jig check '+(s.jigHoldoutMm===null?'—':s.jigHoldoutMm.toFixed(1)+' mm'),42,244,w-84,{size:20,min:17,color:spatialUI.C.muted});spatialUI.text(c,(benchAligned?'MANUAL JIG ALIGNED':'NOT REGISTERED')+' · '+oc.state.replaceAll('_',' '),42,287,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='patient'){c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,patientReturn?'SUPINE MANIKIN · '+patientView.toUpperCase():'ACTIVATE TO PLACE A REFERENCE PATIENT',42,165,w-84,{size:25,min:19});spatialUI.text(c,patientReturn?patientZone.state.replaceAll('_',' '):'Existing source anatomy remains unchanged',42,205,w-84,{size:22,min:18});spatialUI.text(c,'HEAD-END OPERATOR ZONE · MOUTH TO TRACHEA VISUAL GUIDE',42,246,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,'REFERENCE CONTEXT ONLY · NO PATIENT REGISTRATION',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
@@ -1707,7 +1726,7 @@ function install(ctx){
       a.disabled=!available;
       const settings=station.snapshot();
       const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
-        a.id==='haptic-cue'?(cueEngine.snapshot().enabled?'CONTACT CUES ON':'CONTACT CUES OFF'):a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
+        a.id==='record-share'?(localShare?'STOP LOCAL OBSERVER':'LOCAL OBSERVER'):a.id==='review-play'?(reviewPlaying?'PAUSE REVIEW':'PLAY REVIEW'):a.id==='haptic-cue'?(cueEngine.snapshot().enabled?'CONTACT CUES ON':'CONTACT CUES OFF'):a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
         a.id==='ebus-mode'?'TYPE '+ebusProbe.snapshot().mode.toUpperCase():a.id==='radial-toggle'?(radialEnabled?'EBUS ON':'EBUS OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
@@ -2103,6 +2122,7 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
+    localMotionReview:{...localRecording.snapshot(),rawTrajectoryIncluded:false,localObserverActive:!!localShare,remoteCollaboration:false},
     integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),mrAnchorFault,coupling:couplingEvidence.snapshot(),regional:regionalEvidenceFinal||regionalEvidence.snapshot(),regionalDisplay:'REGIONAL_FLOW_DERIVED_MARKERS_ONLY',accessory:accessoryEvidence,contactProxy,environment:environmentEvidence,panelMoves,handGrasped:handGrasped.slice()},
     spatialRegistration:registrationEvidence,
     passiveContactInterface:contactEvidence,
@@ -2242,7 +2262,7 @@ function install(ctx){
   instrumentSetup.querySelector('[data-op="stop"]').addEventListener('click',()=>{
     physicalControl?.stop('OPERATOR_STOP');hapticDryRun.stop('OPERATOR_STOP');void serialInput?.disconnect();inputStatusRefresh();
   });
-  addEventListener('pagehide',()=>{hapticDryRun.stop('PAGE_EXIT');physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
+  addEventListener('pagehide',()=>{stopRecording('PAGE_EXIT');hapticDryRun.stop('PAGE_EXIT');physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
   const sensorStatusTimer=setInterval(()=>{if(instrumentSetup.open&&!rBro.xr.isPresenting)inputStatusRefresh();},250);
   addEventListener('pagehide',()=>clearInterval(sensorStatusTimer),{once:true});
   const syncTraceButton=()=>{
@@ -2313,7 +2333,11 @@ function install(ctx){
   const launchDock=document.createElement('aside');launchDock.id='pulmo-launch-dock';launchDock.setAttribute('aria-label','Spatial session controls');
   const dockControls=document.createElement('div');dockControls.className='ps-dock-controls';
   const dockLabel=document.createElement('span');dockLabel.className='ps-dock-label';dockLabel.textContent='Spatial session';
-  const dockTools=document.createElement('details');dockTools.className='ps-dock-tools';const toolSummary=document.createElement('summary');toolSummary.textContent='Session tools';const toolsPanel=document.createElement('div');toolsPanel.className='ps-tools-panel';toolsPanel.append(traceButton,instrumentSetup,researchSetup,reportButton);dockTools.append(toolSummary,toolsPanel);
+  const motionSetup=document.createElement('details');motionSetup.id='pulmo-motion-review';motionSetup.innerHTML='<summary>Reference motion review</summary><p>Opt-in reference motion only. Export includes head-relative hand/controller trajectories; review before sharing. No room coordinates, patient data or automatic upload.</p><p><button type="button" data-motion="export">Export recording</button> <button type="button" data-motion="clear">Clear recording</button></p><input type="file" accept=".json,application/json" aria-label="Reference motion recording"><p><a href="./experimental/motion-review.html" target="_blank" rel="noopener">Open independent motion reviewer</a></p><p role="status">No recording.</p>';const motionStatus=motionSetup.querySelector('[role="status"]');
+  motionSetup.querySelector('[data-motion="export"]').addEventListener('click',()=>{const packet=localRecording.packet();if(!packet){motionStatus.textContent='No recorded samples';return;}const url=URL.createObjectURL(new Blob([JSON.stringify(packet)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pulmosimu-reference-motion.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);motionStatus.textContent='Local export requested · '+packet.samples.length+' samples';});
+  motionSetup.querySelector('[data-motion="clear"]').addEventListener('click',()=>{reviewEpoch++;stopRecording('CLEARED');localRecording.clear();loadRecordedReview(null);motionStatus.textContent='Cleared';});
+  motionSetup.querySelector('input').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;const epoch=++reviewEpoch;try{if(file.size>5*1024*1024||rBro.xr.isPresenting)throw Error('Import local JSON up to 5 MiB outside XR');const packet=reviewEngine.sanitize(JSON.parse(await file.text()));if(epoch!==reviewEpoch||rBro.xr.isPresenting)return;loadRecordedReview(packet);motionStatus.textContent='Read-only review loaded · '+packet.samples.length+' samples';}catch(err){if(epoch===reviewEpoch)motionStatus.textContent='Rejected: '+err.message;}});
+  const dockTools=document.createElement('details');dockTools.className='ps-dock-tools';const toolSummary=document.createElement('summary');toolSummary.textContent='Session tools';const toolsPanel=document.createElement('div');toolsPanel.className='ps-tools-panel';toolsPanel.append(traceButton,instrumentSetup,researchSetup,motionSetup,reportButton);dockTools.append(toolSummary,toolsPanel);
   dockControls.append(dockLabel,arButton,button,dockTools);launchDock.append(runtimeStatus,dockControls);document.body.appendChild(launchDock);
   const syncDock=()=>{launchDock.hidden=rBro.xr.isPresenting||document.getElementById('splash')?.style.display!=='none';};
   if(splash&&typeof MutationObserver!=='undefined')new MutationObserver(syncDock).observe(splash,{attributes:true,attributeFilter:['style']});syncDock();
@@ -2417,6 +2441,7 @@ function install(ctx){
       if(!active||!rBro.xr.isPresenting)return;
       health.startFrame(time);
       if(!headPose(frame)){
+        localRecording.suspend();
         // Tracking loss: never continue the last object or instrument command.
         registrationEvidence=registrationObserver.step({tracked:false});contactEvidence=global.PulmoXRContactInterface.evaluate();hapticDryRun.stop('TRACKING_LOST');hapticEvidence=hapticLab.estimate();lastShaftAt=-Infinity;lastShaftSample=null;
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
@@ -2519,7 +2544,7 @@ function install(ctx){
       registrationEvidence=registrationObserver.step({tracked:viewerValid&&mode==='procedure'&&getMeshMode()==='reference',timeMs:time,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit())});
       contactEvidence=global.PulmoXRContactInterface.evaluate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure'});
       contactProxy=mode==='procedure'&&getMeshMode()==='reference'?upgrade.contactEstimate(shaftEvidence.minMarginMm,getScopeDiameterMm()):upgrade.contactEstimate(null,null);
-      updateHapticLab(frame,time);
+      updateHapticLab(frame,time);observeRecording(frame,time);tickReview(time);
       procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
@@ -2563,6 +2588,7 @@ function install(ctx){
     });
   });
   rBro.xr.addEventListener('sessionend',()=>{
+    if(localRecording.snapshot().running)stopRecording('SESSION_ENDED');else stopLocalShare();reviewPlaying=false;if(localRecording.snapshot().sampleCount)motionStatus.textContent='Recorded '+localRecording.snapshot().sampleCount+' samples · ready for export';
     hapticDryRun.stop('SESSION_ENDED');hapticFinal={contact:hapticEvidence,cues:cueEngine.snapshot(),sensor:sensorObserver.snapshot(performance.now()),dryRun:hapticDryRun.snapshot()};resetHapticContext();
     spatialFinal={...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()};clearSpatialCalibration();planeMaskEnabled=false;
     // Snapshot before restoring the original desktop scene scale.
