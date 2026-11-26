@@ -1017,7 +1017,7 @@ function install(ctx){
     }
     if(action==='view'){
       const modeNext=stage.snapshot().mode==='studio'?'focus':'studio';
-      stage.setMode(modeNext);laboratory.root.visible=modeNext==='studio';chamber.visible=modeNext==='focus';floor.material.opacity=modeNext==='focus'?.25:0;
+      stage.setMode(modeNext);stage.root.getObjectByName('xr-architectural-datums').visible=false;laboratory.root.visible=modeNext==='studio';chamber.visible=modeNext==='focus';floor.material.opacity=modeNext==='focus'?.25:0;
       grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
@@ -1315,7 +1315,9 @@ function install(ctx){
   plinth.position.set(0,.03,0);room.add(plinth);
   const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth,rings:spatialRings});
   const laboratory=spatialGeometry.createLaboratory(THREE,room);
-  chamber.visible=false;grid.material.opacity=.055;ringMaterial.opacity=.035;floor.material.transparent=true;floor.material.opacity=0;
+  chamber.visible=false;grid.material.opacity=0;ringMaterial.opacity=0;floor.material.transparent=true;floor.material.opacity=0;
+  stage.root.getObjectByName('xr-architectural-datums').visible=false;
+  const plinthSkirt=new THREE.Mesh(new THREE.CylinderGeometry(.755,.775,.038,64),new THREE.MeshStandardMaterial({color:0x353e43,metalness:.32,roughness:.56}));plinthSkirt.position.y=-.024;plinthSkirt.name='machined-plinth-skirt';plinth.add(plinthSkirt);
   plinth.material.color.setHex(0x555d60);plinth.material.opacity=1;plinth.material.transparent=false;
   // Surface target from a real per-frame hit test. Not room reconstruction.
   mrReticle=new THREE.Mesh(
@@ -1644,6 +1646,7 @@ function install(ctx){
     if(!regionalOverlay){regionalOverlay=new THREE.Group();regionalOverlay.name='AG03 regional reference ventilation display';for(const l of lobes){const marker=new THREE.Mesh(new THREE.SphereGeometry(.035,12,8),new THREE.MeshBasicMaterial({color:0x77aabb,transparent:true,opacity:.85,depthWrite:false}));marker.userData.lobe=l.id;regionalOverlay.add(marker);}mGrp.add(regionalOverlay);}
     regionalOverlay.visible=regionalDisplay&&mode==='procedure'&&getMeshMode()==='reference';if(!regionalOverlay.visible||now-regionalLast<400)return;regionalLast=now;const values=regionalEvidence.snapshot().regions;const baseline=.0025/5;for(const marker of regionalOverlay.children){const l=lobes.find(v=>v.id===marker.userData.lobe);if(!l)continue;l.mesh.geometry.computeBoundingBox();const center=l.mesh.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(l.mesh.matrixWorld);marker.position.copy(mGrp.worldToLocal(center));const value=values[l.id]?.netM3;const scale=upgrade.regionalDisplayScale(value,baseline);marker.visible=scale!==null;if(scale!==null){marker.scale.setScalar(1+8*(scale-1));marker.material.color.setHex(scale>=1?0x6da9bd:0xc4a076);}}}
   function paintMonitorChrome(){
+    monitorHousing.setStatus(monitorStatus);
     const settings=station.snapshot();
     const seg=SEG_MAP[scope.segId];
     function draw(strip,left,rightText,small=false){
@@ -1833,14 +1836,14 @@ function install(ctx){
       // Pointer never extends through the foremost actual surface.
       const distance=choice.kind==='none'?1.10:choice.distanceM;
       laser.scale.z=Math.max(.05,Math.min(3.5,distance));
-      laser.material.color.setHex(choice.kind==='panel'?0xeecb96:
-        choice.kind==='anatomy'?0x80dfd8:0x7896a1);
+      laser.material.color.setHex(choice.kind==='panel'?0xd8e6ed:
+        choice.kind==='anatomy'?0xb4c9d2:0x84939c);
       laser.material.opacity=choice.kind==='none'?.25:.95;
       const point=choice.kind==='panel'?panel?.point:
         choice.kind==='anatomy'?organ?.point:null;
       if(point){
         tip.position.copy(point);tip.visible=true;
-        tip.material.color.setHex(choice.kind==='panel'?0xeecb96:0x80dfd8);
+        tip.material.color.setHex(choice.kind==='panel'?0xd8e6ed:0xb4c9d2);
       }
     }
     if(hoverChanged)paint();
@@ -1921,7 +1924,7 @@ function install(ctx){
     geometryValidated:false,airwayReviewed:false,motionStudy:null
   })||null;
   const localSessionReport=()=>({
-    release:'AG03 / UI04 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
+    release:'AG03 / UI05 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
     spatialErgonomics:{observations:visualEvidence,contextActions,physicalReadabilityVerified:false},
     session:health.snapshot(),
     interactionAttempts:{...attempts},
@@ -2188,7 +2191,7 @@ function install(ctx){
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     menuPage='primary';actionHitbox=panelLayouts.primary;
     readingMode=false;monitorFocus=false;visualEvidence={};visualLast=-Infinity;contextActions=0;
-    stage.setMode('studio');laboratory.root.visible=true;chamber.visible=false;floor.material.opacity=0;
+    stage.setMode('studio');stage.root.getObjectByName('xr-architectural-datums').visible=false;laboratory.root.visible=true;chamber.visible=false;floor.material.opacity=0;
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
@@ -2463,7 +2466,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
-    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing,laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence},
+    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

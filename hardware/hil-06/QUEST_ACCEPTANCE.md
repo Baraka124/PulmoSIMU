@@ -71,3 +71,7 @@ GPU timing and motion-to-photon latency are not proven by the exported CPU diagn
 - Q30: switch from anatomy to procedure; confirm the contextual rail changes, restore/minimize guide and open working channel directly. Exit must remain accessible. Return to anatomy and MR placement.
 - Q31: open the main console, enlarge the reading mode, minimize, restore and check that the pinned windows are deliberately repositioned only when requested. Inspect physical key travel and hover feedback. Export angular-size estimates; assess actual readability separately.
 - Q32: use the endoscope shelf to focus/restore the video, show/hide guide and open station settings. Verify live feed continues and no click passes through the monitor. With accessory deployed or calibrated control armed, guide movement targets must be disabled.
+
+## UI05 extension
+- Q33: compare studio and focus finishes, verify wall fins and ceiling wash remain in VR only, no decorative grid over the work area; verify no obstruction to normal locomotion.
+- Q34: evaluate semantic symbols and labels at normal/enlarged scale; inspect monitor edge, rear geometry and status indicator; source video must remain unchanged by the enclosure. Note readability or material issues in headset rather than inferring performance from desktop checks.
