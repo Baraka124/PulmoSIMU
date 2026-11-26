@@ -69,6 +69,6 @@ test('clean original experience is preserved and source import is explicitly res
  assert.ok(main.includes("setViewMode('research')"));
  assert.ok(main.includes("setView('overview')"));
  assert.ok(main.includes("getPatientAudit:()=>patientData.xrAudit||null"));
- assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()==='patient')"),
+ assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()!=='reference')"),
    'XR procedure guard must remain in canonical immersive adapter');
 });

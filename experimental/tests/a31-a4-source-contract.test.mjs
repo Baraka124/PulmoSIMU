@@ -67,7 +67,7 @@ test('Source inspector exposes source-only opacity, component isolation, MPR cli
 
 test('A4 prevents the original authored bronchoscope from being misrepresented as CT registered',()=>{
  assert.ok(main.includes('a4-source-gate.js?v=A4-CT-PROCEDURE-GATE'));
- assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()==='patient')"));
+ assert.ok(xr.includes("if(next==='procedure'&&getMeshMode()!=='reference')"));
  assert.ok(xr.includes('CT-SPECIFIC BRONCHOSCOPY BLOCKED / NO REGISTERED AIRWAY'));
  assert.ok(xr.includes("A4SourceProcedureStatus:getMeshMode()==='patient'"));
  assert.ok(xr.includes("(a.id!=='procedure'||role==='reference')"));
