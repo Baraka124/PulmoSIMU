@@ -55,6 +55,7 @@ function install(ctx){
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
   const spatialUI=global.PulmoXRSpatialUI;
+  const spatialGeometry=global.PulmoXRSpatialGeometry;
   const upgrade=global.PulmoXRIntegratedUpgrade;
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
   let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
@@ -541,6 +542,7 @@ function install(ctx){
       worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
     }
+    if(compactDock){compactDock.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.48+panelOffset*.65);compactDock.position.y-=.50;compactDock.lookAt(head);compactDock.updateWorldMatrix(true,false);}
     const pose=station.snapshot().pose;
     function place(object,spec){
       if(!object||panelPinned.has(object))return;
@@ -801,15 +803,17 @@ function install(ctx){
     const candidates=[];
     for(const panel of [
       {object:worldMenu,actions:actionHitbox,role:'menu'},
-      {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'}
+      {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'},
+      {object:compactDock,actions:railActions,role:'compact-command-rail'}
     ]){
       if(!panel.object?.visible)continue;
       panel.object.updateWorldMatrix(true,false);
-      const hit=r.intersectObject(panel.object,false)[0];
+      const surface=panel.object.userData.spatialSurface;
+      const physical=surface?surface.hit(r):null;
+      const hit=surface?physical?.hit:r.intersectObject(panel.object,false)[0];
       if(!hit?.uv||!Number.isFinite(hit.distance))continue;
       const x=hit.uv.x,y=1-hit.uv.y;
-      const item=panel.actions.find(a=>x>=a.u&&x<=a.u+a.w&&
-        y>=a.v&&y<=a.v+a.h);
+      const item=panel.actions.find(a=>surface?physical?.id===a.id:(x>=a.u&&x<=a.u+a.w&&y>=a.v&&y<=a.v+a.h));
       candidates.push({action:item&&!item.disabled?item.id:null,
         distance:hit.distance,point:hit.point.clone(),x,y,role:panel.role});
     }
@@ -917,6 +921,9 @@ function install(ctx){
   function actuateAccessory(){const state=channel.snapshot();if(state.tool==='forceps'&&!state.jawsOpen&&state.extensionMm>=3){accessoryEvidence=checkAccessory(state.extensionMm,true);if(!accessoryEvidence.allowed){grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;return;}}channel.action();}
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
+    if(action==='dock-open'){worldMenu.visible=true;compactDock.visible=false;positionPanels();paint();return;}
+    if(action==='dock-mode'){setMode(mode==='anatomy'?'procedure':'anatomy');paint();return;}
+    if(action==='dock-recenter'){frameGroup();paint();return;}
     if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){stopPanelEdit();
       menuPage=action==='more'||action==='back-expert'?'advanced':
         action==='precision'?(mode==='procedure'?'station':'precision'):'primary';
@@ -1147,6 +1154,7 @@ function install(ctx){
       worldMenu.visible=true;
       grabFeedback='SPATIAL CONTROLS READY / AIM AND TRIGGER';
     }
+    compactDock.visible=active&&viewerValid&&!worldMenu.visible;
     attempts.panelToggles++;
     haptic(i,.20,36);paint();return true;
   }
@@ -1304,6 +1312,12 @@ function install(ctx){
   worldMenu=new THREE.Mesh(new THREE.PlaneGeometry(.82,.48),
     new THREE.MeshBasicMaterial({map:panelTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));
   worldMenu.renderOrder=40;worldMenu.visible=false;scene.add(worldMenu);
+  const mainSpatialSurface=spatialGeometry.create(THREE,worldMenu,{width:.82,height:.48,radius:1.65,deckStart:.535,texture:panelTex});
+  const dockCanvas=document.createElement('canvas');dockCanvas.width=1024;dockCanvas.height=180;const dockCtx=dockCanvas.getContext('2d'),dockTex=new THREE.CanvasTexture(dockCanvas);dockTex.encoding=THREE.sRGBEncoding;
+  const compactDock=new THREE.Mesh(new THREE.PlaneGeometry(.64,.112),new THREE.MeshBasicMaterial({map:dockTex}));compactDock.name='xr-compact-command-rail';compactDock.visible=false;scene.add(compactDock);
+  const railActions=[{id:'dock-open',label:'Controls',u:.025,v:.10,w:.34,h:.80},{id:'dock-mode',label:'Mode',u:.385,v:.10,w:.34,h:.80},{id:'dock-recenter',label:'Recenter',u:.745,v:.10,w:.23,h:.80}];
+  const railSurface=spatialGeometry.create(THREE,compactDock,{width:.64,height:.112,radius:1.6,deckStart:0,texture:dockTex,depth:.019});
+  railSurface.setActions(railActions);
   // Two focused pages, six generous targets each. The expert controls do
   // not crowd the core anatomy view, and no original command is removed.
   const panelLayouts={
@@ -1534,8 +1548,10 @@ function install(ctx){
           stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
         a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
-      spatialUI.control(c,{x,y,w:width,h:height,title:label,hovered,selected,available,action:a.id});
+      spatialUI.control(c,{x,y,w:width,h:height,title:label,hovered,selected,available,action:a.id,physical:true});
     }
+    mainSpatialSurface.setActions(actionHitbox);mainSpatialSurface.update(hoverPanels);
+    dockCtx.clearRect(0,0,1024,180);for(const a of railActions){const title=a.id==='dock-mode'?(mode==='anatomy'?'Bronchoscopy':'Anatomy'):a.label;spatialUI.control(dockCtx,{x:a.u*1024,y:a.v*180,w:a.w*1024,h:a.h*180,title,hovered:hoverPanels.includes(a.id),available:!(a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference'),action:a.id,physical:true});a.disabled=a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference';}railSurface.setActions(railActions);railSurface.update(hoverPanels);dockTex.needsUpdate=true;
     panelTex.needsUpdate=true;
     paintGuide();
   }
@@ -1559,16 +1575,19 @@ function install(ctx){
   const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(1.00,.665),
     new THREE.MeshBasicMaterial({color:0x171b1e,side:THREE.DoubleSide}));
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
+  const monitorHousing=spatialGeometry.monitorHousing(THREE,monitorRoot);
   // Keep anatomical source pixels clear: identification and instrument data
   // are physically above/below the image, never drawn across the lumen.
   const rawMonitorMaterial=new THREE.MeshBasicMaterial({map:scopeTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false,toneMapped:false});
   const monitorImage=new THREE.Mesh(new THREE.PlaneGeometry(.94,.529),
     opticalResponse?.material||rawMonitorMaterial);
   monitorImage.position.y=-.012;
+  rawMonitorMaterial.depthTest=true;rawMonitorMaterial.depthWrite=true;if(opticalResponse){opticalResponse.material.depthTest=true;opticalResponse.material.depthWrite=true;}
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   const radialCanvas=document.createElement('canvas');radialCanvas.width=512;radialCanvas.height=512;
   const radialTexture=new THREE.CanvasTexture(radialCanvas);radialTexture.encoding=THREE.sRGBEncoding;
   const radialPanel=new THREE.Mesh(new THREE.PlaneGeometry(.44,.44),new THREE.MeshBasicMaterial({map:radialTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+  radialPanel.material.depthTest=true;radialPanel.material.depthWrite=true;
   radialPanel.position.set(.246,-.012,.003);radialPanel.renderOrder=31;radialPanel.visible=false;monitorRoot.add(radialPanel);
   function updateRadial(now){
     const show=mode==='procedure'&&getMeshMode()==='reference'&&radialEnabled;
@@ -1588,7 +1607,7 @@ function install(ctx){
     const mesh=new THREE.Mesh(new THREE.PlaneGeometry(.94,.056),
       new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,
         depthTest:false,depthWrite:false}));
-    mesh.position.set(0,y,.004);mesh.renderOrder=31;
+    mesh.material.depthTest=true;mesh.material.depthWrite=true;mesh.position.set(0,y,.004);mesh.renderOrder=31;
     monitorRoot.add(mesh);
     return {canvas,ctx,texture};
   }
@@ -1625,6 +1644,7 @@ function install(ctx){
       side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   guidePlane.renderOrder=41;guidePlane.visible=false;
   guidePlane.name='xr14-original-procedure-guide';scene.add(guidePlane);
+  const guideSpatialSurface=spatialGeometry.create(THREE,guidePlane,{width:.90,height:.60,radius:2.25,deckStart:.595,footerStart:.965,texture:guideTex,depth:.023});
   const guideStages=['ORIENT','NAVIGATE','CHOOSE','INSTRUMENT','REVIEW'];
   function paintGuide(){
     if(!guideCtx||!guideTex)return;
@@ -1667,7 +1687,7 @@ function install(ctx){
     for(const a of guideHitboxes){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const hovered=hoverPanels.includes(a.id);
-      spatialUI.control(c,{x,y,w:width,h:height,title:a.label,hovered,available:!a.disabled,action:a.id});
+      spatialUI.control(c,{x,y,w:width,h:height,title:a.label,hovered,available:!a.disabled,action:a.id,physical:true});
     }
     spatialUI.text(c,spatialUI.label(state.provenance),42,672,w-84,{size:18,min:17,color:spatialUI.C.fine});
     // Real current instrument commands, deliberately separate from the
@@ -1676,7 +1696,8 @@ function install(ctx){
     c.fillStyle='#c7d7dc';c.font='23px system-ui';
     c.fillText('TIP H '+Math.round(scope.deflH*CFG.deflMax)+'°  /  V '+
       Math.round(scope.deflV*CFG.deflMax)+'°   ·   SHAFT '+
-      Math.round(scope.roll*180/Math.PI)+'°',42,505);
+      Math.round(scope.roll*180/Math.PI)+'°',42,401);
+    guideSpatialSurface.setActions(guideHitboxes);guideSpatialSurface.update(hoverPanels);
     guideTex.needsUpdate=true;
     paintMonitorChrome();
   }
@@ -1691,7 +1712,7 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,compactDock,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -2232,6 +2253,7 @@ function install(ctx){
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
       updateTrackedHands(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
+      compactDock.visible=active&&viewerValid&&!worldMenu.visible;
       updateToolProxy();updateVideoScope(frame,dt);updatePointerAim(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
@@ -2359,7 +2381,7 @@ function install(ctx){
     active=false;launchDock.hidden=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;handGrasped.fill(false);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
-    worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
+    worldMenu.visible=false;compactDock.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
     mGrp.visible=originalModelVisibility;
     if(guidePlane)guidePlane.visible=false;
     // Restore the exact pre-session desktop scene and renderer blend state.
@@ -2410,6 +2432,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
+    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

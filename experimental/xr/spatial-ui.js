@@ -7,12 +7,13 @@ function line(c,x,y,w){c.fillStyle=C.edge;c.fillRect(x,y,w,1.5);}
 function text(c,value,x,y,maxWidth,{size=28,min=21,weight=450,color=C.ink,align='left'}={}){let s=String(value??''),n=size;c.textAlign=align;c.textBaseline='alphabetic';c.fillStyle=color;const set=()=>c.font=weight+' '+n+'px system-ui, sans-serif';set();while(c.measureText(s).width>maxWidth&&n>min){n--;set();}if(c.measureText(s).width>maxWidth){while(s.length&&c.measureText(s+'…').width>maxWidth)s=s.slice(0,-1);s+='…';}c.fillText(s,x,y);c.textAlign='left';return s;}
 const preserve=new Set(['VR','MR','CT','MPR','R3','XR','MM','FOV','QA','L','R','H','Y','X','ID','FPS','PBR']);
 function label(s){return String(s).split(/(\s+|[\/·-])/).map(v=>preserve.has(v)?v==='MM'?'mm':v:/^[A-Z]+$/.test(v)?v.toLowerCase():v).join('').replace(/^./,a=>a.toUpperCase());}
-function control(c,{x,y,w,h,title,hovered=false,selected=false,available=true,action=''}){const color=available?C.ink:C.fine;
+function control(c,{x,y,w,h,title,hovered=false,selected=false,available=true,action='',physical=false}){const color=available?C.ink:C.fine;
+ if(physical){c.fillStyle=available?'#242c31':'#1d2226';c.fillRect(x,y,w,h);}
  if(hovered&&available||selected){rounded(c,x+2,y+3,w-4,h-6,8);c.fillStyle=hovered?C.hover:C.selected;c.fill();}
  if(hovered&&available){c.fillStyle=C.accent;c.fillRect(x+3,y+11,3,h-22);}
  const navigation=/^(back|more|.*-open|view|precision|guide|tool)$/.test(action);
  const glyph=navigation?'›':action==='exit'?'↗':selected?'•':'';
- text(c,label(title),x+16,y+h*.62,w-(glyph?55:30),{size:h<55?25:29,min:21,weight:hovered||selected?600:500,color});
+ text(c,label(title),x+16,y+h*.62,w-(glyph?55:30),{size:h>100?44:h<55?25:29,min:h>100?32:21,weight:hovered||selected?600:500,color});
  if(glyph)text(c,glyph,x+w-15,y+h*.63,32,{size:30,min:25,weight:500,color:available?C.accent:C.fine,align:'right'});
  // Visual bounds and hit target are exactly the same normalized rectangle.
 }

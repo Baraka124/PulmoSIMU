@@ -966,6 +966,18 @@ try {
    assert.equal(ag03.environment.physicalOcclusion,false);
    assert.equal(ag03.contact.forceN,null);
    console.log('PASS AG03 spatial window bounds, regional integration and honest environment/contact evidence');
+   const spatialPhysical=await legacy.evaluate(()=>{
+     const T=window.THREE,G=window.PulmoXRSpatialGeometry;
+     const canvas=document.createElement('canvas');canvas.width=256;canvas.height=128;const texture=new T.CanvasTexture(canvas);
+     const root=new T.Mesh(new T.PlaneGeometry(1,.5),new T.MeshBasicMaterial({map:texture}));
+     const shell=G.create(T,root,{width:1,height:.5,radius:1.6,texture,deckStart:.5});
+     const actions=[{id:'first',u:.05,v:.60,w:.4,h:.30},{id:'second',u:.55,v:.60,w:.4,h:.30,disabled:true}];shell.setActions(actions);
+     root.updateMatrixWorld(true);
+     function hit(u,v){const p=G.point(u,v,1,.5,1.6,.012);return shell.hit(new T.Raycaster(new T.Vector3(p[0],p[1],1),new T.Vector3(0,0,-1)));}
+     return {first:hit(.25,.75)?.id,disabled:hit(.75,.75)?.id,blank:hit(.50,.75)?.id,raised:hit(.25,.75)?.hit.point.z-G.point(.25,.75,1,.5,1.6,0)[2],evidence:shell.snapshot()};
+   });
+   assert.equal(spatialPhysical.first,'first');assert.equal(spatialPhysical.disabled,null);assert.equal(spatialPhysical.blank,null);assert.ok(spatialPhysical.raised>.008);assert.equal(spatialPhysical.evidence.controls,2);
+   console.log('PASS UI02 curved physical control ray hits, disabled keys and substrate separation');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 
