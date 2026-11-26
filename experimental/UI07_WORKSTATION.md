@@ -1,0 +1,7 @@
+# UI07 | Scientific workstation architecture
+
+Reorganizes the source inspector into a viewport-first three-pane application: study navigator, persistent CT/3D viewports, task-specific inspector. Original DOM IDs, event bindings, computational modules and source gates retained. Nine task views: Study, Anatomy, Segmentation, Navigation, Respiratory motion, Mechanics, Optics, Evidence, Annotations. Existing status text mirrored into navigator (not new approval status); source loader and integrity panel in Study. Two viewport proportions, combined and CT focus. All four source canvases remain mounted and visible on desktop, so source renderer resizing and MPR interactions stay attached. No new study storage; original files remain local. Small screens use horizontal task navigation and stacked viewports.
+
+Launcher now compact workspace selector, not hero marketing page. Same destinations and feature negotiation. Existing reference desktop simulator and immersive architecture retained for UI08–UI11. Palette graphite/porcelain/steel, no marketing hero, no decorative card collection. No scientific calculation changes. Existing original CSS retained as base; scoped overrides and presentation-only JS.
+
+Static audit: all 123 original source inspector IDs preserved, no duplicates; new script syntax checked. Real browser rendering, keyboard navigation, file loads, canvas resizing and headset acceptance still required. No production deployment implied.

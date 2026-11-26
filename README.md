@@ -176,3 +176,7 @@ Bounded geometry cues, read-only live motion/load observation and a local no-out
 ## U01–U03 — reference motion recording and review
 
 Opt-in bounded local trajectory record, read-only replay and quantitative review, portable files and optional same-browser observer. Remote multi-headset infrastructure remains pending. See [U foundation](experimental/U01_U03_MOTION_REVIEW.md).
+
+## UI07 — scientific workstation shell
+
+Persistent 3D/CT viewports, nine contextual source tasks, compact workspace launcher. See [UI07](experimental/UI07_WORKSTATION.md).
