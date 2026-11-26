@@ -52,6 +52,13 @@ function install(ctx){
   });
   const nativeQuad=global.PulmoXRNativeQuad?.create();
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
+  const spatialCal=global.PulmoXRSpatialCalibration.create(),spatialVisual=global.PulmoXRSpatialCalibration.createVisual(THREE,scene),planeMask=global.PulmoXRSpatialCalibration.createOccluder(THREE,scene);
+  let calibrationPose=null,calibrationCaptureAt=-Infinity,calibrationSpace=null,benchAligned=false,planeMaskEnabled=false,showPassiveProxy=false,spatialFinal=null;
+  function clearSpatialCalibration(){spatialCal.reset();spatialVisual.hide();planeMask.clear();calibrationPose=null;calibrationSpace=null;benchAligned=false;showPassiveProxy=false;}
+  function observeCalibration(frame){const space=rBro.xr.getReferenceSpace();if(calibrationSpace&&space!==calibrationSpace){if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();}calibrationSpace=space;const source=Array.from(rBro.xr.getSession()?.inputSources||[]).find(s=>s.handedness==='right'&&!s.hand&&s.gripSpace);const p=source&&frame?.getPose(source.gripSpace,space)?.transform;calibrationPose=p&&[p.position.x,p.position.y,p.position.z,p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w].every(Number.isFinite)?{position:[p.position.x,p.position.y,p.position.z],orientation:[p.orientation.x,p.orientation.y,p.orientation.z,p.orientation.w]}:null;spatialVisual.update(calibrationPose,spatialCal,showPassiveProxy||menuPage==='spatial-cal'||benchAligned);planeMask.step(frame,space,xrPresentation==='ar'&&planeMaskEnabled);}
+  function alignBench(){const j=spatialCal.jig();if(!j||xrPresentation!=='ar'||mode!=='anatomy'||getMeshMode()!=='reference'||!viewerValid){grabFeedback='MR REFERENCE ANATOMY AND VERIFIED JIG LANDMARKS REQUIRED';return false;}release(0);release(1);if(inspectMode)setInspection(false);summonGeneration++;summonTween=null;mrPlacement.preview();mrAnchorFault=false;const bounds=sourceBounds(),scale=getMmPerSceneUnit()/1000;if(!Number.isFinite(scale)||scale<=0||scale>.5)return false;boundsCache=bounds;const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(...j.basis.map(v=>new THREE.Vector3(...v))));mGrp.quaternion.copy(q);mGrp.scale.setScalar(scale);const center=new THREE.Vector3(...j.origin).add(new THREE.Vector3(.10,bounds.size.y*scale*.5+.025,.075).applyQuaternion(q));mGrp.position.copy(center).sub(bounds.center.clone().multiplyScalar(scale).applyQuaternion(q));mGrp.visible=true;mGrp.updateMatrixWorld(true);placed=true;benchAligned=true;scaleMode='manual-reference-jig';positionPanels();grabFeedback='MANUAL JIG ALIGNMENT / REFERENCE ONLY';return true;}
+  function invalidateBench(){if(!benchAligned)return;benchAligned=false;scaleMode='unregistered-preview';if(xrPresentation==='ar')mrPlacement.preview();}
+
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
   const spatialUI=global.PulmoXRSpatialUI;
@@ -251,6 +258,7 @@ function install(ctx){
   }
   function finishViewChange(){analogChangedAt=0;return viewHistory.finish(viewPose())}
   function stepViewHistory(direction){
+    if(benchAligned)return false;
     if(patientReturn)return false;
     if(mode!=='anatomy'||grab.some(Boolean))return false;
     finishViewChange();
@@ -387,6 +395,7 @@ function install(ctx){
     const curve=pathCurves[scope.segId];if(curve)routeTip.position.copy(curve.getPoint(Math.max(0,Math.min(1,scope.t))));
   }
   function setMode(next){
+    if(next==='procedure'&&benchAligned){grabFeedback='RELEASE BENCH ALIGNMENT BEFORE PROCEDURE';paint();return false;}
     if(!['anatomy','procedure'].includes(next))return false;
     // A4: the actual original bronchoscope traverses SEGS (a reference
     // tree), not the uploaded CT GLB. Never silently call that patient-specific.
@@ -482,6 +491,7 @@ function install(ctx){
     positionPanels();paint();return true;
   }
   function frameGroup(distance=.76,width=.52){
+    if(benchAligned){positionPanels();return true;}
     if(!viewerValid)return false;if(patientReturn){positionPanels();return true;}stopPanelEdit();panelPinned.clear();
     if(placed){finishViewChange();beginViewChange();}
     summonGeneration++;summonTween=null;
@@ -635,6 +645,7 @@ function install(ctx){
     grab[i].relative.copy(grip.matrixWorld).invert().multiply(mGrp.matrixWorld);
   }
   function startGrab(i,source='controller',input='grip'){
+    if(spatialCal.snapshot().armed||benchAligned)return false;
     const side=controllerSide[i]||controllerSources[i]?.handedness;
     if(source==='controller'&&input==='grip'&&active&&menuPage==='panel-edit'){const object=selectedPanel();if(startPanelEdit(i,object)){scope.velocity=0;scopeSteering=null;shaftClutch.reset();if(physicalControl?.snapshot().armed)physicalControl.stop('WINDOW_EDIT');grabFeedback='HOLD GRIP / MOVE SELECTED WINDOW';paint();return true;}}
     if(source==='controller'&&mode==='procedure'&&active&&side==='right'){
@@ -898,6 +909,7 @@ function install(ctx){
   }
   function findPanelHit(r){return panelIntersection(r)?.action||null}
   function summon(){
+    if(benchAligned)return;
     if(patientReturn)return;
     if(!viewerValid||mode!=='anatomy'||grab.some(Boolean))return;
     const bounds=sourceBounds();
@@ -942,6 +954,8 @@ function install(ctx){
     grabFeedback='MR INITIALIZING / TRY AGAIN';paint();return false;
   }
   function onTrigger(i){
+    const sideNow=controllerSide[i]||controllerSources[i]?.handedness;
+    if(sideNow==='right'&&(spatialCal.snapshot().armed||performance.now()-calibrationCaptureAt<450))return;
     if(!active||!rayFrom(i)||panelEdit)return;
     const chosen=choosePointer(i);
     const side=controllerSide[i]||controllerSources[i]?.handedness||'unknown';
@@ -1010,6 +1024,7 @@ function install(ctx){
       paint();return;
     }
     if(action==='mr-reposition'&&xrPresentation==='ar'){
+      invalidateBench();clearSpatialCalibration();
       release(0);release(1);scope.velocity=0;
       placed=false;mGrp.visible=false;mrAnchorFault=false;mrQuality.reset();mrPlacement.reposition();
       if(mrReticle)mrReticle.visible=false;
@@ -1017,6 +1032,7 @@ function install(ctx){
       paint();return;
     }
     if(action==='mr-preview'&&xrPresentation==='ar'){
+      invalidateBench();
       mrAnchorFault=false;mrQuality.reset();mrPlacement.preview();mGrp.visible=true;
       frameGroup();grabFeedback='UNREGISTERED FLOATING PREVIEW / NOT ROOM ANCHORED';
       paint();return;
@@ -1098,6 +1114,14 @@ function install(ctx){
     }
     if(action==='body-toggle'){bodyEnabled=!bodyEnabled;paint();return;}
     if(action==='hand-procedure'){handProcedure=!handProcedure;resetEmbodiedGrip();scope.velocity=0;grabFeedback=handProcedure?'BARE-HAND MODE / OPEN HANDS THEN PINCH HANDLE':'CONTROLLER MODE';paint();return;}
+    if(action==='spatial-open'){menuPage='spatial-cal';actionHitbox=panelLayouts['spatial-cal'];paint();return;}
+    if(action==='spatial-pivot'||action==='spatial-jig'){if(mode!=='anatomy'||!viewerValid){grabFeedback='CALIBRATE IN ANATOMY MODE';paint();return;}try{invalidateBench();spatialCal.begin(action==='spatial-pivot'?'pivot':'jig');showPassiveProxy=true;grabFeedback='ARM CAPTURE / RIGHT TRIGGER AT LANDMARK';}catch(e){grabFeedback=e.message;}paint();return;}
+    if(action==='spatial-capture'){spatialCal.arm();paint();return;}
+    if(action==='spatial-align'){alignBench();paint();return;}
+    if(action==='spatial-proxy'){showPassiveProxy=!showPassiveProxy;paint();return;}
+    if(action==='spatial-planes'){planeMaskEnabled=xrPresentation==='ar'&&!planeMaskEnabled;if(!planeMaskEnabled)planeMask.clear();paint();return;}
+    if(action==='spatial-clear'){invalidateBench();clearSpatialCalibration();grabFeedback='CALIBRATION CLEARED / UNREGISTERED';paint();return;}
+    if(action==='spatial-back'){menuPage=xrPresentation==='ar'?'mr':'advanced';actionHitbox=panelLayouts[menuPage];paint();return;}
     if(action==='patient-open'){menuPage='patient';actionHitbox=panelLayouts.patient;paint();return;}
     if(action==='patient-toggle'){if(patientReturn){if(probeLocked()||accessoryDeployed()){grabFeedback='RETRACT ACCESSORY BEFORE LEAVING STATION';paint();return;}leavePatientStation();grabFeedback='REFERENCE EXPLORATION RESTORED';}else enterPatientStation();paint();return;}
     if(action==='patient-view'){if(patientReturn){const modes=['external','transparent','internal'];patientView=modes[(modes.indexOf(patientView)+1)%3];patientStation.setView(patientView);}paint();return;}
@@ -1247,6 +1271,7 @@ function install(ctx){
     haptic(i,.20,36);paint();return true;
   }
   function applyAnalogAnatomy(side,x,y,dt){
+    if(benchAligned||spatialCal.snapshot().armed)return;
     if(mode!=='anatomy'||!placed||!boundsCache||grab.some(Boolean))return;
     const center=pivotMode==='center'?focusWorld():mGrp.position.clone();
     let modified=false;
@@ -1298,9 +1323,10 @@ function install(ctx){
       // Quest Touch xr-standard: trigger[0], grip[1]. Polling backs up
       // WebXR select/squeeze events, but cannot bypass triangle targeting.
       if(buttons[0]){
-        if(edge(0)&&!grab[i])onTrigger(i);
+        if(edge(0)&&!grab[i]){if(side==='right'&&spatialCal.snapshot().armed){calibrationCaptureAt=performance.now();if(calibrationPose){spatialCal.capture(calibrationPose);grabFeedback=spatialCal.snapshot().state.replaceAll('_',' ');}else grabFeedback='RIGHT CONTROLLER NOT TRACKED / RETRY';paint();}else onTrigger(i);}
         if(!buttons[0].pressed&&grab[i]?.input==='trigger')release(i,'controller','trigger');
       }
+      if(spatialCal.snapshot().armed)continue;
       if(buttons[1]){
         const pressed=!!buttons[1].pressed;
         if(pressed&&!squeezeHeld[i]&&!grab[i]&&!scopeSteering)
@@ -1474,7 +1500,7 @@ function install(ctx){
       {id:'workspace-options',label:'WORKSPACE OPTIONS',u:.52,v:.87,w:.43,h:.095}
     ],
     'workspace-options':[
-      {id:'workspace-viewpoint',label:'JUMP TO VIEWPOINT',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
+      {id:'spatial-open',label:'SPATIAL CALIBRATION',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
       {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},{id:'body-toggle',label:'BODY',u:.05,v:.76,w:.43,h:.095},{id:'hand-procedure',label:'HAND PROCEDURE',u:.52,v:.76,w:.43,h:.095},
       {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
@@ -1539,10 +1565,11 @@ function install(ctx){
       {id:'mr-confirm',label:'PLACE ON SURFACE',u:.05,v:.54,w:.43,h:.12},
       {id:'mr-reposition',label:'REPOSITION',u:.52,v:.54,w:.43,h:.12},
       {id:'mr-preview',label:'FLOATING PREVIEW',u:.05,v:.69,w:.43,h:.12},
-      {id:'mr-status',label:'PLACEMENT STATUS',u:.52,v:.69,w:.43,h:.12},
+      {id:'spatial-open',label:'SPATIAL CALIBRATION',u:.52,v:.69,w:.43,h:.12},
       {id:'back',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
     ],
+    'spatial-cal':[{id:'spatial-pivot',label:'POINTER PIVOT',u:.05,v:.54,w:.43,h:.095},{id:'spatial-jig',label:'JIG LANDMARKS',u:.52,v:.54,w:.43,h:.095},{id:'spatial-capture',label:'ARM CAPTURE',u:.05,v:.65,w:.43,h:.095},{id:'spatial-align',label:'ALIGN REFERENCE',u:.52,v:.65,w:.43,h:.095},{id:'spatial-proxy',label:'TRACKED POINTER',u:.05,v:.76,w:.43,h:.095},{id:'spatial-planes',label:'PLANE MASK',u:.52,v:.76,w:.43,h:.095},{id:'spatial-clear',label:'CLEAR / UNLOCK',u:.05,v:.87,w:.43,h:.095},{id:'spatial-back',label:'BACK',u:.52,v:.87,w:.43,h:.095}],
     trace:[
       {id:'trace-play',label:'PLAY TRACE',u:.05,v:.54,w:.43,h:.095},
       {id:'trace-pause',label:'PAUSE',u:.52,v:.54,w:.43,h:.095},
@@ -1576,7 +1603,7 @@ function install(ctx){
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
     spatialUI.frame(c,w,h);
-    const pageTitle=menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
+    const pageTitle=menuPage==='spatial-cal'?'Spatial bench calibration':menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
@@ -1632,6 +1659,7 @@ function install(ctx){
         ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
         :clinicalLabel),42,272,w-84,{size:24,min:21,color:spatialUI.C.muted});
     spatialUI.text(c,spatialUI.label(active?grabFeedback:'Reference engine ready'),42,305,w-84,{size:23,min:20,color:/BLOCK|FAIL|UNAVAILABLE|INTERFERENCE/.test(grabFeedback)?spatialUI.C.warn:spatialUI.C.accent});
+    if(menuPage==='spatial-cal'){const s=spatialCal.snapshot(),oc=planeMask.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);const instruction=s.kind==='pivot'?'FIX POINTER TIP / CAPTURE 5 DIFFERENT ORIENTATIONS':s.kind==='jig'?['TOUCH ORIGIN','TOUCH +X 200 mm','TOUCH +Z 150 mm','TOUCH OPPOSITE CORNER'][s.captured]:'START POINTER PIVOT OR JIG LANDMARKS';spatialUI.text(c,instruction,42,165,w-84,{size:23,min:17});spatialUI.text(c,s.state.replaceAll('_',' ')+' · '+s.captured+' samples',42,205,w-84,{size:21,min:17});spatialUI.text(c,'Pointer check '+(s.pointerHoldoutMm===null?'—':s.pointerHoldoutMm.toFixed(1)+' mm')+' / Jig check '+(s.jigHoldoutMm===null?'—':s.jigHoldoutMm.toFixed(1)+' mm'),42,244,w-84,{size:20,min:17,color:spatialUI.C.muted});spatialUI.text(c,(benchAligned?'MANUAL JIG ALIGNED':'NOT REGISTERED')+' · '+oc.state.replaceAll('_',' '),42,287,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='patient'){c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,patientReturn?'SUPINE MANIKIN · '+patientView.toUpperCase():'ACTIVATE TO PLACE A REFERENCE PATIENT',42,165,w-84,{size:25,min:19});spatialUI.text(c,patientReturn?patientZone.state.replaceAll('_',' '):'Existing source anatomy remains unchanged',42,205,w-84,{size:22,min:18});spatialUI.text(c,'HEAD-END OPERATOR ZONE · MOUTH TO TRACHEA VISUAL GUIDE',42,246,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,'REFERENCE CONTEXT ONLY · NO PATIENT REGISTRATION',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='ebus'){const p=ebusProbe.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,'REFERENCE / '+p.mode.toUpperCase()+' · '+p.extensionMm.toFixed(1)+' mm extension',42,165,w-84,{size:25,min:19});spatialUI.text(c,p.status.replaceAll('_',' ')+' · '+(p.shaftLocked?'SCOPE LOCKED':'SCOPE NOT LOCKED'),42,205,w-84,{size:22,min:18});spatialUI.text(c,'LEFT GRIP OR PINCH PROBE AT CHANNEL PORT · FEED/RETRACT',42,245,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,'IDEAL INTERFACE ONLY · NO TISSUE ULTRASOUND',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='research'){
@@ -1659,7 +1687,7 @@ function install(ctx){
       a.disabled=!available;
       const settings=station.snapshot();
       const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
-        a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
+        a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
         a.id==='ebus-mode'?'TYPE '+ebusProbe.snapshot().mode.toUpperCase():a.id==='radial-toggle'?(radialEnabled?'EBUS ON':'EBUS OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
@@ -1868,7 +1896,7 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,ebusVisual.group,patientStation.group,compactDock,embodiment.group,...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,ebusVisual.group,patientStation.group,spatialVisual.group,planeMask.group,compactDock,embodiment.group,...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -2310,7 +2338,7 @@ function install(ctx){
     traceButton.style.display='none';instrumentSetup.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
-    rBro.xr.setReferenceSpace?.(null);workspaceMoves=0;workspaceRelayout=false;panelOffset=0;panelMoves=0;panelTarget='monitor';panelPinned.clear();panelEdit=null;environmentEvidence=upgrade.observeEnvironment(null);environmentLast=-Infinity;regionalDisplay=false;regionalLast=-Infinity;regionalEvidenceFinal=null;contactProxy={state:'UNAVAILABLE'};sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
+    rBro.xr.setReferenceSpace?.(null);clearSpatialCalibration();planeMaskEnabled=false;spatialFinal=null;workspaceMoves=0;workspaceRelayout=false;panelOffset=0;panelMoves=0;panelTarget='monitor';panelPinned.clear();panelEdit=null;environmentEvidence=upgrade.observeEnvironment(null);environmentLast=-Infinity;regionalDisplay=false;regionalLast=-Infinity;regionalEvidenceFinal=null;contactProxy={state:'UNAVAILABLE'};sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
@@ -2375,7 +2403,7 @@ function install(ctx){
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
-        viewerValid=false;patientStation.group.visible=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
+        viewerValid=false;if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();patientStation.group.visible=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
         ebusVisual.hide();probeGrip.reset();toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);embodiment.reset();resetEmbodiedGrip();handSamples={};handMenuBlocked={left:false,right:false};
@@ -2418,7 +2446,7 @@ function install(ctx){
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       replay.tick(time); // Non-actuating, local measured trace playback.
-      updatePatientStation();poll(dt);
+      observeCalibration(frame);updatePatientStation();poll(dt);
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
       updateTrackedHands(frame);updateEmbodiedBody(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
@@ -2516,6 +2544,7 @@ function install(ctx){
     });
   });
   rBro.xr.addEventListener('sessionend',()=>{
+    spatialFinal={...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()};clearSpatialCalibration();planeMaskEnabled=false;
     // Snapshot before restoring the original desktop scene scale.
     endedXRGeometry={
       modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
@@ -2604,6 +2633,7 @@ function install(ctx){
     spatialMenuVisible:Boolean(worldMenu.visible),
     spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence,composition:compositionEvidence},
     patientStation:{...patientStation.snapshot(),operatorZone:patientZone},
+    spatialCalibration:spatialFinal||{...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

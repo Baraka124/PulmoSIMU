@@ -10,10 +10,10 @@ const MODES=Object.freeze({
    optionalFeatures:Object.freeze(['local-floor','bounded-floor','hand-tracking','layers'])}),
  mr:Object.freeze({sessionMode:'immersive-ar',presentation:'mr',
    optionalFeatures:Object.freeze(['local-floor','bounded-floor','hand-tracking',
-     'hit-test','anchors','layers'])})
+     'hit-test','anchors','plane-detection','layers'])})
 });
 const FEATURES=Object.freeze(['local-floor','bounded-floor','hand-tracking',
-  'hit-test','anchors','layers','depth-sensing']);
+  'hit-test','anchors','layers','depth-sensing','plane-detection']);
 const PRESENTATIONS=Object.freeze(['desktop','vr','mr']);
 const validMode=m=>m==='ar'?'mr':m;
 function create({xr=null}={}){
@@ -31,8 +31,8 @@ function create({xr=null}={}){
    probed,activeMode:sessionMode,requestedMode,lastError,
    requestedFeatures:Object.freeze(requestedFeatures.slice()),
    actualFeatures:serializableFeatureReport(),featureReporting,
-   spatialRegistration:'NOT_IMPLEMENTED',
-   physicalOcclusion:'NOT_IMPLEMENTED',
+   spatialRegistration:'MANUAL_SESSION_JIG_SEE_CALIBRATION_EVIDENCE',
+   physicalOcclusion:'OPTIONAL_RUNTIME_PLANE_MASK_NOT_DEPTH_SENSING',
    worldAnchor:sessionMode==='mr'?'SEE_MR_PLACEMENT_EVIDENCE':'NOT_IMPLEMENTED',
    patientSpecificBronchoscopy:'NOT_VALIDATED',
    sessionActive:Boolean(activeSession),

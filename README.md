@@ -164,3 +164,7 @@ Visual external shaft connection, independent radial catheter extension and dire
 ## R01–R03 — embodied reference patient station
 
 Optional supine manikin and procedure bed, source-aligned neck entry, operator proximity gate and external/transparent/internal views. See [R foundation](experimental/R01_R03_REFERENCE_PATIENT.md).
+
+## S01–S03 — physical–virtual bench registration
+
+Local pivot-calibrated controller pointer, four-landmark reference jig alignment and capability-dependent runtime plane masking. No patient registration or force feedback. See [S foundation](experimental/S01_S03_SPATIAL_CALIBRATION.md).
