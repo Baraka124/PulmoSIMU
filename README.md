@@ -140,3 +140,7 @@ Offline paired CT baseline registration (SimpleITK), exact source-bound sampled 
 ## L01–L03 — flexible shaft mechanics foundation
 
 Source-linked fixed-endpoint discrete elastic shaft relaxation, assumed nodal wall penalty and friction diagnostic; independent expiration lumen contact recomputation using K-mapped geometry and fixed inspiration rest length. No bidirectional tissue mechanics or measured device properties. See [L foundation](experimental/anatomy/L01_L03_SHAFT_MECHANICS.md).
+
+## M01–M03 — source optical foundation
+
+Explicit voxel-lumen raycast endoscopic preview at J route node; optional depth-gated optical point kernels and local unregistered still comparison. No trained 3DGS, real mucosa reconstruction or XR binding. See [M foundation](experimental/anatomy/M01_M03_SOURCE_OPTICS.md).

@@ -11,6 +11,7 @@ let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
 let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
 let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
+let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -646,7 +647,7 @@ $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Or
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function clearCandidate(){
- route=null;invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
+ route=null;resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
 }
 function resetRoute(){
@@ -674,15 +675,15 @@ for(const id of ['route-root','route-target'])$(id).addEventListener('click',()=
 for(const id of ['route-diameter','route-margin'])$(id).addEventListener('input',()=>{clearCandidate();if(routeGraph)describeRoute();});
 $('route-plan').addEventListener('click',()=>{
  if(!routeGraph||!routeStart||!routeTarget)return;clearCandidate();
- try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));invalidateShaft();
+ try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));invalidateOptics();invalidateShaft();
  $('route-step').max=route.nodes.length-1;for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=false;
  $('route-status').textContent='Geometric candidate · review pending';showRouteFrame(0);
  }catch(e){$('route-status').textContent=e.message;}
 });
 function showRouteFrame(k){
- if(!route)return;k=Math.max(0,Math.min(route.nodes.length-1,k));$('route-step').value=k;
+ if(!route)return;k=Math.max(0,Math.min(route.nodes.length-1,k));$('route-step').value=k;invalidateOptics();
  const p=routeGraph.pose(route,k);state.cross=p.voxel.slice();renderSlices();
- $('route-detail').textContent='Route length '+route.length_mm.toFixed(2)+' mm · conservative radius lower bound '+route.minimum_clearance_lower_bound_mm.toFixed(2)+' mm\nFrame '+(k+1)+' / '+route.nodes.length+' · RAS '+p.position_ras_mm.map(x=>x.toFixed(2)).join(' / ')+' mm\nForward RAS '+p.forward_ras.map(x=>x.toFixed(3)).join(' / ')+'\nCT crosshair rehearsal only; no patient endoscopic camera or instrument control.';
+ $('route-detail').textContent='Route length '+route.length_mm.toFixed(2)+' mm · conservative radius lower bound '+route.minimum_clearance_lower_bound_mm.toFixed(2)+' mm\nFrame '+(k+1)+' / '+route.nodes.length+' · RAS '+p.position_ras_mm.map(x=>x.toFixed(2)).join(' / ')+' mm\nForward RAS '+p.forward_ras.map(x=>x.toFixed(3)).join(' / ')+'\nCT route rehearsal; explicit source-mask optical preview below. No instrument control.';
 }
 $('route-prev').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)-1));
 $('route-next').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)+1));
@@ -759,5 +760,41 @@ $('shaft-run').addEventListener('click',()=>{
  }catch(e){$('shaft-status').textContent='Calculation rejected: '+e.message;}
 });
 $('shaft-export').addEventListener('click',()=>{if(!shaftResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(shaftResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Shaft_'+shaftResult.active_mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
+
+function invalidateOptics(){
+ opticFrame=null;$('optic-render').disabled=!route;$('optic-compare').disabled=true;
+ $('optic-status').textContent=route?'Route frame ready to render':'Awaiting J route';
+ $('optic-detail').textContent='No optical frame. Render explicitly after changing route position.';
+ const cv=$('optic-canvas');cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+}
+function resetOptics(){opticEpoch++;opticRefEpoch++;opticPoints=null;opticReference=null;$('optic-overlay').checked=false;$('optic-overlay').disabled=true;const cv=$('optic-ref-canvas');cv.getContext('2d').clearRect(0,0,cv.width,cv.height);invalidateOptics();}
+function drawOptic(){
+ if(!opticFrame)return;let data=opticFrame.rgba,info='';
+ if(opticPoints&&$('optic-overlay').checked){const o=window.PulmoOptics.overlay(opticFrame,opticPoints);data=o.rgba;info=' · '+o.accepted+' projected points blended near depth hits (experimental)';}
+ $('optic-canvas').getContext('2d').putImageData(new ImageData(data,opticFrame.width,opticFrame.height),0,0);
+ const c=opticFrame.counts;$('optic-detail').textContent='Frame '+(opticFrame.index+1)+' · '+opticFrame.fov+'° horizontal FOV · '+c.WALL+' wall rays / '+(opticFrame.width*opticFrame.height)+' pixels · '+c.VOLUME_EXIT+' volume exits · '+c.RANGE+' range misses · '+c.BUDGET+' traversal limits'+info+'\nVoxel boundary geometry; assumed diffuse color and illumination. Comparison uses base rendering, not overlay.';
+ $('optic-compare').disabled=!opticReference;
+}
+for(const id of ['optic-fov','optic-roll','optic-exp'])$(id).addEventListener('input',invalidateOptics);
+$('optic-render').addEventListener('click',()=>{
+ invalidateOptics();if(!route)return;
+ try{opticFrame=window.PulmoOptics.render({study:currentStudy(),seg,route,index:Number($('route-step').value),fov:Number($('optic-fov').value),roll:Number($('optic-roll').value),exposure:Number($('optic-exp').value)});
+ $('optic-status').textContent='Source-mask image · research only';drawOptic();}catch(e){$('optic-status').textContent='Rendering rejected: '+e.message;}
+});
+$('optic-points').addEventListener('change',async ev=>{
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;const epoch=++opticEpoch;opticPoints=null;$('optic-overlay').checked=false;$('optic-overlay').disabled=true;drawOptic();
+ try{if(!route||f.size>2*1024*1024)throw Error('Route required; optical JSON limit 2 MiB');const doc=JSON.parse(await f.text());if(epoch!==opticEpoch)return;opticPoints=window.PulmoOptics.splatImport(currentStudy(),seg,doc);$('optic-overlay').disabled=false;$('optic-status').textContent='Optical points loaded · unverified source registration';}
+ catch(e){if(epoch===opticEpoch)$('optic-status').textContent='Rejected: '+e.message;}
+});
+$('optic-overlay').addEventListener('change',drawOptic);
+$('optic-reference').addEventListener('change',async ev=>{
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;const epoch=++opticRefEpoch;opticReference=null;$('optic-compare').disabled=true;
+ const cv=$('optic-ref-canvas'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+ try{if(!route||!['image/png','image/jpeg'].includes(f.type)||f.size>10*1024*1024)throw Error('Route and local PNG/JPEG up to 10 MiB required');const b=await createImageBitmap(f);try{if(epoch!==opticRefEpoch)return;if(b.width*b.height>16000000)throw Error('Reference pixel budget exceeded');const scale=Math.min(cv.width/b.width,cv.height/b.height),dw=b.width*scale,dh=b.height*scale;ctx.drawImage(b,(cv.width-dw)/2,(cv.height-dh)/2,dw,dh);opticReference=ctx.getImageData(0,0,cv.width,cv.height).data;$('optic-compare').disabled=!opticFrame;$('optic-status').textContent='Local reference loaded · no geometric registration';}finally{b.close();}}
+ catch(e){if(epoch===opticRefEpoch)$('optic-status').textContent='Reference rejected: '+e.message;}
+});
+$('optic-compare').addEventListener('click',()=>{
+ if(!opticFrame||!opticReference)return;try{drawOptic();const q=window.PulmoOptics.compare(opticFrame,opticReference);$('optic-detail').textContent+='\nUnregistered comparison: '+q.wall_pixels+' opaque wall pixels · RGB MAE '+q.mae.toFixed(2)+' /255 · RMSE '+q.rmse.toFixed(2)+' · PSNR '+(q.identical?'identical':q.psnr_db.toFixed(2)+' dB')+' · not anatomical or optical validation.';}catch(e){$('optic-status').textContent=e.message;}
+});
 applyQa();renderReviewStatus();start3d();
 })();

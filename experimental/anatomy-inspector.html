@@ -111,6 +111,12 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
   <canvas id="shaft-plot" width="720" height="240" style="display:block;width:100%;height:auto;max-height:240px;background:#0e1820;border-radius:4px" aria-label="Orthographic RAS projection of relaxed shaft"></canvas>
   <pre id="shaft-detail" class="muted" style="white-space:pre-wrap">No mechanics result. Original procedure remains independent.</pre>
   </section>
+  <section class="review-panel" aria-label="Source-derived optical research">
+  <div class="review-heading"><div><div class="eyebrow">M01–M03 / Optical reconstruction</div><h2>Source lumen endoscopic view</h2><p>Render the current J route frame directly from the binary airway mask. Surface color and lighting are assumed. No reconstructed mucosal texture or clinical equivalence.</p></div><div class="review-status" id="optic-status" role="status">Awaiting J route</div></div>
+  <div class="review-controls"><label for="optic-fov">Horizontal FOV (°)</label><input id="optic-fov" type="number" min="60" max="120" value="110" style="width:75px"><label for="optic-roll">Roll (°)</label><input id="optic-roll" type="number" min="-180" max="180" value="0" style="width:75px"><label for="optic-exp">Exposure</label><input id="optic-exp" type="number" min=".25" max="3" step=".25" value="1" style="width:75px"><button id="optic-render" disabled>Render route frame</button><label class="review-import" for="optic-points">Optical point evidence<input type="file" id="optic-points" accept=".json"></label><label class="toggle"><input id="optic-overlay" type="checkbox" disabled>Experimental point overlay</label><label class="review-import" for="optic-reference">Reference still<input type="file" id="optic-reference" accept="image/png,image/jpeg"></label><button id="optic-compare" disabled>Compare unregistered images</button></div>
+  <div class="mpr" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><div class="mpr-pane"><div class="mpr-title">Mask-derived optical frame</div><canvas id="optic-canvas" width="160" height="120" style="image-rendering:auto;cursor:default" aria-label="Source mask endoscopic rendering"></canvas></div><div class="mpr-pane"><div class="mpr-title">Local reference still · normalized to frame</div><canvas id="optic-ref-canvas" width="160" height="120" style="cursor:default" aria-label="Reference image"></canvas></div></div>
+  <pre id="optic-detail" class="muted" style="white-space:pre-wrap">No optical frame. Render explicitly after changing route position.</pre>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -147,5 +153,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/airway-route.js?v=J03"></script>
 <script src="./anatomy/respiratory-field.js?v=K03"></script>
 <script src="./anatomy/shaft-mechanics.js?v=L03"></script>
-<script src="./anatomy/inspector-app.js?v=L03"></script>
+<script src="./anatomy/source-optics.js?v=M03"></script>
+<script src="./anatomy/inspector-app.js?v=M03"></script>
 </body></html>

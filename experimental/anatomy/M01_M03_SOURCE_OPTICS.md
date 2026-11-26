@@ -1,0 +1,11 @@
+# M01–M03 | Source-derived optical foundation
+
+Existing Source Anatomy inspector only. No independent app or changes to original reference XR. Load H CT, I unchanged airway mask, J skeleton and route. All data remain local.
+
+M01: explicit low-resolution (160×120) CPU pinhole frame of the binary voxel lumen at selected route node. Forward tangent and sequential projected-up camera orientation, adjustable horizontal FOV, roll and assumed exposure. Exact voxel-grid ray traversal to first background voxel; physical RAS ray parameter gives mm range. Volume exit and out-of-range rays are not fabricated walls. Tied-axis boundary crossings have an approximate combined normal; no subvoxel tissue surface or real optical calibration. Assumed diffuse color, approximate attenuation and vignetting; no mucosal texture, sensor response, scattering or clinically realistic optical appearance. Explicit render button prevents per-frame expensive CPU work. No live headset integration, mesh ray tracing, or moving-phase optics.
+
+M02: experimental point-based optical evidence overlay, not a trained Gaussian splatting implementation. Custom JSON schema pulmosimu.optical-points/1 requires ct_sha256, mask_sha256, frame RAS_mm, review PENDING, source_sha256 (operator-provided provenance, not independently verified), and points [[x_mm,y_mm,z_mm,sigma_mm,r,g,b], ...], max 5000. Coordinates must be within CT extent. Projected isotropic Gaussian-like screen kernels are blended only near source ray depth. No optimization, anisotropic covariance, camera registration, mesh extraction, SH appearance, or actual 3DGS import. Point registration remains unverified; base frame is not modified.
+
+M03: local PNG/JPEG reference normalized to frame with transparent letterbox; compare opaque wall pixels against base rendering using RGB MAE, RMSE and PSNR. No inferred image correspondence, no clinical fidelity claim. Reference and overlay cleared when route/source changes; new route position invalidates rendered frame. No video registration or quantitative anatomy validation.
+
+Run node --test experimental/tests/m03-source-optics.test.mjs. Compare against authorized independently registered real endoscopic stills with calibrated optics before optical acceptance. No patient data in Git.
