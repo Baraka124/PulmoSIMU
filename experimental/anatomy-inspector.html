@@ -93,6 +93,12 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
     <div class="review-controls"><label class="review-import" for="seg-manifest">Mask manifest<input id="seg-manifest" type="file" accept=".json"></label><label class="review-import" for="seg-mask">Binary mask<input id="seg-mask" type="file" accept=".raw,.bin"></label><label class="toggle"><input id="seg-overlay" type="checkbox" checked> Show overlay</label><button id="seg-add" disabled>Add crosshair voxel</button><button id="seg-remove" disabled>Remove crosshair voxel</button><button id="seg-clear" disabled>Discard edits</button><button id="seg-export" disabled>Export correction proposal</button></div>
     <div class="muted" id="seg-metrics">Load CT, then its mask manifest and binary mask. Offline preparation and topology analysis are documented in the repository.</div>
   </section>
+  <section class="review-panel" aria-label="Airway route research">
+  <div class="review-heading"><div><div class="eyebrow">J01–J03 / Airway route research</div><h2>Source-linked route rehearsal</h2><p>Load the unchanged airway mask and its skeleton. Select entry and target from CT crosshair. The route is a geometric research candidate, not a clinical recommendation.</p></div><div class="review-status" id="route-status" role="status">Awaiting airway skeleton</div></div>
+  <div class="review-controls"><label class="review-import" for="route-graph">Airway skeleton<input type="file" id="route-graph" accept=".json"></label><button id="route-root" disabled>Set entry</button><button id="route-target" disabled>Set target</button><label for="route-diameter">Outer diameter (mm)</label><input id="route-diameter" type="number" min="1" max="12" step=".1" value="4.2" style="width:80px"><label for="route-margin">Margin (mm)</label><input id="route-margin" type="number" min="0" max="2" step=".1" value=".5" style="width:75px"><button id="route-plan" disabled>Compute route</button></div>
+  <div class="review-controls"><button id="route-prev" disabled>Previous</button><input id="route-step" type="range" min="0" max="0" value="0" disabled aria-label="Route position"><button id="route-next" disabled>Next</button><button id="route-export" disabled>Export candidate</button></div>
+  <pre class="muted" id="route-detail" style="white-space:pre-wrap">No route. Existing reference simulator remains independent.</pre>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -126,5 +132,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/source-review.js?v=A23-REVIEW"></script>
 <script src="./anatomy/patient-study.js?v=H03"></script>
 <script src="./anatomy/segmentation-review.js?v=I03"></script>
-<script src="./anatomy/inspector-app.js?v=I03"></script>
+<script src="./anatomy/airway-route.js?v=J03"></script>
+<script src="./anatomy/inspector-app.js?v=J03"></script>
 </body></html>

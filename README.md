@@ -128,3 +128,7 @@ Existing Source Anatomy inspector now supports local versioned study manifest ex
 ## I01–I03 — source-linked segmentation foundation
 
 Offline adapter for externally segmented binary NIfTI structures, exact source/affine/hash binding, six-connected component QA and preliminary airway voxel skeleton graph; local MPR mask overlays, sparse correction and source-bound patch export. No bundled segmentation inference, validated branch graph or patient navigation. See [I01–I03](experimental/anatomy/I01_I03_SEGMENTATION.md).
+
+## J01–J03 — source-derived route rehearsal foundation
+
+Local airway skeleton binding, voxel-occupancy/edge verification, explicit entry/target and conservative geometric clearance-constrained shortest path; source CT crosshair route rehearsal with RAS position and forward direction. Original procedure remains independent. No patient endoscopic renderer or clinical navigation. See [J foundation](experimental/anatomy/J01_J03_AIRWAY_ROUTE.md).

@@ -8,6 +8,7 @@ const $=id=>document.getElementById(id);
 const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
   window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[],metric:{a:null,b:null}};
 let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
+let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -613,6 +614,7 @@ $('study-import').addEventListener('change',async ev=>{
 
 
 function updateSegUI(message){
+ resetRoute();
  $('seg-status').textContent=message;
  for(const id of ['seg-add','seg-remove','seg-clear','seg-export'])$(id).disabled=!seg;
  const m=seg?.metrics();
@@ -640,5 +642,49 @@ for(const [id,value] of [['seg-add',1],['seg-remove',0]])$(id).addEventListener(
 $('seg-overlay').addEventListener('change',renderSlices);
 $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Original mask restored');renderSlices();}});
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
+
+function clearCandidate(){
+ route=null;$('route-step').value=0;$('route-step').max=0;
+ for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
+}
+function resetRoute(){
+ routeEpoch++;routeGraph=null;routeStart=null;routeTarget=null;clearCandidate();
+ for(const id of ['route-root','route-target','route-plan'])$(id).disabled=true;
+ $('route-status').textContent='Awaiting unchanged airway mask and skeleton';
+ $('route-detail').textContent='No route. Reference simulator remains independent.';
+}
+function describeRoute(){
+ $('route-plan').disabled=routeStart===null||routeTarget===null;
+ $('route-detail').textContent='Entry: '+(routeStart?.node??'not set')+' · target: '+(routeTarget?.node??'not set')+'\n'+routeGraph.nodeCount+' skeleton nodes · '+routeGraph.rejectedEdges+' diagonal edges rejected';
+}
+$('route-graph').addEventListener('change',async ev=>{
+ const file=ev.target.files?.[0];ev.target.value='';if(!file)return;resetRoute();const epoch=routeEpoch;
+ try{if(file.size>64*1024*1024)throw Error('Skeleton exceeds 64 MiB');const source=JSON.parse(await file.text());if(epoch!==routeEpoch)return;
+ routeGraph=window.PulmoAirwayRoute.open(currentStudy(),seg,source);
+ $('route-root').disabled=false;$('route-target').disabled=false;$('route-status').textContent='Skeleton bound · unreviewed';describeRoute();
+ }catch(e){if(epoch===routeEpoch)$('route-status').textContent='Rejected: '+e.message;}
+});
+for(const id of ['route-root','route-target'])$(id).addEventListener('click',()=>{
+ if(!routeGraph)return;clearCandidate();
+ try{const point=routeGraph.nearest(state.cross.slice());if(id==='route-root')routeStart=point;else routeTarget=point;describeRoute();$('route-status').textContent='Snapped to skeleton · '+point.offset_mm.toFixed(2)+' mm from crosshair';}
+ catch(e){$('route-status').textContent=e.message;}
+});
+for(const id of ['route-diameter','route-margin'])$(id).addEventListener('input',()=>{clearCandidate();if(routeGraph)describeRoute();});
+$('route-plan').addEventListener('click',()=>{
+ if(!routeGraph||!routeStart||!routeTarget)return;clearCandidate();
+ try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));
+ $('route-step').max=route.nodes.length-1;for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=false;
+ $('route-status').textContent='Geometric candidate · review pending';showRouteFrame(0);
+ }catch(e){$('route-status').textContent=e.message;}
+});
+function showRouteFrame(k){
+ if(!route)return;k=Math.max(0,Math.min(route.nodes.length-1,k));$('route-step').value=k;
+ const p=routeGraph.pose(route,k);state.cross=p.voxel.slice();renderSlices();
+ $('route-detail').textContent='Route length '+route.length_mm.toFixed(2)+' mm · conservative radius lower bound '+route.minimum_clearance_lower_bound_mm.toFixed(2)+' mm\nFrame '+(k+1)+' / '+route.nodes.length+' · RAS '+p.position_ras_mm.map(x=>x.toFixed(2)).join(' / ')+' mm\nForward RAS '+p.forward_ras.map(x=>x.toFixed(3)).join(' / ')+'\nCT crosshair rehearsal only; no patient endoscopic camera or instrument control.';
+}
+$('route-prev').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)-1));
+$('route-next').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)+1));
+$('route-step').addEventListener('input',()=>showRouteFrame(Number($('route-step').value)));
+$('route-export').addEventListener('click',()=>{if(!route)return;const url=URL.createObjectURL(new Blob([JSON.stringify(route,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Route_'+route.mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 applyQa();renderReviewStatus();start3d();
 })();
