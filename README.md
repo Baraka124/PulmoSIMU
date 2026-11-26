@@ -148,3 +148,7 @@ Explicit voxel-lumen raycast endoscopic preview at J route node; optional depth-
 ## N01–N03 — computational research assistance
 
 Deterministic source-linked route evidence review, bounded optical gradient-similarity search of nearby route poses, local still/video-frame capture and traceable evidence JSON. No real-time registration or clinical localization. See [N foundation](experimental/anatomy/N01_N03_RESEARCH_INTELLIGENCE.md).
+
+## O01–O03 — integrated source research release candidate
+
+Local read-only source evidence transfer into existing XR console, separate external bench status, H–O regression runner and release gates. No multi-user network, live patient-specific XR or clinical/device acceptance. See [O release candidate](experimental/O01_O03_RELEASE_CANDIDATE.md).

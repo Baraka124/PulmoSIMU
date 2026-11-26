@@ -119,7 +119,7 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
   </section>
   <section class="review-panel" aria-label="Computational research assistance">
  <div class="review-heading"><div><div class="eyebrow">N01–N03 / Evidence-linked computation</div><h2>Route evidence &amp; optical candidate search</h2><p>Assess current geometric and mechanics evidence, or rank nearby route frames against a local still or a paused video frame. Similarity is not registration or a position measurement.</p></div><div class="review-status" id="intel-status" role="status">Awaiting J route</div></div>
- <div class="review-controls"><label class="review-import" for="intel-video">Local reference video<input id="intel-video" type="file" accept="video/*"></label><button id="intel-capture" disabled>Capture paused frame</button><label for="intel-radius">Search ± nodes</label><input id="intel-radius" type="number" min="1" max="100" value="8" style="width:75px"><button id="intel-search" disabled>Rank optical candidates</button><button id="intel-cancel" disabled>Cancel</button><button id="intel-report" disabled>Export current evidence</button></div>
+ <div class="review-controls"><label class="review-import" for="intel-video">Local reference video<input id="intel-video" type="file" accept="video/*"></label><button id="intel-capture" disabled>Capture paused frame</button><label for="intel-radius">Search ± nodes</label><input id="intel-radius" type="number" min="1" max="100" value="8" style="width:75px"><button id="intel-search" disabled>Rank optical candidates</button><button id="intel-cancel" disabled>Cancel</button><button id="intel-report" disabled>Export current evidence</button><button id="xr-snapshot-export" disabled>Export XR review snapshot</button></div>
  <video id="intel-player" controls playsinline preload="metadata" hidden style="width:min(100%,440px);max-height:240px;background:#091018"></video>
  <pre id="intel-detail" class="muted" style="white-space:pre-wrap">No evidence report. Create a route and optionally load an optical reference.</pre>
  </section>
@@ -161,5 +161,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/shaft-mechanics.js?v=L03"></script>
 <script src="./anatomy/source-optics.js?v=M03"></script>
 <script src="./anatomy/research-intelligence.js?v=N03"></script>
-<script src="./anatomy/inspector-app.js?v=N03"></script>
+<script src="./xr/research-snapshot.js?v=O03"></script>
+<script src="./anatomy/inspector-app.js?v=O03"></script>
 </body></html>

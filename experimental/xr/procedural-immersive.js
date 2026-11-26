@@ -57,6 +57,7 @@ function install(ctx){
   const spatialUI=global.PulmoXRSpatialUI;
   const spatialGeometry=global.PulmoXRSpatialGeometry;
   const spatialExperience=global.PulmoXRSpatialExperience;
+  let researchSnapshot=null,researchCanvas=null,researchLoadEpoch=0;
   let readingMode=false,monitorFocus=false,visualEvidence={},visualLast=-Infinity,contextActions=0;
   let compositionEvidence=null,compositionCount=0;
   const upgrade=global.PulmoXRIntegratedUpgrade;
@@ -1072,6 +1073,12 @@ function install(ctx){
       grabFeedback='LOCAL MEASUREMENT TRACE CLEARED';
       paint();return;
     }
+    if(action==='research-open'){
+      menuPage='research';actionHitbox=panelLayouts.research;hoverPanels.fill(null);grabFeedback='READ-ONLY LOCAL SNAPSHOT / REFERENCE SCOPE UNCHANGED';paint();return;
+    }
+    if(action==='research-clear'){
+      researchLoadEpoch++;researchSnapshot=null;researchCanvas=null;grabFeedback='RESEARCH SNAPSHOT CLEARED';paint();return;
+    }
     if(action==='trace-open'){
       replay.pause(performance.now());
       menuPage='trace';actionHitbox=panelLayouts.trace;hoverPanels.fill(null);
@@ -1408,9 +1415,10 @@ function install(ctx){
     ],
     'workspace-options':[
       {id:'workspace-viewpoint',label:'JUMP TO VIEWPOINT',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
-      {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},
+      {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},
       {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
+    research:[{id:'research-clear',label:'CLEAR SNAPSHOT',u:.05,v:.69,w:.43,h:.12},{id:'workspace-options',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}],
     'panel-edit':[
       {id:'panel-select',label:'SELECT WINDOW',u:.05,v:.54,w:.43,h:.095},{id:'panel-size',label:'RESIZE WINDOW',u:.52,v:.54,w:.43,h:.095},
       {id:'panel-reset',label:'RESET WINDOWS',u:.05,v:.65,w:.43,h:.095},{id:'panel-compose',label:'ARRANGE WORKSPACE',u:.52,v:.65,w:.43,h:.095},{id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
@@ -1506,7 +1514,7 @@ function install(ctx){
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
     spatialUI.frame(c,w,h);
-    const pageTitle=menuPage==='mr'?'Mixed reality placement':
+    const pageTitle=menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
@@ -1562,6 +1570,18 @@ function install(ctx){
         ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
         :clinicalLabel),42,272,w-84,{size:24,min:21,color:spatialUI.C.muted});
     spatialUI.text(c,spatialUI.label(active?grabFeedback:'Reference engine ready'),42,305,w-84,{size:23,min:20,color:/BLOCK|FAIL|UNAVAILABLE|INTERFERENCE/.test(grabFeedback)?spatialUI.C.warn:spatialUI.C.accent});
+    if(menuPage==='research'){
+      c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);
+      const q=researchSnapshot,b=replay.snapshot();
+      const width=q?.frame?610:w-84;
+      spatialUI.text(c,q?'UNREVIEWED SOURCE SNAPSHOT · '+q.route_sha256.slice(0,10):'LOAD XR REVIEW SNAPSHOT IN DESKTOP SESSION TOOLS',42,163,width,{size:23,min:18,color:spatialUI.C.accent});
+      spatialUI.text(c,q?('Route '+q.route.length_mm.toFixed(1)+' mm · tool '+q.route.diameter_mm.toFixed(1)+' mm · '+q.route.node_count+' nodes'):'No source evidence loaded',42,198,width,{size:23,min:18});
+      spatialUI.text(c,q?.mechanics?('L sampled overlap '+q.mechanics.overlap_mm.toFixed(2)+' mm · phase '+q.mechanics.phase):'No current mechanics evidence',42,232,width,{size:22,min:18,color:spatialUI.C.muted});
+      spatialUI.text(c,'Independent bench: '+(b.loaded?b.engineeringStatus:'NOT LOADED'),42,266,width,{size:21,min:17,color:spatialUI.C.muted});
+      spatialUI.text(c,'NO PATIENT REGISTRATION OR INSTRUMENT COUPLING',42,301,width,{size:19,min:15,color:spatialUI.C.warn});
+      if(researchCanvas){c.drawImage(researchCanvas,750,149,220,165);}
+      c.restore();
+    }
     spatialUI.line(c,42,318,w-84);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
@@ -2043,6 +2063,14 @@ function install(ctx){
       showToast('Trace rejected: '+String(error?.message||error).slice(0,100),'warn');
     }finally{traceFile.value=''}
   });
+  const researchSetup=document.createElement('details');researchSetup.id='pulmo-xr-research-import';
+  researchSetup.innerHTML='<summary>Source research snapshot</summary><p>Import a locally exported XR review snapshot. Read-only; no scope or patient registration.</p><input type="file" accept=".json" aria-label="Research snapshot"><p role="status">No snapshot loaded.</p>';
+  researchSetup.querySelector('input').addEventListener('change',async ev=>{
+    const file=ev.target.files?.[0];ev.target.value='';if(!file)return;const epoch=++researchLoadEpoch;researchSnapshot=null;researchCanvas=null;
+    const status=researchSetup.querySelector('[role="status"]');status.textContent='Reading local snapshot';
+    try{if(file.size>1024*1024)throw Error('Snapshot exceeds 1 MiB');const doc=JSON.parse(await file.text());if(epoch!==researchLoadEpoch)return;if(rBro.xr.isPresenting)throw Error('Exit XR before import');researchSnapshot=global.PulmoXRResearchSnapshot.sanitize(doc);if(researchSnapshot.frame){researchCanvas=document.createElement('canvas');researchCanvas.width=160;researchCanvas.height=120;researchCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(researchSnapshot.frame.rgba),160,120),0,0);}status.textContent='Loaded / review pending · Expert tools → Virtual workspace → Workspace options → Research evidence';paint();}
+    catch(e){if(epoch===researchLoadEpoch){researchSnapshot=null;researchCanvas=null;status.textContent='Rejected: '+e.message;}}
+  });
   // Local instrument setup in the same workstation, before entering XR.
   const instrumentSetup=document.createElement('details');
   instrumentSetup.id='pulmo-calibrated-instrument';
@@ -2165,7 +2193,7 @@ function install(ctx){
   const launchDock=document.createElement('aside');launchDock.id='pulmo-launch-dock';launchDock.setAttribute('aria-label','Spatial session controls');
   const dockControls=document.createElement('div');dockControls.className='ps-dock-controls';
   const dockLabel=document.createElement('span');dockLabel.className='ps-dock-label';dockLabel.textContent='Spatial session';
-  const dockTools=document.createElement('details');dockTools.className='ps-dock-tools';const toolSummary=document.createElement('summary');toolSummary.textContent='Session tools';const toolsPanel=document.createElement('div');toolsPanel.className='ps-tools-panel';toolsPanel.append(traceButton,instrumentSetup,reportButton);dockTools.append(toolSummary,toolsPanel);
+  const dockTools=document.createElement('details');dockTools.className='ps-dock-tools';const toolSummary=document.createElement('summary');toolSummary.textContent='Session tools';const toolsPanel=document.createElement('div');toolsPanel.className='ps-tools-panel';toolsPanel.append(traceButton,instrumentSetup,researchSetup,reportButton);dockTools.append(toolSummary,toolsPanel);
   dockControls.append(dockLabel,arButton,button,dockTools);launchDock.append(runtimeStatus,dockControls);document.body.appendChild(launchDock);
   const syncDock=()=>{launchDock.hidden=rBro.xr.isPresenting||document.getElementById('splash')?.style.display!=='none';};
   if(splash&&typeof MutationObserver!=='undefined')new MutationObserver(syncDock).observe(splash,{attributes:true,attributeFilter:['style']});syncDock();

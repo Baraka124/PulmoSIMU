@@ -801,7 +801,7 @@ $('optic-compare').addEventListener('click',()=>{
 
 function refreshIntelligence(){
  $('intel-search').disabled=!route||!opticReference||!intelReference||intelBusy;
- $('intel-report').disabled=!route||intelBusy;
+ $('intel-report').disabled=!route||intelBusy;$('xr-snapshot-export').disabled=!route||intelBusy;
  $('intel-cancel').disabled=!intelBusy;
 }
 function cancelIntelSearch(){intelEpoch++;intelBusy=false;intelResult=null;$('intel-status').textContent=route?'Awaiting evidence review':'Awaiting J route';$('intel-detail').textContent='No current optical candidate result. Export current route evidence or rank a reference.';refreshIntelligence();}
@@ -853,6 +853,15 @@ $('intel-report').addEventListener('click',async()=>{
  const evidence=window.PulmoResearchIntelligence.assess({study:currentStudy(),seg,route:source,shaft:shaftResult,optics:opticFrame,localization:intelResult,routeSha:digest});
  const url=URL.createObjectURL(new Blob([JSON.stringify(evidence,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Evidence_'+digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
  $('intel-detail').textContent=evidence.findings.map(x=>x.id+' · '+x.state+' — '+x.basis).join('\n')+'\nEvidence exported locally. Review pending.';
+ }catch(e){$('intel-status').textContent=e.message;}
+});
+
+$('xr-snapshot-export').addEventListener('click',async()=>{
+ if(!route||intelBusy)return;const source=route,epoch=intelEpoch;
+ try{const digest=await sha256(new TextEncoder().encode(JSON.stringify(source)).buffer);if(epoch!==intelEpoch||source!==route)return;
+ const snapshot=window.PulmoXRResearchSnapshot.build(source,digest,opticFrame,shaftResult);
+ const url=URL.createObjectURL(new Blob([JSON.stringify(snapshot)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_XR_Review_'+digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+ $('intel-status').textContent='Local XR snapshot exported · includes optical preview only if rendered. Handle as study-derived data.';
  }catch(e){$('intel-status').textContent=e.message;}
 });
 applyQa();renderReviewStatus();start3d();
