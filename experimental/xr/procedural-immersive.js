@@ -54,6 +54,10 @@ function install(ctx){
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
+  const upgrade=global.PulmoXRIntegratedUpgrade;
+  const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
+  let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
+  const handGrasped=[false,false];
   const respiratoryMotion=global.PulmoXRRespiratoryMotion.create();
   let motionEnabled=true,motionEvidence=respiratoryMotion.reset(),motionReport=null;
   let radialEnabled=false,radialCoupling='air',radialLast=-Infinity,radialEvidence=null,radialRange=20;
@@ -290,8 +294,15 @@ function install(ctx){
   const lobeGrabs=[null,null];
   let opticalIndex=0;
   const opticalModes=[{name:'BALANCED',gain:1.25,glare:1},{name:'LOW GLARE',gain:1.12,glare:.25},{name:'DEEP VIEW',gain:1.6,glare:.45}];
+  function restoreInspectionVisibility(){if(inspectionVisibilitySaved){for(const [o,v] of inspectionVisibilitySaved)o.visible=v;inspectionVisibilitySaved=null;}inspectionFilter='all';}
+  function filterLobes(){
+    if(!inspectMode||!selectedLobe)return false;
+    release(0);release(1);const isolate=inspectionFilter!=='isolate';restoreInspectionVisibility();
+    if(isolate){inspectionVisibilitySaved=lobes.map(l=>[l.mesh,l.mesh.visible]);const vis=upgrade.inspectionVisibility(lobes.map(l=>l.id),selectedLobe,'isolate');lobes.forEach((l,i)=>l.mesh.visible=inspectionVisibilitySaved[i][1]&&vis[i]);inspectionFilter='isolate';}
+    return true;
+  }
   function resetLobes(){
-    lobeGrabs.fill(null);selectedLobe=null;spread=false;
+    restoreInspectionVisibility();lobeGrabs.fill(null);selectedLobe=null;spread=false;
     for(const l of lobes){l.mesh.position.copy(l.home);l.mesh.quaternion.copy(l.homeQuat);l.mesh.updateMatrixWorld(true);}
   }
   function setInspection(enabled){
@@ -496,6 +507,15 @@ function install(ctx){
         mmPerSceneUnit:getMmPerSceneUnit()
       });
     }catch{return null}
+  }
+  function moveWorkspace(command){
+    if(!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean))return false;
+    const ref=rBro.xr.getReferenceSpace(),Ctor=global.XRRigidTransform;
+    if(!Ctor||!ref?.getOffsetReferenceSpace||!rBro.xr.setReferenceSpace)return false;
+    const spec=upgrade.workspaceTransform({head:head.toArray(),forward:forward.toArray(),right:right.toArray(),room:room.position.toArray(),command});
+    if(!spec){grabFeedback='VIRTUAL WORKSPACE BOUNDARY / MOVEMENT BLOCKED';paint();return false;}
+    try{const [x,y,z]=spec.translation;rBro.xr.setReferenceSpace(ref.getOffsetReferenceSpace(new Ctor({x,y,z},{x:0,y:Math.sin(spec.yaw/2),z:0,w:Math.cos(spec.yaw/2)})));workspaceMoves++;workspaceRelayout=true;return true;}
+    catch(error){grabFeedback='WORKSPACE OFFSET UNAVAILABLE';paint();return false;}
   }
   function positionPanels(){
     if(!viewerValid)return;
@@ -714,11 +734,17 @@ function install(ctx){
           }
         }else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
         handPinched[i]=pressed;
+        // A closed-hand grasp is separate from pinch/menu input and only acquires near anatomy.
+        const joint=name=>{const j=source.hand.get(name),p=j&&frame.getJointPose(j,space)?.transform?.position;return p?[p.x,p.y,p.z]:null;};
+        const palm=joint('middle-finger-phalanx-proximal'),wristPos=joint('wrist');
+        const closed=mode==='anatomy'&&placed&&!pressed&&upgrade.grasp({wrist:wristPos,palm,index:pA.toArray(),middle:joint('middle-finger-tip'),ring:joint('ring-finger-tip'),pinky:joint('pinky-finger-tip'),thumb:pB.toArray(),held:handGrasped[i]});
+        if(closed&&!handGrasped[i]&&!grab[i]){const near=surfaceContact(i,'hand');if(near.hit){startGrab(i,'hand','grasp');handGrasped[i]=grabSource[i]==='hand';}}
+        if(!closed&&handGrasped[i]){release(i,'hand','grasp');handGrasped[i]=false;}
       }
     }
     for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
       if(handSeen[i])health.event('handTrackingLost');
-      handSeen[i]=false;handPinched[i]=false;handVisuals[i].group.visible=false;
+      handSeen[i]=false;handPinched[i]=false;handGrasped[i]=false;handVisuals[i].group.visible=false;
       if(contactMarkers[i])contactMarkers[i].visible=false;
       if(grabSource[i]==='hand')release(i,'hand');
     }
@@ -857,11 +883,19 @@ function install(ctx){
     }else if(mode==='procedure'){
       const intent=deviceLab.triggerIntent({atBranch:scope.atBranch,side,tool:channel.snapshot().tool});
       if(intent==='BRANCH')enterBranch(side==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
-      else if(intent==='ACCESSORY'){channel.action();paint();}
+      else if(intent==='ACCESSORY'){actuateAccessory();paint();}
       else if(intent==='CLINICAL')fireAction();
     }
   }
   const modes=['nav','biopsy','measure','annotate'];
+  function checkAccessory(length,open){
+    const state=channel.snapshot(),factor=ctx.getReferenceMotionFactor?.()||1;
+    const frame=ctx.getReferenceMotionFrame?.()||mGrp;
+    frame.updateWorldMatrix(true,false);camScope.updateMatrixWorld(true);
+    const worldPerMm=frame.getWorldScale(new THREE.Vector3()).x/getMmPerSceneUnit();
+    return upgrade.accessoryClearance({lengthMm:length,diameterMm:state.odMm,worldPerMm,sourceMmPerUnit:getMmPerSceneUnit(),open,field:ctx.getLumenField?.(),toSource:p=>frame.worldToLocal(new THREE.Vector3(...p).applyMatrix4(camScope.matrixWorld)).toArray()});
+  }
+  function actuateAccessory(){const state=channel.snapshot();if(state.tool==='forceps'&&!state.jawsOpen&&state.extensionMm>=3){accessoryEvidence=checkAccessory(state.extensionMm,true);if(!accessoryEvidence.allowed){grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;return;}}channel.action();}
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
     if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){
@@ -898,6 +932,9 @@ function install(ctx){
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
+    if(action==='inspect-isolate'){filterLobes();paint();return;}
+    if(action==='workspace-open'){menuPage='workspace';actionHitbox=panelLayouts.workspace;paint();return;}
+    if(action.startsWith('workspace-')){moveWorkspace(action.slice(10));paint();return;}
     if(action==='imaging-open'){menuPage='imaging';actionHitbox=panelLayouts.imaging;paint();return;}
     if(action==='imaging-back'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
     if(action==='radial-toggle'){radialEnabled=!radialEnabled;radialLast=-Infinity;paint();return;}
@@ -908,8 +945,8 @@ function install(ctx){
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
     if(action==='optics-toggle'){if(depthOpticsAvailable){opticsEnabled=!opticsEnabled;lastFeed=0;}else grabFeedback='DEPTH OPTICS UNAVAILABLE / RAW SOURCE';paint();return;}
     if(action==='channel-cycle'){if(mode==='procedure'&&getMeshMode()==='reference')channel.cycle();paint();return;}
-    if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference')channel.extend(action==='channel-extend'?2:-2);paint();return;}
-    if(action==='channel-action'){if(mode==='procedure'&&getMeshMode()==='reference')channel.action();paint();return;}
+    if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference'){if(action==='channel-retract')channel.extend(-2);else{const state=channel.snapshot();accessoryEvidence=checkAccessory(Math.min(12,state.extensionMm+2),state.jawsOpen);if(accessoryEvidence.allowed)channel.extend(2);else grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;}}paint();return;}
+    if(action==='channel-action'){if(mode==='procedure'&&getMeshMode()==='reference')actuateAccessory();paint();return;}
     if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
     if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
     if(action==='optical-light'){opticalIndex=(opticalIndex+1)%opticalModes.length;const p=opticalModes[opticalIndex];ctx.setEndoscopeLighting?.(p.gain,p.glare);grabFeedback='ENDOSCOPE LIGHT / '+p.name;lastFeed=0;paint();return;}
@@ -1252,6 +1289,16 @@ function install(ctx){
       {id:'tool',label:'INSTRUMENT',u:.05,v:.76,w:.43,h:.095},
       {id:'airway-map',label:'AIRWAY MAP',u:.52,v:.76,w:.43,h:.095},
       {id:'back',label:'BACK',u:.05,v:.87,w:.43,h:.095},
+      {id:'workspace-open',label:'VIRTUAL WORKSPACE',u:.52,v:.87,w:.43,h:.095}
+    ],
+    workspace:[
+      {id:'workspace-forward',label:'STEP FORWARD',u:.05,v:.54,w:.43,h:.095},
+      {id:'workspace-back',label:'STEP BACK',u:.52,v:.54,w:.43,h:.095},
+      {id:'workspace-left',label:'STEP LEFT',u:.05,v:.65,w:.43,h:.095},
+      {id:'workspace-right',label:'STEP RIGHT',u:.52,v:.65,w:.43,h:.095},
+      {id:'workspace-turn-left',label:'TURN LEFT 30°',u:.05,v:.76,w:.43,h:.095},
+      {id:'workspace-turn-right',label:'TURN RIGHT 30°',u:.52,v:.76,w:.43,h:.095},
+      {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
       {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     inspection:[
@@ -1260,7 +1307,7 @@ function install(ctx){
       {id:'inspect-lungs',label:'SEPARATE LUNGS',u:.05,v:.69,w:.43,h:.12},
       {id:'inspect-restore',label:'REASSEMBLE',u:.52,v:.69,w:.43,h:.12},
       {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
-      {id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}
+      {id:'inspect-isolate',label:'ISOLATE SELECTED',u:.52,v:.84,w:.43,h:.12}
     ],
     ct:[
       {id:'ct-axis',label:'SELECT PLANE',u:.05,v:.54,w:.43,h:.12},
@@ -1340,13 +1387,14 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU XR-32 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU A–G / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
       menuPage==='imaging'?'Imaging laboratory':
+      menuPage==='workspace'?'Virtual workspace':
       menuPage==='inspection'?'Anatomical disassembly':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
@@ -1417,6 +1465,7 @@ function install(ctx){
         a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
         a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
         a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
+        a.id==='inspect-isolate'?(inspectionFilter==='isolate'?'SHOW ALL LOBES':'ISOLATE SELECTED'):
         a.id==='inspect-toggle'?(inspectMode?'WHOLE ORGAN':'INDIVIDUAL LOBES'):
         a.id==='display-path'?'DISPLAY PATH':
         a.id==='station-layout'?'LAYOUT '+settings.pose.label:
@@ -1625,7 +1674,7 @@ function install(ctx){
       camScope.updateProjectionMatrix();
       rBro.setRenderTarget(scopeTarget);
       rBro.clear(true,true,true);
-      accessory.update(camScope,channel.snapshot(),mGrp.getWorldScale(new THREE.Vector3()).x/getMmPerSceneUnit());
+      accessory.update(camScope,channel.snapshot(),(ctx.getReferenceMotionFrame?.()||mGrp).getWorldScale(new THREE.Vector3()).x/getMmPerSceneUnit());
       if(ctx.renderEndoscope)ctx.renderEndoscope();else rBro.render(scene,camScope);
       opticalResponse?.update({near:camScope.near,far:camScope.far,scale:mGrp.getWorldScale(new THREE.Vector3()).x,mmPerUnit:getMmPerSceneUnit(),enabled:opticsEnabled});
       monitorStatus='live';monitorError=null;monitorFrames++;
@@ -1795,6 +1844,7 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
+    integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),coupling:couplingEvidence.snapshot(),accessory:accessoryEvidence,handGrasped:handGrasped.slice()},
     spatialRegistration:registrationEvidence,
     passiveContactInterface:contactEvidence,
     respiratoryMotion:motionReport||motionEvidence,
@@ -2030,6 +2080,7 @@ function install(ctx){
     traceButton.style.display='none';instrumentSetup.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
+    rBro.xr.setReferenceSpace?.(null);workspaceMoves=0;workspaceRelayout=false;mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
@@ -2096,12 +2147,13 @@ function install(ctx){
         viewerValid=false;scope.velocity=0;release(0);release(1);
         toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
-        handSeen.fill(false);handPinched.fill(false);handVisuals.forEach(v=>v.group.visible=false);
+        handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);handVisuals.forEach(v=>v.group.visible=false);
         contactMarkers.forEach(marker=>marker.visible=false);
         laserLines.forEach(line=>{if(line)line.visible=false});
         laserTips.forEach(tip=>{if(tip)tip.visible=false});
         return;
       }
+      if(workspaceRelayout){workspaceRelayout=false;positionPanels();}
       if(!placed&&xrPresentation!=='ar'){
         room.position.copy(head).setY(head.y-1.18);
         const center=head.clone().addScaledVector(forward,1.5);
@@ -2110,6 +2162,7 @@ function install(ctx){
       }
       if(xrPresentation==='ar'){
         const hit=mrPlacement.scan(frame,rBro.xr.getReferenceSpace());
+        if(!placed)mrQuality.observe(hit?.point?[hit.point.x,hit.point.y,hit.point.z]:null);
         mrReticle.visible=Boolean(hit?.kind==='candidate'&&!placed);
         if(hit?.kind==='candidate')
           mrReticle.position.set(hit.point.x,hit.point.y+.006,hit.point.z);
@@ -2173,6 +2226,7 @@ function install(ctx){
         scope.velocity*=Math.pow(scope.velocityDecay,step);
       }
       motionEvidence=respiratoryMotion.step(physicsSnapshot,motionEnabled&&mode==='procedure'&&getMeshMode()==='reference'&&viewerValid,dt);
+      if(mode==='procedure'&&getMeshMode()==='reference'&&viewerValid)couplingEvidence.step(physicsSnapshot,motionEvidence,dt);
       ctx.setReferenceMotion?.(motionEvidence.scale,[routeOverlay,insertedShaft.mesh]);
       updateScope();updateRouteOverlay();updateRadial(time);
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
@@ -2253,7 +2307,7 @@ function install(ctx){
     toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
     procedureMetrics.suspend();health.end();reportButton.style.display='block';
-    active=false;rBro.setAnimationLoop(null);scope.velocity=0;
+    active=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;handGrasped.fill(false);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
