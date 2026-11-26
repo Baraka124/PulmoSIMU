@@ -99,3 +99,6 @@ Source-preserving lobar isolation; deliberate bounded reference-space steps and 
 
 ## AG02 — depth pass
 Reference selected-lobe visual clipping with cloned, restored materials (no cut-volume reconstruction); bounded virtual viewpoint and obstacle-aware step path checks for the authored plinth, menu side selection; palm-based closed-hand proxy; MR candidate stability gate and latched large anchor jump; explicit simulator-only deployment interlock and periodic source-field clearance; R3 regional volume integrals on solver time. Offline G data synchronization only, no manufactured hardware or live control. Headset and bench tests remain required.
+
+## AG03 — integrated pre-headset checkpoint
+Adds independently movable and resizable spatial panels with deliberate grip and bounded position; real-frame environment capability observations (no room reconstruction); dimensionless contact overlap evidence; regional R3-flow-derived display markers (not regional tissue deformation); HIL-09 offline evidence manifest and read-only readiness checks. Fixes AG02 stale regression assertion while retaining deployment interlock. Physical headset acceptance, higher-fidelity tissue/optics, bidirectional mechanics and physical sensor manufacture remain outstanding.

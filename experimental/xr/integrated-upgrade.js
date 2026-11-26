@@ -89,5 +89,27 @@ function createRegionalEvidence(){
  function snapshot(){return {acceptedIntervals:accepted,gaps,regions:JSON.parse(JSON.stringify(regions)),source:'R3_REGIONAL_FLOW_OBSERVATION',regionalTissueDeformationSolved:false};}
  return {step,snapshot,suspend(){previous=null},reset(){previous=null;regions={};accepted=gaps=0;}};
 }
-root.PulmoXRIntegratedUpgrade=Object.freeze({inspectionVisibility,workspaceTransform,grasp,createTrackingQuality,accessoryClearance,createCouplingEvidence,clearWorkspacePath,targetOffset,createRegionalEvidence});
+// Reference-space display constraints, not an inferred physical room.
+function boundedPanelPosition(head,target,{minDistance=.45,maxDistance=2.1,maxVertical=.85}={}){
+ if(!valid(head)||!valid(target))return null;
+ const d=target.map((v,i)=>v-head[i]);d[1]=clamp(d[1],-maxVertical,maxVertical);const n=Math.hypot(...d);
+ if(n<.001)return null;const s=clamp(n,minDistance,maxDistance)/n;
+ return head.map((v,i)=>v+d[i]*s);
+}
+function limitedStep(previous,target,dt,maxSpeed=1.4){
+ if(!valid(previous)||!valid(target)||!finite(dt)||dt<=0||dt>.12||!finite(maxSpeed)||maxSpeed<=0)return null;
+ const d=target.map((v,i)=>v-previous[i]),n=Math.hypot(...d);return n>0?previous.map((v,i)=>v+d[i]*Math.min(1,maxSpeed*dt/n)):previous.slice();
+}
+function observeEnvironment(frame){
+ const features={planes:'UNAVAILABLE',meshes:'UNAVAILABLE',light:'NOT_QUERIED'};
+ try{if(frame?.detectedPlanes&&typeof frame.detectedPlanes.size==='number')features.planes=frame.detectedPlanes.size>0?'OBSERVED':'EMPTY';}catch{features.planes='QUERY_FAILED';}
+ try{if(frame?.detectedMeshes&&typeof frame.detectedMeshes.size==='number')features.meshes=frame.detectedMeshes.size>0?'OBSERVED':'EMPTY';}catch{features.meshes='QUERY_FAILED';}
+ return {...features,roomGeometryStored:false,physicalOcclusion:false};
+}
+function contactEstimate(marginMm,diameterMm){
+ if(!finite(marginMm)||!finite(diameterMm)||diameterMm<=0)return {state:'UNAVAILABLE',normalizedInterference:null};
+ return {state:marginMm<0?'GEOMETRIC_OVERLAP':'GEOMETRIC_CLEAR',normalizedInterference:clamp(-marginMm/diameterMm,0,1),forceN:null,tissueDeformed:false};
+}
+function regionalDisplayScale(netM3,baselineM3){if(!finite(netM3)||!finite(baselineM3)||baselineM3<=0)return null;return clamp(Math.cbrt(Math.max(.001,1+netM3/baselineM3)),.96,1.08);}
+root.PulmoXRIntegratedUpgrade=Object.freeze({inspectionVisibility,workspaceTransform,grasp,createTrackingQuality,accessoryClearance,createCouplingEvidence,clearWorkspacePath,targetOffset,createRegionalEvidence,boundedPanelPosition,limitedStep,observeEnvironment,contactEstimate,regionalDisplayScale});
 })(typeof window!=='undefined'?window:globalThis);

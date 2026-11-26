@@ -1,0 +1,9 @@
+/* Offline physical acceptance evidence inventory. No hardware transport or commands. */
+import {readFileSync,writeFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';import {createHash} from 'node:crypto';import {resolve,dirname,relative,isAbsolute} from 'node:path';
+const roles=['mechanicalFit','sensorSelection','electricalReview','captureQA','calibrationQA','releaseTest','independentReview'];
+export function assess(manifest,load){
+ if(!manifest||typeof load!=='function'||!Array.isArray(manifest.records))throw Error('INVALID_MANIFEST');
+ const rows=roles.map(role=>{const matches=manifest.records.filter(r=>r.role===role);if(matches.length!==1)return {role,state:'MISSING_OR_AMBIGUOUS'};const r=matches[0];if(typeof r.file!=='string'||!r.file||!/^[0-9a-f]{64}$/i.test(r.sha256||'')||!r.reviewer||!r.date)return {role,state:'INCOMPLETE_METADATA'};try{const hash=createHash('sha256').update(load(r.file)).digest('hex');return {role,state:hash===r.sha256.toLowerCase()?'BYTES_MATCH_REVIEW_REQUIRED':'HASH_MISMATCH'};}catch{return {role,state:'FILE_UNAVAILABLE'};}});
+ return {schema:'pulmosimu-hil-evidence-inventory/1',records:rows,inventoryComplete:rows.every(r=>r.state==='BYTES_MATCH_REVIEW_REQUIRED'),physicalAcceptance:false,clinicalValidation:false,liveCouplingAuthorized:false,hardwareCommand:false};
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){const [,,input,output]=process.argv;if(!input||!output)throw Error('Usage: node evidence.mjs manifest.json report.json');const root=dirname(resolve(input));const m=JSON.parse(readFileSync(input,'utf8'));const load=file=>{const p=resolve(root,file),rel=relative(root,p);if(rel.startsWith('..')||isAbsolute(rel))throw Error('PATH_OUTSIDE_MANIFEST');return readFileSync(p);};writeFileSync(output,JSON.stringify(assess(m,load),null,2)+'\n',{flag:'wx'});}
