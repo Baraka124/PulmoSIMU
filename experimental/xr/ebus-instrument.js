@@ -45,12 +45,15 @@ function createVisual(THREE,scene){
  const convex=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),probeMat);g.add(convex);convex.visible=false;
  const fan=new THREE.Mesh(new THREE.CircleGeometry(1,32,Math.PI/2-Math.PI/6,Math.PI/3),sectorMat);g.add(fan);fan.visible=false;
  function line(m,a,b,r){const d=b.clone().sub(a),l=d.length();m.visible=l>1e-5;if(!m.visible)return;m.position.copy(a).lerp(b,.5);m.quaternion.setFromUnitVectors(Y,d.normalize());m.scale.set(r,l+.0004,r);}
- function update({handle,entry,entryDirection,tipWorld,probeWorld,probeForward,probeUp,worldPerMm,diameterMm,mode,extensionMm,showConnection}){
+ function update({handle,entry,entryDirection,tipWorld,probeWorld,probeForward,probeUp,worldPerMm,diameterMm,mode,extensionMm,showConnection,mouth=null,showEntryGuide=false}){
   g.visible=true;
   if(showConnection&&handle&&entry&&entryDirection){
    handle.updateWorldMatrix(true,false);const boot=handle.localToWorld(new THREE.Vector3(0,-.136,0)),dir=new THREE.Vector3(0,-1,0).transformDirection(handle.matrixWorld),distance=boot.distanceTo(entry),reach=Math.min(.24,distance*.35);
-   const curve=new THREE.CubicBezierCurve3(boot,boot.clone().addScaledVector(dir,reach),entry.clone().addScaledVector(entryDirection,-reach),entry);
-   for(let i=0;i<links.length;i++)line(links[i],curve.getPoint(i/links.length),curve.getPoint((i+1)/links.length),Math.max(.0015,diameterMm*.5*worldPerMm));
+   const target=mouth||entry,externalReach=Math.min(.24,boot.distanceTo(target)*.35),endDir=mouth?entry.clone().sub(mouth).normalize():entryDirection;
+   const curve=new THREE.CubicBezierCurve3(boot,boot.clone().addScaledVector(dir,externalReach),target.clone().addScaledVector(endDir,-externalReach),target);
+   const n=mouth?18:links.length,radius=Math.max(.0015,diameterMm*.5*worldPerMm);
+   for(let i=0;i<n;i++)line(links[i],curve.getPoint(i/n),curve.getPoint((i+1)/n),radius);
+   if(mouth){const guide=new THREE.CubicBezierCurve3(mouth,mouth.clone().lerp(entry,.25),entry.clone().addScaledVector(entryDirection,-.04),entry);for(let i=n;i<links.length;i++){if(showEntryGuide)line(links[i],guide.getPoint((i-n)/(links.length-n)),guide.getPoint((i-n+1)/(links.length-n)),radius);else links[i].visible=false;}}
    if(mode==='radial'){const port=handle.localToWorld(new THREE.Vector3(.045,-.012,0)),end=handle.localToWorld(new THREE.Vector3(.125+extensionMm/1000,-.012,0));line(proximalProbe,port,end,.0011);}else proximalProbe.visible=false;
   }else{links.forEach(m=>m.visible=false);proximalProbe.visible=false;}
   tip.visible=false;convex.visible=false;fan.visible=false;

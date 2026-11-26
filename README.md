@@ -160,3 +160,7 @@ Articulated tracked glove surfaces, estimated VR operator posture and experiment
 ## Q01–Q03 — connected reference instruments and EBUS
 
 Visual external shaft connection, independent radial catheter extension and directional convex sector reference imaging. No validated acoustic or external shaft physics. See [Q foundation](experimental/Q01_Q03_EBUS.md).
+
+## R01–R03 — embodied reference patient station
+
+Optional supine manikin and procedure bed, source-aligned neck entry, operator proximity gate and external/transparent/internal views. See [R foundation](experimental/R01_R03_REFERENCE_PATIENT.md).
