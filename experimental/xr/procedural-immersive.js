@@ -100,10 +100,10 @@ function install(ctx){
   const physicalControl=physicalCalibration&&global.PulmoXRCalibratedControl?.create({calibration:physicalCalibration});
   let serialInput=null;
   const hapticLab=global.PulmoXRHapticLab,cueEngine=hapticLab.createCue(),sensorObserver=hapticLab.createObserver(global.PulmoXRInstrumentTelemetry.parseFrame),hapticDryRun=hapticLab.createDryRun();
-  let hapticEvidence=hapticLab.estimate(),lastAdvanceAt=-Infinity,lastAdvanceBlocked=false,lastShaftAt=-Infinity,lastShaftSample=null,hapticFinal=null,advanceAttempted=false;
-  function resetHapticContext(){cueEngine.reset();hapticDryRun.stop('CONTEXT_RESET');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;lastAdvanceBlocked=false;lastShaftAt=-Infinity;lastShaftSample=null;advanceAttempted=false;}
+  let hapticEvidence=hapticLab.estimate(),lastAdvanceAt=-Infinity,lastAdvanceBlocked=false,lastShaftAt=-Infinity,lastShaftSample=null,lastShaftKey=null,hapticFinal=null;
+  function resetHapticContext(){cueEngine.reset();hapticDryRun.stop('CONTEXT_RESET');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;lastAdvanceBlocked=false;lastShaftAt=-Infinity;lastShaftSample=null;lastShaftKey=null;}
   function trackedLeftGrip(frame){const s=Array.from(rBro.xr.getSession()?.inputSources||[]).find(x=>x.handedness==='left'&&!x.hand&&x.gripSpace);return !!(s?.gamepad?.buttons?.[1]?.pressed&&frame?.getPose(s.gripSpace,rBro.xr.getReferenceSpace()));}
-  function updateHapticLab(frame,time){const now=performance.now();if(shaftEvidence!==lastShaftSample){lastShaftSample=shaftEvidence;lastShaftAt=now;}const advancing=now-lastAdvanceAt<180;hapticEvidence=hapticLab.estimate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure',marginAgeMs:now-lastShaftAt,advancing,blocked:lastAdvanceBlocked});
+  function updateHapticLab(frame,time){const now=performance.now();const key=[scope.segId,scope.t,getScopeDiameterMm(),getMmPerSceneUnit()].join('/');if(shaftEvidence!==lastShaftSample){lastShaftSample=shaftEvidence;lastShaftAt=now;lastShaftKey=key;}const unchanged=lastShaftKey===key;const advancing=now-lastAdvanceAt<180;hapticEvidence=hapticLab.estimate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure',marginAgeMs:unchanged&&Number.isFinite(lastShaftAt)?0:now-lastShaftAt,advancing,blocked:lastAdvanceBlocked});
    const session=rBro.xr.getSession(),left=Array.from(session?.inputSources||[]).find(x=>x.handedness==='left'&&!x.hand&&x.gripSpace),i=controllerSources.indexOf(left),grip=trackedLeftGrip(frame),allowed=active&&viewerValid&&mode==='procedure'&&xrPresentation==='vr'&&patientMotionAllowed()&&!probeLocked()&&!accessoryDeployed()&&!panelEdit;
    const cue=cueEngine.step({now,evidence:hapticEvidence,activeGrip:grip&&i>=0,allowed});if(cue)haptic(i,cue.intensity,cue.durationMs);
    const measured=sensorObserver.snapshot(now),cal=physicalCalibration?.snapshot(now),connected=serialInput?.status().state==='ACQUIRING';hapticDryRun.step({now,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure',connected,calibrated:!!calibrationLoaded&&!!physicalControl?.snapshot().armed,fresh:!!measured.motion&&!!cal?.corrected,deadman:grip,eligible:allowed&&ebusProbe.snapshot().mode==='off',evidence:hapticEvidence});
@@ -426,7 +426,7 @@ function install(ctx){
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){lastShaftAt=-Infinity;lastShaftSample=shaftEvidence;lastShaftKey=null;hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(previousMode!==next){monitorFocus=false;menuPage=next==='procedure'?'station':xrPresentation==='ar'&&!placed?'mr':'primary';actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
@@ -1427,7 +1427,7 @@ function install(ctx){
   const patientStation=global.PulmoXRPatient.createVisual(THREE,scene);
   let patientReturn=null,patientZone={allowed:false,state:'INACTIVE'},patientView='external',patientZoneLast=null;
   function patientMotionAllowed(){return !patientReturn||Boolean(viewerValid&&patientStation.zone(head.toArray()).allowed);}
-  function advance(amount){if(!patientMotionAllowed()){scope.velocity=0;return;}const prior=scope.t,id=scope.segId;const r=sourceAdvance(amount);if(amount>0){lastAdvanceAt=performance.now();lastAdvanceBlocked=scope.segId===id&&Math.abs(scope.t-prior)<1e-7&&!scope.atBranch;advanceAttempted=true;}return r;}
+  function advance(amount){if(!patientMotionAllowed()){scope.velocity=0;return;}const prior=scope.t,id=scope.segId;const r=sourceAdvance(amount);if(amount>0){lastAdvanceAt=performance.now();lastAdvanceBlocked=scope.segId===id&&Math.abs(scope.t-prior)<1e-7&&!scope.atBranch;}return r;}
   function retract(amount){lastAdvanceAt=-Infinity;lastAdvanceBlocked=false;if(!patientMotionAllowed()){scope.velocity=0;return;}return sourceRetract(amount);}
   function enterBranch(index){if(!patientMotionAllowed())return;return sourceEnterBranch(index);}
   function leavePatientStation(){
@@ -2243,6 +2243,8 @@ function install(ctx){
     physicalControl?.stop('OPERATOR_STOP');hapticDryRun.stop('OPERATOR_STOP');void serialInput?.disconnect();inputStatusRefresh();
   });
   addEventListener('pagehide',()=>{hapticDryRun.stop('PAGE_EXIT');physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
+  const sensorStatusTimer=setInterval(()=>{if(instrumentSetup.open&&!rBro.xr.isPresenting)inputStatusRefresh();},250);
+  addEventListener('pagehide',()=>clearInterval(sensorStatusTimer),{once:true});
   const syncTraceButton=()=>{
     const splash=document.getElementById('splash');
     traceButton.style.display=!rBro.xr.isPresenting&&splash?.style.display==='none'
