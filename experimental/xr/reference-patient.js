@@ -1,7 +1,7 @@
 (function patient(root){
 'use strict';
 const v3=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),sub=(a,b)=>a.map((x,i)=>x-b[i]),dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0),norm=p=>Math.hypot(...p),unit=p=>{const n=norm(p);if(n<.001)throw Error('Invalid orientation');return p.map(v=>v/n);};
-const dimensions=Object.freeze({bedLengthM:2.10,bedWidthM:.72,neckHeightM:.95,mouthLocal:[0,.19,.11],bodyLengthM:1.72});
+const dimensions=Object.freeze({bedLengthM:2.10,bedWidthM:.72,neckHeightM:.95,mouthLocal:[0,.19,.155],bodyLengthM:1.87});
 function placement({head,forward,floor}){
  if(!v3(head)||!v3(forward)||!Number.isFinite(floor))throw Error('Invalid placement');
  const F=unit([forward[0],0,forward[2]]),R=[-F[2],0,F[0]],X=F,Y=R.map(v=>-v),Z=[0,1,0];
