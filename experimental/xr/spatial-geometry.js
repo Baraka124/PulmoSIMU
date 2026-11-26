@@ -72,51 +72,62 @@ function monitorHousing(T,root,{width=1,height=.665,depth=.047}={}){
 function createLaboratory(T,room){
  const root=new T.Group();root.name='pulmosimu-architectural-laboratory';room.add(root);
  const materials={
- wall:new T.MeshStandardMaterial({color:0x343a3d,roughness:.95,metalness:0,side:T.DoubleSide}),
- floor:new T.MeshStandardMaterial({color:0x383d40,roughness:.94,metalness:0}),
- ceiling:new T.MeshStandardMaterial({color:0x272c30,roughness:.9,side:T.DoubleSide}),
- frame:new T.MeshStandardMaterial({color:0x252a2e,roughness:.66,metalness:.25}),
- inset:new T.MeshStandardMaterial({color:0x555b5e,roughness:.88,metalness:.04}),
- luminous:new T.MeshBasicMaterial({color:0xc0cbd0,toneMapped:false})
+ porcelain:new T.MeshStandardMaterial({color:0x9da5a7,roughness:.86,metalness:0}),
+ wall:new T.MeshStandardMaterial({color:0x555d61,roughness:.94,metalness:0}),
+ floor:new T.MeshStandardMaterial({color:0x51585a,roughness:.88,metalness:0}),
+ ceiling:new T.MeshStandardMaterial({color:0x50575b,roughness:.92}),
+ graphite:new T.MeshStandardMaterial({color:0x292f33,roughness:.8,metalness:.12}),
+ titanium:new T.MeshStandardMaterial({color:0x879399,roughness:.48,metalness:.36}),
+ textile:new T.MeshStandardMaterial({color:0x727d82,roughness:1}),
+ glass:new T.MeshStandardMaterial({color:0x34454e,roughness:.31,metalness:.25}),
+ luminous:new T.MeshBasicMaterial({color:0xd8e1e3,toneMapped:false}),
+ seam:new T.MeshBasicMaterial({color:0x3c4549,toneMapped:false})
  };
- const box=(w,h,d,x,y,z,m,name)=>{const o=new T.Mesh(new T.BoxGeometry(w,h,d),materials[m]);o.position.set(x,y,z);o.name=name;root.add(o);return o;};
- // Four actual wall surfaces, ceiling and acoustic/wall treatment; no
- // physical-room geometry is inferred, and the shell is hidden in MR.
- const span=6.95,half=span/2,height=2.75;
- box(span,.06,span,0,-.035,0,'floor','matte-floor');
- box(span,.07,span,0,height,0,'ceiling','ceiling');
+ const span=6.95,half=span/2,height=2.75,unit=new T.BoxGeometry(1,1,1),groups=new Map(),dummy=new T.Object3D();
+ function block(mat,x,y,z,w,h,d){if(!groups.has(mat))groups.set(mat,[]);groups.get(mat).push([x,y,z,w,h,d]);}
+ block('floor',0,-.035,0,span,.06,span);block('ceiling',0,height,0,span,.07,span);
  for(const s of [-1,1]){
-  box(span,height,.075,0,height/2,s*half,'wall','wall-ns');
-  box(.075,height,span,s*half,height/2,0,'wall','wall-ew');
-  box(span,.11,.085,0,.055,s*(half-.04),'frame','wall-base-ns');
-  box(.085,.11,span,s*(half-.04),.055,0,'frame','wall-base-ew');
-  box(2.35,1.43,.055,0,1.49,s*(half-.09),'inset','acoustic-panel-ns');
-  box(.055,1.43,2.35,s*(half-.09),1.49,0,'inset','acoustic-panel-ew');
-  box(.085,.035,4.7,s*1.9,height-.065,0,'luminous','ceiling-linear-diffuser');
+  block('wall',0,height/2,s*half,span,height,.075);block('wall',s*half,height/2,0,.075,height,span);
+  block('graphite',0,.065,s*(half-.048),span,.13,.07);block('graphite',s*(half-.048),.065,0,.07,.13,span);
+  // Broad, flush wall panels with a recessed shadow gap.
+  for(let k=-2;k<=2;k++){block('porcelain',k*1.30,1.50,s*(half-.055),1.275,2.27,.035);block('porcelain',s*(half-.055),1.50,k*1.30,.035,2.27,1.275);}
+  block('graphite',0,height-.14,s*(half-.07),span-.15,.16,.09);block('graphite',s*(half-.07),height-.14,0,.09,.16,span-.15);
+  block('luminous',0,height-.215,s*(half-.125),span-.25,.025,.045);block('luminous',s*(half-.125),height-.215,0,.045,.025,span-.25);
+  for(const x of [-1.72,1.72]){block('graphite',x,height-.08,s*1.35,.34,.075,1.95);block('luminous',x,height-.123,s*1.35,.27,.014,1.86);}
  }
- // Restrained architectural detail, instanced to limit draw calls. Wall
- // treatment remains within the authored enclosure, outside the work area.
- const matrix=new T.Matrix4();
- function batch(name,geometry,material,positions){const o=new T.InstancedMesh(geometry,material,positions.length);positions.forEach((p,i)=>{matrix.makeTranslation(...p);o.setMatrixAt(i,matrix);});o.instanceMatrix.needsUpdate=true;o.name=name;root.add(o);return o;}
- const slats=[];for(const s of [-1,1])for(let i=0;i<19;i++)slats.push([(i-9)*.115,1.49,s*(half-.13)]);
- batch('acoustic-wall-fins',new T.BoxGeometry(.021,1.41,.018),materials.frame,slats);
- const slatsEW=[];for(const s of [-1,1])for(let i=0;i<19;i++)slatsEW.push([s*(half-.13),1.49,(i-9)*.115]);
- batch('acoustic-side-fins',new T.BoxGeometry(.018,1.41,.021),materials.frame,slatsEW);
- const joints=[];for(let i=-2;i<=2;i++){joints.push([i*1.17,.001,0]);}
- const jointMat=new T.MeshBasicMaterial({color:0x2c3134,toneMapped:false});batch('floor-material-joints',new T.BoxGeometry(.003,.002,span-.12),jointMat,joints);
- // Ceiling cove is baked visual illumination, not an additional scene light.
- // Vertex-color gradients make the wall wash visible even in low light.
- const washGeo=new T.PlaneGeometry(span-.16,.48,1,5);const pos=washGeo.attributes.position,cols=[];
- for(let i=0;i<pos.count;i++){const t=(pos.getY(i)+.24)/.48;const value=.19+.20*Math.pow(t,1.7);cols.push(value,value*1.025,value*1.045);}
- washGeo.setAttribute('color',new T.Float32BufferAttribute(cols,3));
- const washMat=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide,toneMapped:false});
- for(const side of [-1,1]){const north=new T.Mesh(washGeo,washMat);north.position.set(0,height-.27,side*(half-.06));north.name='ceiling-wall-wash';root.add(north);const east=new T.Mesh(washGeo,washMat);east.rotation.y=Math.PI/2;east.position.set(side*(half-.06),height-.27,0);east.name='ceiling-side-wash';root.add(east);}
- const labelCanvas=document.createElement('canvas');labelCanvas.width=1024;labelCanvas.height=192;
- const ctx=labelCanvas.getContext('2d');ctx.fillStyle='#2a3034';ctx.fillRect(0,0,1024,192);ctx.font='500 42px system-ui';ctx.fillStyle='#e5e9eb';ctx.fillText('PulmoSIMU',44,75);ctx.font='400 29px system-ui';ctx.fillStyle='#aebac0';ctx.fillText('RESPIRATORY SIMULATION  /  RESEARCH LABORATORY',44,138);
+ // Subtle floor material joins instead of a tracking grid.
+ for(let i=-2;i<=2;i++){block('seam',i*1.16,.001,0,.002,.002,span-.15);block('seam',0,.001,i*1.16,span-.15,.002,.002);}
+ // Perimeter casework: no interactive storage and no claim of physical collision.
+ // Interior extent restricted to |x| or |z| >= 3.00 m.
+ for(const s of [-1,1]){
+  const z=s*3.24;
+  block('graphite',-1.69,.10,z,2.36,.16,.45);
+  block('porcelain',-1.69,.49,z,2.32,.65,.42);
+  block('titanium',-1.69,.84,z,2.44,.05,.48);
+  for(let i=0;i<4;i++){const x=-2.56+i*.58;block('seam',x,.49,s*3.022,.006,.61,.012);block('titanium',x+.23,.72,s*3.015,.16,.018,.024);}
+  // Tall service cabinet and passive equipment bay.
+  block('graphite',2.34,1.02,z,1.22,1.94,.44);
+  block('porcelain',2.04,1.03,s*3.025,.57,1.88,.035);block('glass',2.65,1.44,s*3.025,.54,.77,.035);
+  block('porcelain',2.65,.53,s*3.025,.54,.95,.035);block('titanium',2.29,1.08,s*3.002,.025,.23,.028);
+  for(let i=0;i<3;i++)block('titanium',2.65,1.16+i*.22,s*3.013,.45,.016,.02);
+ }
+ // Acoustic treatment and an architectural, non-operable door on side walls.
+ for(const s of [-1,1]){
+  block('graphite',s*3.405,1.35,-1.64,.045,2.37,1.80);
+  for(let i=0;i<20;i++)block('textile',s*3.375,1.35,-2.48+i*.088,.026,2.29,.055);
+  block('graphite',s*3.403,1.07,1.60,.055,2.14,1.14);
+  block('porcelain',s*3.365,1.06,1.60,.045,2.07,1.05);
+  block('glass',s*3.334,1.49,1.60,.014,.48,.32);
+  block('titanium',s*3.324,.98,1.25,.036,.027,.15);
+ }
+ let instances=0;
+ for(const [key,records] of groups){const mesh=new T.InstancedMesh(unit,materials[key],records.length);mesh.name='architecture-'+key;records.forEach(([x,y,z,w,h,d],i)=>{dummy.position.set(x,y,z);dummy.scale.set(w,h,d);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.instanceMatrix.needsUpdate=true;mesh.frustumCulled=false;root.add(mesh);instances+=records.length;}
+ // A single identification plaque, physically flush with the wall.
+ const labelCanvas=document.createElement('canvas');labelCanvas.width=1024;labelCanvas.height=256;const c=labelCanvas.getContext('2d');
+ c.fillStyle='#262d31';c.fillRect(0,0,1024,256);c.fillStyle='#ebeeeb';c.font='500 70px system-ui';c.fillText('PulmoSIMU',45,104);c.fillStyle='#c4d0d4';c.font='400 26px system-ui';c.fillText('RESPIRATORY ENGINEERING LABORATORY',48,163);c.fillStyle='#92a4ad';c.font='400 21px system-ui';c.fillText('PROCEDURAL SIMULATION  /  COMPUTATIONAL RESEARCH',48,209);
  const texture=new T.CanvasTexture(labelCanvas);texture.encoding=T.sRGBEncoding;
- const sign=new T.Mesh(new T.PlaneGeometry(1.8,.3375),new T.MeshBasicMaterial({map:texture,toneMapped:false}));sign.position.set(0,2.36,-half+.055);root.add(sign);
- // Fixed neutral room orientation cues; existing room lighting is unchanged.
- return {root,snapshot:()=>({kind:'AUTHORED_VIRTUAL_LABORATORY',spanM:span,heightM:height,physicalRoomReconstructed:false,finish:'MATTE_ACOUSTIC_AND_MACHINED_SURFACES',instancedDetails:true,bakedWallWash:true,additionalSceneLights:0})};
+ const sign=new T.Mesh(new T.PlaneGeometry(1.54,.385),new T.MeshBasicMaterial({map:texture,toneMapped:false}));sign.name='physical-wall-identification';sign.position.set(0,2.25,-half+.089);root.add(sign);
+ return {root,snapshot:()=>({kind:'AUTHORED_VIRTUAL_LABORATORY',spanM:span,heightM:height,physicalRoomReconstructed:false,finish:'PORCELAIN_GRAPHITE_TITANIUM',instancedDetails:true,architectureInstances:instances,architectureBatches:groups.size+1,perimeterCasework:true,operableDoors:false,physicalCollisionValidated:false,additionalSceneLights:0})};
 }
 root.PulmoXRSpatialGeometry=Object.freeze({point,patch,sides,create,monitorHousing,createLaboratory});
 })(typeof window!=='undefined'?window:globalThis);

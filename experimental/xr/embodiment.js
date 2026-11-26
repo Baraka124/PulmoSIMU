@@ -23,13 +23,13 @@ function elbow(shoulder,wrist,side,upper=.30,lower=.27){
 }
 function createVisual(THREE,scene){
  const group=new THREE.Group();group.name='P01 estimated operator and tracked glove surfaces';group.visible=false;scene.add(group);
- const sphere=new THREE.SphereGeometry(1,10,8),cylinder=new THREE.CylinderGeometry(1,1,1,10),Y=new THREE.Vector3(0,1,0);
- const cloth=new THREE.MeshStandardMaterial({color:0x303c44,roughness:.92}),glove=new THREE.MeshStandardMaterial({color:0x8baeb3,roughness:.83}),shoe=new THREE.MeshStandardMaterial({color:0x1c242a,roughness:.92});
+ const sphere=new THREE.SphereGeometry(1,14,10),cylinder=new THREE.CylinderGeometry(.82,1,1,12),Y=new THREE.Vector3(0,1,0);
+ const cloth=new THREE.MeshStandardMaterial({color:0x465862,roughness:.93}),glove=new THREE.MeshStandardMaterial({color:0xa9c0c7,roughness:.84}),shoe=new THREE.MeshStandardMaterial({color:0x252d32,roughness:.92});
  const mesh=(geo,mat)=>{const m=new THREE.Mesh(geo,mat);m.visible=false;group.add(m);return m};
  const ball=(m,p,scale,q)=>{if(!p){m.visible=false;return;}m.position.copy(p);m.scale.set(...scale);if(q)m.quaternion.copy(q);else m.quaternion.identity();m.visible=true;};
  const link=(m,a,b,r)=>{if(!a||!b){m.visible=false;return;}const d=b.clone().sub(a),l=d.length();if(l<.002||l>1.1){m.visible=false;return;}m.position.copy(a).lerp(b,.5);m.quaternion.setFromUnitVectors(Y,d.normalize());m.scale.set(r,l+.004,r);m.visible=true;};
- const torso=mesh(sphere,cloth),hips=mesh(sphere,cloth),legs=[0,1].map(()=>({thigh:mesh(cylinder,cloth),calf:mesh(cylinder,cloth),knee:mesh(sphere,cloth),foot:mesh(sphere,shoe)}));
- const hands=['left','right'].map(()=>({palm:mesh(sphere,glove),joints:Object.fromEntries(names.map(n=>[n,mesh(sphere,glove)])),links:chains.flatMap(c=>c.slice(1).map((n,i)=>({a:c[i],b:n,m:mesh(cylinder,glove)}))),upper:mesh(cylinder,cloth),lower:mesh(cylinder,cloth),elbow:mesh(sphere,cloth)}));
+ const torso=mesh(sphere,cloth),hips=mesh(sphere,cloth),collar=mesh(sphere,cloth),legs=[0,1].map(()=>({thigh:mesh(cylinder,cloth),calf:mesh(cylinder,cloth),knee:mesh(sphere,cloth),foot:mesh(sphere,shoe)}));
+ const hands=['left','right'].map(()=>({palm:mesh(sphere,glove),joints:Object.fromEntries(names.map(n=>[n,mesh(sphere,glove)])),links:chains.flatMap(c=>c.slice(1).map((n,i)=>({a:c[i],b:n,m:mesh(cylinder,glove)}))),upper:mesh(cylinder,cloth),lower:mesh(cylinder,cloth),elbow:mesh(sphere,cloth),shoulder:mesh(sphere,cloth),cuff:mesh(cylinder,cloth)}));
  let evidence={body:'HIDDEN',left:'UNAVAILABLE',right:'UNAVAILABLE'},yaw=new THREE.Vector3(1,0,0);
  function reset(){group.visible=false;for(const m of group.children)m.visible=false;evidence={body:'HIDDEN',left:'UNAVAILABLE',right:'UNAVAILABLE'};}
  function update({head,right,forward,floor,showBody=true,showHands=true,samples={},controllers={}}){
@@ -40,13 +40,13 @@ function createVisual(THREE,scene){
   const side=yaw.clone(),front=new THREE.Vector3(side.z,0,-side.x),q=new THREE.Quaternion().setFromAxisAngle(Y,Math.atan2(-side.z,side.x));
   const height=clamp(h.y-floor,1.05,1.95),seated=height<1.40,ratio=clamp(height/1.68,.78,1.12);
   const chest=h.clone().addScaledVector(front,-.12).add(new THREE.Vector3(0,-.33*ratio,0)),pelvis=chest.clone().add(new THREE.Vector3(0,-.36*ratio,0));
-  ball(torso,showBody?chest:null,[.19*ratio,.25*ratio,.125*ratio],q);ball(hips,showBody?pelvis:null,[.17*ratio,.12*ratio,.13*ratio],q);
+  ball(torso,showBody?chest:null,[.195*ratio,.255*ratio,.117*ratio],q);ball(hips,showBody?pelvis:null,[.17*ratio,.12*ratio,.13*ratio],q);ball(collar,showBody?chest.clone().add(new THREE.Vector3(0,.16*ratio,0)):null,[.13*ratio,.065*ratio,.093*ratio],q);
   for(let i=0;i<2;i++){
    const sign=i?1:-1,leg=legs[i],hip=pelvis.clone().addScaledVector(side,sign*.105*ratio),foot=new THREE.Vector3(hip.x,floor+.055,hip.z).addScaledVector(front,seated?.32:.035),knee=hip.clone().lerp(foot,.5).addScaledVector(front,seated?.22:.035);
    link(leg.thigh,showBody?hip:null,knee,.069*ratio);link(leg.calf,showBody?knee:null,foot,.047*ratio);ball(leg.knee,showBody?knee:null,[.064*ratio,.069*ratio,.064*ratio]);ball(leg.foot,showBody?foot.clone().addScaledVector(front,.065):null,[.057,.052,.125],q);
    const name=i?'right':'left',v=hands[i],sample=samples[name],points=sample?.points||{},w=points.wrist,ctrl=controllers[name],wrist=finite3(w)?new THREE.Vector3(...w):finite3(ctrl)?new THREE.Vector3(...ctrl):null;
    const shoulder=chest.clone().addScaledVector(side,sign*.19*ratio).add(new THREE.Vector3(0,.14*ratio,0)),e=wrist?elbow(shoulder.toArray(),wrist.toArray(),side.clone().multiplyScalar(sign).toArray(),.31*ratio,.27*ratio):null,el=e?new THREE.Vector3(...e):null;
-   link(v.upper,showBody?shoulder:null,el,.047*ratio);link(v.lower,showBody?el:null,wrist,.037*ratio);ball(v.elbow,showBody?el:null,[.047,.047,.047]);
+   link(v.upper,showBody?shoulder:null,el,.047*ratio);link(v.lower,showBody?el:null,wrist,.037*ratio);ball(v.elbow,showBody?el:null,[.047,.047,.047]);ball(v.shoulder,showBody?shoulder:null,[.063*ratio,.067*ratio,.063*ratio]);const cuffEnd=wrist&&el?wrist.clone().lerp(el,.10):null;link(v.cuff,showBody?cuffEnd:null,wrist,.041*ratio);
    const get=n=>showHands&&finite3(points[n])?new THREE.Vector3(...points[n]):null;
    for(const n of names){const p=get(n),radius=clamp(sample?.radii?.[n]||(/tip$/.test(n)?.007:.009),.004,.014);ball(v.joints[n],p,[radius,radius,radius]);}
    for(const s of v.links){const a=get(s.a),b=get(s.b),rad=clamp(sample?.radii?.[s.b]||.007,.004,.011);link(s.m,a,b,rad);}

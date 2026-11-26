@@ -1114,7 +1114,7 @@ function install(ctx){
     }
     if(action==='view'){
       const modeNext=stage.snapshot().mode==='studio'?'focus':'studio';
-      stage.setMode(modeNext);stage.root.getObjectByName('xr-architectural-datums').visible=false;laboratory.root.visible=modeNext==='studio';chamber.visible=modeNext==='focus';floor.material.opacity=modeNext==='focus'?.25:0;
+      stage.setMode(modeNext);stage.root.getObjectByName('xr-architectural-datums').visible=false;laboratory.root.visible=modeNext==='studio';if(patientReturn)plinth.visible=false;chamber.visible=modeNext==='focus';floor.material.opacity=modeNext==='focus'?.25:0;
       grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
@@ -1480,8 +1480,8 @@ function install(ctx){
   const laboratory=spatialGeometry.createLaboratory(THREE,room);
   chamber.visible=false;grid.material.opacity=0;ringMaterial.opacity=0;floor.material.transparent=true;floor.material.opacity=0;
   stage.root.getObjectByName('xr-architectural-datums').visible=false;
-  const plinthSkirt=new THREE.Mesh(new THREE.CylinderGeometry(.755,.775,.038,64),new THREE.MeshStandardMaterial({color:0x353e43,metalness:.32,roughness:.56}));plinthSkirt.position.y=-.024;plinthSkirt.name='machined-plinth-skirt';plinth.add(plinthSkirt);
-  plinth.material.color.setHex(0x555d60);plinth.material.opacity=1;plinth.material.transparent=false;
+  const plinthSkirt=new THREE.Mesh(new THREE.CylinderGeometry(.755,.775,.038,64),new THREE.MeshStandardMaterial({color:0x404a50,metalness:.32,roughness:.56}));plinthSkirt.position.y=-.024;plinthSkirt.name='machined-plinth-skirt';plinth.add(plinthSkirt);
+  plinth.material.color.setHex(0x727c80);plinth.material.opacity=1;plinth.material.transparent=false;
   // Surface target from a real per-frame hit test. Not room reconstruction.
   mrReticle=new THREE.Mesh(
     new THREE.RingGeometry(.075,.092,48).rotateX(-Math.PI/2),
@@ -2596,7 +2596,7 @@ function install(ctx){
       modelSpanM:boundsCache?+(modelExtent()*mGrp.scale.x).toFixed(3):null,
       scaleMode,scaleClamps,workspaceClamps,
       finalGrabStatus:grabFeedback,
-      stagePresentation:stage.snapshot(),
+      stagePresentation:stage.snapshot(),architecture:laboratory.snapshot(),
       xrFoveation:qualityStatus,
       sessionType:xrPresentation==='ar'?'immersive-ar':'immersive-vr',
       procedureGuide:{visible:guideVisible,step:guideStep,actions:guideActions},

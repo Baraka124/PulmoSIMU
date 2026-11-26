@@ -180,3 +180,7 @@ Opt-in bounded local trajectory record, read-only replay and quantitative review
 ## UI07 — scientific workstation shell
 
 Persistent 3D/CT viewports, nine contextual source tasks, compact workspace launcher. See [UI07](experimental/UI07_WORKSTATION.md).
+
+## UI08 — spatial laboratory architecture
+
+Instanced architectural finishes, perimeter casework and refined approximate manikin/operator presentation. See [UI08](experimental/UI08_SPATIAL_DESIGN.md).

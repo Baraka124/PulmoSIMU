@@ -20,18 +20,21 @@ function operatorZone(spec,head){
 }
 function createVisual(THREE,scene){
  const g=new THREE.Group();g.name='R01 reference supine manikin and bed';g.visible=false;scene.add(g);
- const skin=new THREE.MeshStandardMaterial({color:0xb8a69c,roughness:.91});
+ const skin=new THREE.MeshStandardMaterial({color:0xb9aaa0,roughness:.82});
  const transparent=skin.clone();transparent.transparent=true;transparent.opacity=.18;transparent.depthWrite=false;
- const sheet=new THREE.MeshStandardMaterial({color:0x718d98,roughness:.96}),sheetTransparent=sheet.clone();sheetTransparent.transparent=true;sheetTransparent.opacity=.13;sheetTransparent.depthWrite=false;
- const metal=new THREE.MeshStandardMaterial({color:0x87949a,roughness:.42,metalness:.45}),base=new THREE.MeshStandardMaterial({color:0x313d43,roughness:.77}),mattress=new THREE.MeshStandardMaterial({color:0xd0d5d2,roughness:.94}),dark=new THREE.MeshStandardMaterial({color:0x3d2e30,roughness:.9});
+ const sheet=new THREE.MeshStandardMaterial({color:0x899aa3,roughness:.96}),sheetTransparent=sheet.clone();sheetTransparent.transparent=true;sheetTransparent.opacity=.13;sheetTransparent.depthWrite=false;
+ const metal=new THREE.MeshStandardMaterial({color:0x87949a,roughness:.42,metalness:.45}),base=new THREE.MeshStandardMaterial({color:0x30383d,roughness:.77}),mattress=new THREE.MeshStandardMaterial({color:0xd0d5d2,roughness:.94}),dark=new THREE.MeshStandardMaterial({color:0x3d2e30,roughness:.9});
  const body=new THREE.Group();g.add(body);const parts=[];
  const sphere=new THREE.SphereGeometry(1,24,16),box=new THREE.BoxGeometry(1,1,1),cyl=new THREE.CylinderGeometry(1,1,1,12);
  function mesh(geo,mat,p,s,parent=g){const m=new THREE.Mesh(geo,mat);m.position.set(...p);m.scale.set(...s);parent.add(m);return m;}
  function ell(p,s,mat=skin){const m=mesh(sphere,mat,p,s,body);parts.push({m,mat});return m;}
  function block(p,s,mat=base){return mesh(box,mat,p,s);}
  block([0,-.60,-.17],[.72,2.10,.10],base);
+ for(const s of [-1,1]){block([s*.35,-.60,-.133],[.025,2.02,.035],metal);block([s*.34,-.60,-.22],[.025,1.55,.026],metal);}
  block([0,-.60,-.10],[.68,2.03,.07],mattress);
+ for(const y of [-1.61,.405])block([0,y,-.106],[.64,.028,.055],mattress);
  block([0,-.60,-.73],[.53,1.42,.12],base);
+ block([0,-.60,-.43],[.23,.54,.43],metal);block([0,-.60,-.65],[.35,.73,.10],base);
  for(const y of [-1.12,-.10]){block([0,y,-.46],[.18,.22,.49],metal);block([0,y,-.89],[.63,.12,.08],base);for(const x of [-.27,.27]){const wheel=mesh(cyl,base,[x,y,-.905],[.043,.065,.043]);wheel.rotation.z=Math.PI/2;}}
  block([0,.18,-.045],[.36,.36,.06],mattress);
  // Anatomical context is a manikin shell, not a patient-derived external surface.
@@ -42,7 +45,11 @@ function createVisual(THREE,scene){
   ell([s*.09,-.85,-.013],[.087,.24,.081],sheet);ell([s*.092,-1.17,-.024],[.063,.21,.064],sheet);ell([s*.092,-1.42,-.005],[.066,.11,.082],sheet);
   ell([s*.089,.205,.036],[.014,.033,.03]);
  }
- ell([0,.225,.144],[.025,.035,.020]);const mouth=mesh(sphere,dark,dimensions.mouthLocal,[.028,.011,.008],g);mouth.name='Reference mouth landmark (not reconstructed upper airway)';
+ ell([0,.225,.144],[.025,.035,.020]);
+ // Closed-eye surface contours, no identifying face or photorealism.
+ for(const s of [-1,1]){ell([s*.036,.256,.143],[.025,.012,.009]);const lid=ell([s*.036,.254,.151],[.019,.0025,.0028],dark);lid.rotation.z=s*.055;}
+ // Continuous drape bridges the torso/pelvis and legs without changing source geometry.
+ ell([0,-.45,.063],[.206,.34,.077],sheet);ell([0,-.93,.038],[.177,.42,.061],sheet);const mouth=mesh(sphere,dark,dimensions.mouthLocal,[.028,.011,.008],g);mouth.name='Reference mouth landmark (not reconstructed upper airway)';
  let spec=null,view='external';
  function setView(next){if(!['external','transparent','internal'].includes(next))throw Error('Invalid patient view');view=next;body.visible=next!=='internal';mouth.visible=next!=='internal';for(const {m,mat} of parts)m.material=next==='transparent'?(mat===sheet?sheetTransparent:transparent):mat;}
  function place(p){spec=p;g.position.set(...p.neck);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(...p.basis.map(v=>new THREE.Vector3(...v))));g.updateWorldMatrix(true,false);g.visible=true;setView('external');}
