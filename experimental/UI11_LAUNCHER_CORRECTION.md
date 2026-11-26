@@ -1,0 +1,3 @@
+# Launcher correction after UI11
+
+Replaces the entire canonical launcher with an application-style start window, independent of legacy website stylesheet. Six existing destinations preserved, no separate routes or projects. Uniform icon/label command surfaces, no marketing heading, prose, divider stack, cards or stretched CTA. Compact mobile layout; long controls and limitations retained in explicit help dialog. Decorative airway emblem is schematic, not a scientific model. WebXR probe preserved and reports only device session support, not anchoring or clinical readiness. Browser and headset visual acceptance pending.
