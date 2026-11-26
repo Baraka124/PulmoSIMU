@@ -60,3 +60,9 @@ GPU timing and motion-to-photon latency are not proven by the exported CPU diagn
 - Q23: deploy accessory, verify scope motion and branch change inhibited, retract and resume; record clearance alerts.
 - Q24: switch regional markers on/off, verify they remain separate from the optical feed; report numeric region values, not measured physiology.
 - Q25: export session report and verify all AG evidence; physical HIL record inventory is separate. No physical device connected for this run.
+
+## UI02–UI03 spatial interface extension
+- Q26: in VR verify compact Controls / mode / Recenter / Exit rail is visible at entry, not covering the lung; open full console, use left Y to collapse and reopen. MR still starts with placement panel.
+- Q27: inspect the console and guide obliquely; confirm curved display, individual raised controls, correct nearest-hit selection, disabled controls non-actionable. Verify readability on Quest 2, at normal distance and resized.
+- Q28: enter procedure, verify monitor chassis, video and separate status strips; pointing at the monitor must not accidentally advance or actuate a procedure. Confirm native optical pixels unchanged and panels excluded from endoscopic feed.
+- Q29: inspect studio architecture, floor and wall orientation; switch focus and back, then MR. Authored room must not obscure passthrough. Record comfort, glare, clipping and any blocked controls.

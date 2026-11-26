@@ -978,6 +978,9 @@ try {
    });
    assert.equal(spatialPhysical.first,'first');assert.equal(spatialPhysical.disabled,null);assert.equal(spatialPhysical.blank,null);assert.ok(spatialPhysical.raised>.008);assert.equal(spatialPhysical.evidence.controls,2);
    console.log('PASS UI02 curved physical control ray hits, disabled keys and substrate separation');
+   const labEvidence=await legacy.evaluate(()=>{const T=window.THREE,G=window.PulmoXRSpatialGeometry,r=new T.Group();const lab=G.createLaboratory(T,r);return {objects:lab.root.children.length,geometry:lab.root.children.every(o=>o.isMesh),evidence:lab.snapshot()}});
+   assert.ok(labEvidence.objects>=15&&labEvidence.geometry);assert.equal(labEvidence.evidence.physicalRoomReconstructed,false);
+   console.log('PASS UI03 authored laboratory geometry and explicit virtual-only evidence');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

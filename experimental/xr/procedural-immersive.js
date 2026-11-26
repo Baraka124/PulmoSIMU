@@ -542,7 +542,7 @@ function install(ctx){
       worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
     }
-    if(compactDock){compactDock.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.48+panelOffset*.65);compactDock.position.y-=.50;compactDock.lookAt(head);compactDock.updateWorldMatrix(true,false);}
+    if(compactDock){compactDock.position.copy(head).addScaledVector(forward,.98).addScaledVector(right,-.46+panelOffset*.65);compactDock.position.y-=.43;compactDock.lookAt(head);compactDock.updateWorldMatrix(true,false);}
     const pose=station.snapshot().pose;
     function place(object,spec){
       if(!object||panelPinned.has(object))return;
@@ -804,7 +804,8 @@ function install(ctx){
     for(const panel of [
       {object:worldMenu,actions:actionHitbox,role:'menu'},
       {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'},
-      {object:compactDock,actions:railActions,role:'compact-command-rail'}
+      {object:compactDock,actions:railActions,role:'compact-command-rail'},
+      {object:scopeScreen?.visible?monitorFrame:null,actions:[],role:'endoscopy-monitor'}
     ]){
       if(!panel.object?.visible)continue;
       panel.object.updateWorldMatrix(true,false);
@@ -923,7 +924,8 @@ function install(ctx){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
     if(action==='dock-open'){worldMenu.visible=true;compactDock.visible=false;positionPanels();paint();return;}
     if(action==='dock-mode'){setMode(mode==='anatomy'?'procedure':'anatomy');paint();return;}
-    if(action==='dock-recenter'){frameGroup();paint();return;}
+    if(action==='dock-recenter'){if(xrPresentation==='ar'){worldMenu.visible=true;menuPage='mr';actionHitbox=panelLayouts.mr;positionPanels();}else frameGroup();paint();return;}
+    if(action==='dock-exit'){void rBro.xr.getSession()?.end();return;}
     if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){stopPanelEdit();
       menuPage=action==='more'||action==='back-expert'?'advanced':
         action==='precision'?(mode==='procedure'?'station':'precision'):'primary';
@@ -1000,7 +1002,7 @@ function install(ctx){
     }
     if(action==='view'){
       const modeNext=stage.snapshot().mode==='studio'?'focus':'studio';
-      stage.setMode(modeNext);
+      stage.setMode(modeNext);laboratory.root.visible=modeNext==='studio';chamber.visible=modeNext==='focus';floor.material.opacity=modeNext==='focus'?.25:0;
       grabFeedback=modeNext==='focus'?'FOCUS WORKSPACE / MINIMAL CONTEXT':
         'SPATIAL STUDIO / ARCHITECTURAL CONTEXT';
       paint();return;
@@ -1297,6 +1299,9 @@ function install(ctx){
       transparent:true,opacity:.45}));
   plinth.position.set(0,.03,0);room.add(plinth);
   const stage=global.PulmoXRStagePresence.create(THREE,room,{floor,grid,plinth,rings:spatialRings});
+  const laboratory=spatialGeometry.createLaboratory(THREE,room);
+  chamber.visible=false;grid.material.opacity=.055;ringMaterial.opacity=.035;floor.material.transparent=true;floor.material.opacity=0;
+  plinth.material.color.setHex(0x555d60);plinth.material.opacity=1;plinth.material.transparent=false;
   // Surface target from a real per-frame hit test. Not room reconstruction.
   mrReticle=new THREE.Mesh(
     new THREE.RingGeometry(.075,.092,48).rotateX(-Math.PI/2),
@@ -1314,9 +1319,9 @@ function install(ctx){
   worldMenu.renderOrder=40;worldMenu.visible=false;scene.add(worldMenu);
   const mainSpatialSurface=spatialGeometry.create(THREE,worldMenu,{width:.82,height:.48,radius:1.65,deckStart:.535,texture:panelTex});
   const dockCanvas=document.createElement('canvas');dockCanvas.width=1024;dockCanvas.height=180;const dockCtx=dockCanvas.getContext('2d'),dockTex=new THREE.CanvasTexture(dockCanvas);dockTex.encoding=THREE.sRGBEncoding;
-  const compactDock=new THREE.Mesh(new THREE.PlaneGeometry(.64,.112),new THREE.MeshBasicMaterial({map:dockTex}));compactDock.name='xr-compact-command-rail';compactDock.visible=false;scene.add(compactDock);
-  const railActions=[{id:'dock-open',label:'Controls',u:.025,v:.10,w:.34,h:.80},{id:'dock-mode',label:'Mode',u:.385,v:.10,w:.34,h:.80},{id:'dock-recenter',label:'Recenter',u:.745,v:.10,w:.23,h:.80}];
-  const railSurface=spatialGeometry.create(THREE,compactDock,{width:.64,height:.112,radius:1.6,deckStart:0,texture:dockTex,depth:.019});
+  const compactDock=new THREE.Mesh(new THREE.PlaneGeometry(.76,.112),new THREE.MeshBasicMaterial({map:dockTex}));compactDock.name='xr-compact-command-rail';compactDock.visible=false;scene.add(compactDock);
+  const railActions=[{id:'dock-open',label:'Controls',u:.02,v:.10,w:.265,h:.80},{id:'dock-mode',label:'Mode',u:.305,v:.10,w:.32,h:.80},{id:'dock-recenter',label:'Recenter',u:.645,v:.10,w:.20,h:.80},{id:'dock-exit',label:'Exit',u:.865,v:.10,w:.115,h:.80}];
+  const railSurface=spatialGeometry.create(THREE,compactDock,{width:.76,height:.112,radius:1.6,deckStart:0,texture:dockTex,depth:.019});
   railSurface.setActions(railActions);
   // Two focused pages, six generous targets each. The expert controls do
   // not crowd the core anatomy view, and no original command is removed.
@@ -2158,7 +2163,7 @@ function install(ctx){
     orientationLocked=false;orientationAnchor=null;ctAxis='axial';
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     menuPage='primary';actionHitbox=panelLayouts.primary;
-    stage.setMode('studio');
+    stage.setMode('studio');laboratory.root.visible=true;chamber.visible=false;floor.material.opacity=0;
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
     handPinched.fill(false);handSeen.fill(false);grabSource.fill(null);
@@ -2178,7 +2183,7 @@ function install(ctx){
     saved={position:mGrp.position.clone(),quaternion:mGrp.quaternion.clone(),
       scale:mGrp.scale.clone(),extIdle:getExtIdle()};
     setExtIdle(false);vrCam.position.set(0,0,0);vrCam.quaternion.identity();
-    worldMenu.visible=true;scopeScreen.visible=false;room.visible=xrPresentation!=='ar';
+    worldMenu.visible=xrPresentation==='ar';compactDock.visible=false;scopeScreen.visible=false;room.visible=xrPresentation!=='ar';
     mrMenuPositioned=false;
     if(xrPresentation==='ar'){
       mGrp.visible=false; // Never auto-place unregistered geometry over passthrough.
@@ -2206,7 +2211,7 @@ function install(ctx){
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
-        viewerValid=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
+        viewerValid=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
         toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);handVisuals.forEach(v=>v.group.visible=false);
@@ -2432,7 +2437,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
-    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing},
+    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:monitorHousing,laboratory:laboratory.snapshot()},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

@@ -26,7 +26,7 @@ function create(T,mesh,{width,height,radius=1.8,deckStart=.54,footerStart=1,dept
  const add=(g,m,name)=>{const o=new T.Mesh(g,m);o.name=name;mesh.add(o);return o;};
  // Substrate is the actual root and blocks rays even between buttons. The
  // display face covers only informational regions; action faces are separate.
- add(patch(T,{...opts,v:0,h:deckStart,z:.001}),face,'spatial-information-display');
+ if(deckStart>0)add(patch(T,{...opts,v:0,h:deckStart,z:.001}),face,'spatial-information-display');
  if(footerStart<1)add(patch(T,{...opts,v:footerStart,h:1-footerStart,z:.001}),face,'spatial-footer-display');
  add(patch(T,{...opts,z:-depth}),back,'spatial-back');
  add(sides(T,{...opts,front:0,back:-depth}),casing,'spatial-machined-edge');
@@ -63,5 +63,37 @@ function monitorHousing(T,root,{width=1,height=.665,depth=.047}={}){
  for(const s of [-1,1])box(.011,height,depth,s*(width+.011)/2,0,-depth/2-.014,metal,'monitor-side-rail');
  return {depthM:depth,videoUnchanged:true};
 }
-root.PulmoXRSpatialGeometry=Object.freeze({point,patch,sides,create,monitorHousing});
+function createLaboratory(T,room){
+ const root=new T.Group();root.name='pulmosimu-architectural-laboratory';room.add(root);
+ const materials={
+ wall:new T.MeshStandardMaterial({color:0x343a3d,roughness:.95,metalness:0,side:T.DoubleSide}),
+ floor:new T.MeshStandardMaterial({color:0x383d40,roughness:.94,metalness:0}),
+ ceiling:new T.MeshStandardMaterial({color:0x272c30,roughness:.9,side:T.DoubleSide}),
+ frame:new T.MeshStandardMaterial({color:0x252a2e,roughness:.66,metalness:.25}),
+ inset:new T.MeshStandardMaterial({color:0x555b5e,roughness:.88,metalness:.04}),
+ luminous:new T.MeshBasicMaterial({color:0xc0cbd0,toneMapped:false})
+ };
+ const box=(w,h,d,x,y,z,m,name)=>{const o=new T.Mesh(new T.BoxGeometry(w,h,d),materials[m]);o.position.set(x,y,z);o.name=name;root.add(o);return o;};
+ // Four actual wall surfaces, ceiling and acoustic/wall treatment; no
+ // physical-room geometry is inferred, and the shell is hidden in MR.
+ const span=6.95,half=span/2,height=2.75;
+ box(span,.06,span,0,-.035,0,'floor','matte-floor');
+ box(span,.07,span,0,height,0,'ceiling','ceiling');
+ for(const s of [-1,1]){
+  box(span,height,.075,0,height/2,s*half,'wall','wall-ns');
+  box(.075,height,span,s*half,height/2,0,'wall','wall-ew');
+  box(span,.11,.085,0,.055,s*(half-.04),'frame','wall-base-ns');
+  box(.085,.11,span,s*(half-.04),.055,0,'frame','wall-base-ew');
+  box(2.35,1.43,.055,0,1.49,s*(half-.09),'inset','acoustic-panel-ns');
+  box(.055,1.43,2.35,s*(half-.09),1.49,0,'inset','acoustic-panel-ew');
+  box(.085,.035,4.7,s*1.9,height-.065,0,'luminous','ceiling-linear-diffuser');
+ }
+ const labelCanvas=document.createElement('canvas');labelCanvas.width=1024;labelCanvas.height=192;
+ const ctx=labelCanvas.getContext('2d');ctx.fillStyle='#2a3034';ctx.fillRect(0,0,1024,192);ctx.font='500 42px system-ui';ctx.fillStyle='#e5e9eb';ctx.fillText('PulmoSIMU',44,75);ctx.font='400 29px system-ui';ctx.fillStyle='#aebac0';ctx.fillText('RESPIRATORY SIMULATION  /  RESEARCH LABORATORY',44,138);
+ const texture=new T.CanvasTexture(labelCanvas);texture.encoding=T.sRGBEncoding;
+ const sign=new T.Mesh(new T.PlaneGeometry(1.8,.3375),new T.MeshBasicMaterial({map:texture,toneMapped:false}));sign.position.set(0,2.36,-half+.055);root.add(sign);
+ // Fixed neutral room orientation cues; existing room lighting is unchanged.
+ return {root,snapshot:()=>({kind:'AUTHORED_VIRTUAL_LABORATORY',spanM:span,heightM:height,physicalRoomReconstructed:false})};
+}
+root.PulmoXRSpatialGeometry=Object.freeze({point,patch,sides,create,monitorHousing,createLaboratory});
 })(typeof window!=='undefined'?window:globalThis);
