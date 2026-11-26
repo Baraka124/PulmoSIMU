@@ -58,6 +58,8 @@ function install(ctx){
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
   let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
   const handGrasped=[false,false];
+  const regionalEvidence=upgrade.createRegionalEvidence();
+  let section=null,sectionAxis='x',sectionFraction=.5,sectionSaved=[],sectionClipWas=false,panelOffset=0,accessoryLast=-Infinity,mrAnchorFault=false;
   const respiratoryMotion=global.PulmoXRRespiratoryMotion.create();
   let motionEnabled=true,motionEvidence=respiratoryMotion.reset(),motionReport=null;
   let radialEnabled=false,radialCoupling='air',radialLast=-Infinity,radialEvidence=null,radialRange=20;
@@ -176,7 +178,7 @@ function install(ctx){
       videoScope.group.quaternion.set(rp.orientation.x,rp.orientation.y,rp.orientation.z,rp.orientation.w);
       videoScope.update({h:scope.deflH,v:scope.deflV,roll:scope.roll,diameterMm:getScopeDiameterMm()});
     }
-    const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed;
+    const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed&&!accessoryDeployed();
     if(!held){shaftClutch.reset();clutchAxis=null;clutchHeld=false;return;}
     const rel=new THREE.Vector3(lp.position.x-rp.position.x,lp.position.y-rp.position.y,lp.position.z-rp.position.z);
     if(!clutchAxis){if(rel.length()<.12){scope.velocity=0;return;}clutchAxis=rel.clone().normalize().toArray();}
@@ -297,12 +299,15 @@ function install(ctx){
   function restoreInspectionVisibility(){if(inspectionVisibilitySaved){for(const [o,v] of inspectionVisibilitySaved)o.visible=v;inspectionVisibilitySaved=null;}inspectionFilter='all';}
   function filterLobes(){
     if(!inspectMode||!selectedLobe)return false;
-    release(0);release(1);const isolate=inspectionFilter!=='isolate';restoreInspectionVisibility();
+    release(0);release(1);clearSection();const isolate=inspectionFilter!=='isolate';restoreInspectionVisibility();
     if(isolate){inspectionVisibilitySaved=lobes.map(l=>[l.mesh,l.mesh.visible]);const vis=upgrade.inspectionVisibility(lobes.map(l=>l.id),selectedLobe,'isolate');lobes.forEach((l,i)=>l.mesh.visible=inspectionVisibilitySaved[i][1]&&vis[i]);inspectionFilter='isolate';}
     return true;
   }
+  function clearSection(){if(!section)return;for(const row of sectionSaved){row.mesh.material=row.material;for(const material of row.clones)material.dispose();}sectionSaved=[];rBro.localClippingEnabled=sectionClipWas;section=null;}
+  function updateSection(){if(!section)return;const l=lobes.find(l=>l.id===selectedLobe);if(!l){clearSection();return;}const mesh=l.mesh;mesh.updateWorldMatrix(true,false);const bounds=section.bounds;const axis=sectionAxis;const point=bounds.getCenter(new THREE.Vector3());point[axis]=bounds.min[axis]+(bounds.max[axis]-bounds.min[axis])*sectionFraction;const normal=new THREE.Vector3();normal[axis]=1;section.plane.setFromNormalAndCoplanarPoint(normal,point).applyMatrix4(mesh.matrixWorld);}
+  function toggleSection(){if(section){clearSection();return;}if(!inspectMode||!selectedLobe)return;const l=lobes.find(l=>l.id===selectedLobe);if(!l?.mesh?.geometry)return;const mesh=l.mesh;mesh.geometry.computeBoundingBox();const bounds=mesh.geometry.boundingBox?.clone();if(!bounds||bounds.isEmpty())return;release(0);release(1);sectionClipWas=rBro.localClippingEnabled;rBro.localClippingEnabled=true;section={plane:new THREE.Plane(),bounds};const material=mesh.material;const clones=(Array.isArray(material)?material:[material]).map(a=>{const b=a.clone();b.clippingPlanes=[...(a.clippingPlanes||[]),section.plane];b.needsUpdate=true;return b;});mesh.material=Array.isArray(material)?clones:clones[0];sectionSaved.push({mesh,material,clones});updateSection();}
   function resetLobes(){
-    restoreInspectionVisibility();lobeGrabs.fill(null);selectedLobe=null;spread=false;
+    clearSection();restoreInspectionVisibility();lobeGrabs.fill(null);selectedLobe=null;spread=false;
     for(const l of lobes){l.mesh.position.copy(l.home);l.mesh.quaternion.copy(l.homeQuat);l.mesh.updateMatrixWorld(true);}
   }
   function setInspection(enabled){
@@ -512,7 +517,8 @@ function install(ctx){
     if(!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean)||workspaceRelayout)return false;
     const ref=rBro.xr.getReferenceSpace(),Ctor=global.XRRigidTransform;
     if(!Ctor||!ref?.getOffsetReferenceSpace||!rBro.xr.setReferenceSpace)return false;
-    const spec=upgrade.workspaceTransform({head:head.toArray(),forward:forward.toArray(),right:right.toArray(),room:room.position.toArray(),command});
+    const start=head.toArray(),origin=room.position.toArray(),obstacles=[{center:plinth.getWorldPosition(new THREE.Vector3()).toArray(),radius:.78}];
+    let spec;if(command==='viewpoint'){const target=[origin[0],start[1],origin[2]+1.6];spec=upgrade.targetOffset({head:start,target,room:origin,obstacles});}else{spec=upgrade.workspaceTransform({head:start,forward:forward.toArray(),right:right.toArray(),room:origin,command});if(spec&&!spec.yaw&&!upgrade.clearWorkspacePath(start,start.map((v,i)=>v-spec.translation[i]),obstacles))spec=null;}
     if(!spec){grabFeedback='VIRTUAL WORKSPACE BOUNDARY / MOVEMENT BLOCKED';paint();return false;}
     try{const [x,y,z]=spec.translation;rBro.xr.setReferenceSpace(ref.getOffsetReferenceSpace(new Ctor({x,y,z},{x:0,y:Math.sin(spec.yaw/2),z:0,w:Math.cos(spec.yaw/2)})));workspaceMoves++;workspaceRelayout=true;return true;}
     catch(error){grabFeedback='WORKSPACE OFFSET UNAVAILABLE';paint();return false;}
@@ -522,7 +528,7 @@ function install(ctx){
     if(worldMenu){
       // Independent world-space panel, placed only on intentional layout
       // changes or recenter. It does not follow the viewer every XR frame.
-      worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.72);
+      worldMenu.position.copy(head).addScaledVector(forward,.91).addScaledVector(right,-.72+panelOffset);
       worldMenu.position.y-=.02;
       worldMenu.lookAt(head);
       worldMenu.updateWorldMatrix(true,false);
@@ -573,7 +579,7 @@ function install(ctx){
         deflH:scope.deflH,deflV:scope.deflV};
       grabFeedback='RIGHT GRIP / STEERING SOURCE SCOPE';return true;
     }
-    if(!active||!placed||mode!=='anatomy'||grab[i])return false;
+    if(!active||!placed||mode!=='anatomy'||grab[i]||section)return false;
     const chosen=source==='controller'?choosePointer(i):null;
     if(chosen?.choice.kind==='panel'){
       grabFeedback='PANEL TARGETED / USE TRIGGER TO SELECT A CONTROL';
@@ -708,6 +714,8 @@ function install(ctx){
           h.matrix.compose(h.position,h.quaternion,h.scale);h.matrixWorldNeedsUpdate=true;h.updateMatrixWorld(true);
         }
         proxy.position.copy(pA).add(pB).multiplyScalar(.5);
+        const palmJoint=source.hand.get('middle-finger-phalanx-proximal');const palmPose=palmJoint&&frame.getJointPose(palmJoint,space)?.transform?.position;
+        if(handGrasped[i]&&palmPose)proxy.position.set(palmPose.x,palmPose.y,palmPose.z);
         const wrist=source.hand.get('wrist');
         const w=wrist?frame.getJointPose(wrist,space):null;
         if(w?.transform?.orientation){
@@ -722,14 +730,14 @@ function install(ctx){
           contactMarkers[i].visible=mode==='anatomy';
         }
         const pinchDistance=pA.distanceTo(pB);
-        const pressed=handPinched[i]?pinchDistance<.055:pinchDistance<=.026;
+        const pressed=!handGrasped[i]&&(handPinched[i]?pinchDistance<.055:pinchDistance<=.026);
         if(pressed&&!handPinched[i]){
           const hit=panelIntersection(rayFrom(i));
           if(hit?.action){attempts.menuActions++;activate(hit.action);}
           else if(mode==='anatomy'){
             if(xrPresentation==='ar'&&!placed){confirmOrManualMR();}
             else startGrab(i,'hand');
-          }else if(mode==='procedure'&&scope.atBranch){
+          }else if(mode==='procedure'&&scope.atBranch&&!accessoryDeployed()){
             enterBranch(source.handedness==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
           }
         }else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
@@ -738,7 +746,7 @@ function install(ctx){
         const joint=name=>{const j=source.hand.get(name),p=j&&frame.getJointPose(j,space)?.transform?.position;return p?[p.x,p.y,p.z]:null;};
         const palm=joint('middle-finger-phalanx-proximal'),wristPos=joint('wrist');
         const closed=mode==='anatomy'&&placed&&!pressed&&upgrade.grasp({wrist:wristPos,palm,index:pA.toArray(),middle:joint('middle-finger-tip'),ring:joint('ring-finger-tip'),pinky:joint('pinky-finger-tip'),thumb:pB.toArray(),held:handGrasped[i]});
-        if(closed&&!handGrasped[i]&&!grab[i]){const near=surfaceContact(i,'hand');if(near.hit){startGrab(i,'hand','grasp');handGrasped[i]=grabSource[i]==='hand';}}
+        if(closed&&!handGrasped[i]&&!grab[i]){if(palm){proxy.position.set(...palm);proxy.updateMatrixWorld(true);}const near=surfaceContact(i,'hand');if(near.hit){startGrab(i,'hand','grasp');handGrasped[i]=grabSource[i]==='hand';}}
         if(!closed&&handGrasped[i]){release(i,'hand','grasp');handGrasped[i]=false;}
       }
     }
@@ -750,7 +758,7 @@ function install(ctx){
     }
   }
   function updateSteering(){
-    if(mode!=='procedure'||!scopeSteering||physicalControl?.snapshot().armed)return;
+    if(mode!=='procedure'||!scopeSteering||physicalControl?.snapshot().armed||accessoryDeployed())return;
     const {i,origin,deflH,deflV}=scopeSteering;
     const controller=trackedController(i);
     if(!controller||!controllerSources[i]){
@@ -849,6 +857,7 @@ function install(ctx){
     return true;
   }
   function confirmOrManualMR(){
+    if(mrPlacement.snapshot().hitAvailable&&!mrQuality.snapshot().stableCandidate){grabFeedback='HOLD VIEW STEADY ON REAL SURFACE';paint();return false;}
     const result=mrPlacement.confirm();
     if(result.accepted){grabFeedback='SURFACE CONFIRMATION / ALIGNING NEXT FRAME';paint();return true;}
     // A deliberate trigger/pinch places a visibly unregistered model if
@@ -882,12 +891,13 @@ function install(ctx){
       startGrab(i,'controller','trigger');
     }else if(mode==='procedure'){
       const intent=deviceLab.triggerIntent({atBranch:scope.atBranch,side,tool:channel.snapshot().tool});
-      if(intent==='BRANCH')enterBranch(side==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
+      if(intent==='BRANCH'){if(!accessoryDeployed())enterBranch(side==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);else{grabFeedback='RETRACT ACCESSORY BEFORE NAVIGATION';paint();}}
       else if(intent==='ACCESSORY'){actuateAccessory();paint();}
       else if(intent==='CLINICAL')fireAction();
     }
   }
   const modes=['nav','biopsy','measure','annotate'];
+  function accessoryDeployed(){return channel.snapshot().extensionMm>0;}
   function checkAccessory(length,open){
     const state=channel.snapshot();
     const frame=ctx.getReferenceMotionFrame?.()||mGrp;
@@ -905,6 +915,7 @@ function install(ctx){
       paint();return;
     }
     if(action==='mr-confirm'&&xrPresentation==='ar'){
+      if(!mrQuality.snapshot().stableCandidate){grabFeedback='HOLD VIEW STEADY ON REAL SURFACE';paint();return;}
       const result=mrPlacement.confirm();
       grabFeedback=result.accepted?'SURFACE SELECTED / CONFIRMING':
         'NO REAL SURFACE HIT / SELECT UNREGISTERED PREVIEW';
@@ -912,13 +923,13 @@ function install(ctx){
     }
     if(action==='mr-reposition'&&xrPresentation==='ar'){
       release(0);release(1);scope.velocity=0;
-      placed=false;mGrp.visible=false;mrPlacement.reposition();
+      placed=false;mGrp.visible=false;mrAnchorFault=false;mrQuality.reset();mrPlacement.reposition();
       if(mrReticle)mrReticle.visible=false;
       grabFeedback='MR SCAN / AIM HEADSET AT A REAL SURFACE';
       paint();return;
     }
     if(action==='mr-preview'&&xrPresentation==='ar'){
-      mrPlacement.preview();mGrp.visible=true;
+      mrAnchorFault=false;mrQuality.reset();mrPlacement.preview();mGrp.visible=true;
       frameGroup();grabFeedback='UNREGISTERED FLOATING PREVIEW / NOT ROOM ANCHORED';
       paint();return;
     }
@@ -927,13 +938,21 @@ function install(ctx){
         ' / '+mrPlacement.snapshot().anchorStatus.toUpperCase();
       paint();return;
     }
+    if(action==='guide'&&mode==='anatomy'){menuPage='section';actionHitbox=panelLayouts.section;paint();return;}
     if(action==='inspect'){menuPage='inspection';actionHitbox=panelLayouts.inspection;paint();return;}
     if(action==='inspect-toggle'){if(inspectMode&&inspectionUnit==='lung'){inspectionUnit='lobe';spreadLobes('lobe');}else{inspectionUnit='lobe';setInspection(!inspectMode);}paint();return;}
     if(action==='inspect-spread'){spreadLobes('lobe');paint();return;}
     if(action==='inspect-lungs'){spreadLobes('lung');paint();return;}
     if(action==='inspect-restore'){setInspection(false);paint();return;}
     if(action==='inspect-isolate'){filterLobes();paint();return;}
+    if(action==='section-open'){menuPage='section';actionHitbox=panelLayouts.section;paint();return;}
+    if(action==='section-back'){clearSection();menuPage='inspection';actionHitbox=panelLayouts.inspection;paint();return;}
+    if(action==='section-toggle'){toggleSection();paint();return;}
+    if(action==='section-axis'){sectionAxis=['x','y','z'][(['x','y','z'].indexOf(sectionAxis)+1)%3];updateSection();paint();return;}
+    if(action==='section-prev'||action==='section-next'){sectionFraction=safe(.05,.95,sectionFraction+(action==='section-next'?.1:-.1));updateSection();paint();return;}
+    if(action==='panel-shift'){panelOffset=panelOffset===0?1.44:0;positionPanels();paint();return;}
     if(action==='workspace-open'){menuPage='workspace';actionHitbox=panelLayouts.workspace;paint();return;}
+    if(action==='workspace-options'){menuPage='workspace-options';actionHitbox=panelLayouts['workspace-options'];paint();return;}
     if(action.startsWith('workspace-')){moveWorkspace(action.slice(10));paint();return;}
     if(action==='imaging-open'){menuPage='imaging';actionHitbox=panelLayouts.imaging;paint();return;}
     if(action==='imaging-back'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
@@ -945,7 +964,7 @@ function install(ctx){
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
     if(action==='optics-toggle'){if(depthOpticsAvailable){opticsEnabled=!opticsEnabled;lastFeed=0;}else grabFeedback='DEPTH OPTICS UNAVAILABLE / RAW SOURCE';paint();return;}
     if(action==='channel-cycle'){if(mode==='procedure'&&getMeshMode()==='reference'){channel.cycle();accessoryEvidence={state:'NOT_CHECKED'};}paint();return;}
-    if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference'){if(action==='channel-retract')channel.extend(-2);else{const state=channel.snapshot();accessoryEvidence=checkAccessory(Math.min(12,state.extensionMm+2),state.jawsOpen);if(accessoryEvidence.allowed)channel.extend(2);else grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;}}paint();return;}
+    if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference'){if(action==='channel-retract')channel.extend(-2);else{const state=channel.snapshot();accessoryEvidence=checkAccessory(Math.min(12,state.extensionMm+2),state.jawsOpen);if(accessoryEvidence.allowed){channel.extend(2);scope.velocity=0;scopeSteering=null;if(physicalControl?.snapshot().armed)physicalControl.stop('ACCESSORY_DEPLOYED');}else grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;}}paint();return;}
     if(action==='channel-action'){if(mode==='procedure'&&getMeshMode()==='reference')actuateAccessory();paint();return;}
     if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
     if(action==='airway-map'){routeVisible=!routeVisible;updateRouteOverlay();paint();return;}
@@ -1081,8 +1100,8 @@ function install(ctx){
       if(guidePlane)guidePlane.visible=mode==='procedure'&&guideVisible;
     }
     if(action==='guide-hide'){guideVisible=false;if(guidePlane)guidePlane.visible=false}
-    if(mode==='procedure'&&!physicalControl?.snapshot().armed&&action==='scope-forward'){advance(.045);scope.velocity=0;}
-    if(mode==='procedure'&&!physicalControl?.snapshot().armed&&action==='scope-back'){retract(.045);scope.velocity=0;}
+    if(mode==='procedure'&&!accessoryDeployed()&&!physicalControl?.snapshot().armed&&action==='scope-forward'){advance(.045);scope.velocity=0;}
+    if(mode==='procedure'&&!accessoryDeployed()&&!physicalControl?.snapshot().armed&&action==='scope-back'){retract(.045);scope.velocity=0;}
     if(action==='guide-next')guideStep=Math.min(4,guideStep+1);
     if(action==='guide-prev')guideStep=Math.max(0,guideStep-1);
     if(action==='guide-tool'){
@@ -1095,7 +1114,7 @@ function install(ctx){
         segmentId:scope.segId,segment:SEG_MAP[scope.segId],segments:SEG_MAP,
         position:scope.t,atBranch:scope.atBranch,clinicalMode:getClinMode(),
         clearance:clearanceState(),monitorStatus,guideStep});
-      if(current.branches[index]?.enabled){
+      if(current.branches[index]?.enabled&&!accessoryDeployed()){
         enterBranch(current.branches[index].index);
         guideActions++;
       }
@@ -1194,6 +1213,7 @@ function install(ctx){
         continue;
       }
       if(mode!=='procedure')continue;
+      if(accessoryDeployed()){scope.velocity=0;continue;}
       if(physicalControl?.snapshot().armed)continue;
       if(side==='left'){
         // Insertion and shaft roll are independent. Neutral stick stops
@@ -1299,7 +1319,11 @@ function install(ctx){
       {id:'workspace-turn-left',label:'TURN LEFT 30°',u:.05,v:.76,w:.43,h:.095},
       {id:'workspace-turn-right',label:'TURN RIGHT 30°',u:.52,v:.76,w:.43,h:.095},
       {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
-      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'workspace-options',label:'WORKSPACE OPTIONS',u:.52,v:.87,w:.43,h:.095}
+    ],
+    'workspace-options':[
+      {id:'workspace-viewpoint',label:'JUMP TO VIEWPOINT',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
+      {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     inspection:[
       {id:'inspect-toggle',label:'INDIVIDUAL LOBES',u:.05,v:.54,w:.43,h:.12},
@@ -1308,6 +1332,11 @@ function install(ctx){
       {id:'inspect-restore',label:'REASSEMBLE',u:.52,v:.69,w:.43,h:.12},
       {id:'back-expert',label:'BACK',u:.05,v:.84,w:.43,h:.12},
       {id:'inspect-isolate',label:'ISOLATE SELECTED',u:.52,v:.84,w:.43,h:.12}
+    ],
+    section:[
+      {id:'section-toggle',label:'SECTION ON / OFF',u:.05,v:.54,w:.43,h:.095},{id:'section-axis',label:'SECTION AXIS',u:.52,v:.54,w:.43,h:.095},
+      {id:'section-prev',label:'SLICE BACK',u:.05,v:.65,w:.43,h:.095},{id:'section-next',label:'SLICE FORWARD',u:.52,v:.65,w:.43,h:.095},
+      {id:'section-back',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     ct:[
       {id:'ct-axis',label:'SELECT PLANE',u:.05,v:.54,w:.43,h:.12},
@@ -1387,14 +1416,15 @@ function install(ctx){
     c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
     c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
     c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU A–G / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
+    c.fillText(('PULMOSIMU AG02 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
     c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
     c.fillText(menuPage==='mr'?'Mixed-reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
       menuPage==='imaging'?'Imaging laboratory':
-      menuPage==='workspace'?'Virtual workspace':
+      menuPage==='workspace'||menuPage==='workspace-options'?'Virtual workspace':
+      menuPage==='section'?'Reference lobe section':
       menuPage==='inspection'?'Anatomical disassembly':
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
@@ -1465,6 +1495,9 @@ function install(ctx){
         a.id==='device-visible'?(deviceVisible?'HIDE VIRTUAL SCOPE':'SHOW VIRTUAL SCOPE'):
         a.id==='airway-map'?(routeVisible?'HIDE AIRWAY MAP':'SHOW AIRWAY MAP'):
         a.id==='optical-light'?'LIGHT '+opticalModes[opticalIndex].name:
+        a.id==='guide'&&mode==='anatomy'?'LOBE SECTION':
+        a.id==='section-toggle'?(section?'SECTION OFF':'SECTION ON'):
+        a.id==='section-axis'?'AXIS '+sectionAxis.toUpperCase():
         a.id==='inspect-isolate'?(inspectionFilter==='isolate'?'SHOW ALL LOBES':'ISOLATE SELECTED'):
         a.id==='inspect-toggle'?(inspectMode?'WHOLE ORGAN':'INDIVIDUAL LOBES'):
         a.id==='display-path'?'DISPLAY PATH':
@@ -1844,7 +1877,7 @@ function install(ctx){
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
-    integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),coupling:couplingEvidence.snapshot(),accessory:accessoryEvidence,handGrasped:handGrasped.slice()},
+    integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),mrAnchorFault,coupling:couplingEvidence.snapshot(),regional:regionalEvidence.snapshot(),accessory:accessoryEvidence,handGrasped:handGrasped.slice()},
     spatialRegistration:registrationEvidence,
     passiveContactInterface:contactEvidence,
     respiratoryMotion:motionReport||motionEvidence,
@@ -2080,7 +2113,7 @@ function install(ctx){
     traceButton.style.display='none';instrumentSetup.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
-    rBro.xr.setReferenceSpace?.(null);workspaceMoves=0;workspaceRelayout=false;mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
+    rBro.xr.setReferenceSpace?.(null);workspaceMoves=0;workspaceRelayout=false;panelOffset=0;sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
@@ -2169,13 +2202,13 @@ function install(ctx){
         if(hit?.kind==='placed'){
           mrReticle.visible=false;
           placeOnMRSurface(hit.point);
-        }else if(hit?.kind==='anchor-delta'&&placed){
+        }else if(hit?.kind==='anchor-delta'&&placed&&!mrAnchorFault){
           const delta=hit.delta;
           if([delta.x,delta.y,delta.z].every(Number.isFinite)&&
              Math.hypot(delta.x,delta.y,delta.z)<.15){
             mGrp.position.add(new THREE.Vector3(delta.x,delta.y,delta.z));
             mGrp.updateWorldMatrix(true,false);
-          }
+          }else{mrAnchorFault=true;release(0);release(1);scope.velocity=0;grabFeedback='MR ANCHOR DISCONTINUITY / REPOSITION REQUIRED';paint();}
         }
         if(!placed&&viewerValid&&!mrMenuPositioned){
           positionPanels();
@@ -2199,6 +2232,7 @@ function install(ctx){
       }else physicsSnapshot=null;
       // Only a calibrated, live, local device can request simulator motion.
       // Left grip is a dead-man; no replay, no hardware write, no patient input.
+      if(physicalControl?.snapshot().armed&&accessoryDeployed())physicalControl.stop('ACCESSORY_DEPLOYED');
       if(physicalControl?.snapshot().armed){
         scope.velocity=0;scopeSteering=null;
         const deadman=Array.from(rBro.xr.getSession()?.inputSources||[]).some(s=>
@@ -2219,7 +2253,7 @@ function install(ctx){
       }
       // Advance the ORIGINAL medical procedure engine on XR time, not
       // tab requestAnimationFrame, which can be throttled in a headset.
-      if(mode==='procedure'&&Math.abs(scope.velocity)>.0001){
+      if(mode==='procedure'&&!accessoryDeployed()&&Math.abs(scope.velocity)>.0001){
         const step=Math.min(1.5,Math.max(.1,dt*60));
         const distance=scope.velocity*step;
         if(distance>0)advance(distance);else retract(-distance);
@@ -2228,7 +2262,9 @@ function install(ctx){
       motionEvidence=respiratoryMotion.step(physicsSnapshot,motionEnabled&&mode==='procedure'&&getMeshMode()==='reference'&&viewerValid,dt);
       if(mode==='procedure'&&getMeshMode()==='reference'&&viewerValid)couplingEvidence.step(physicsSnapshot,motionEvidence,dt);
       ctx.setReferenceMotion?.(motionEvidence.scale,[routeOverlay,insertedShaft.mesh]);
-      updateScope();updateRouteOverlay();updateRadial(time);
+      updateScope();updateRouteOverlay();updateRadial(time);updateSection();
+      if(mode==='procedure'&&accessoryDeployed()&&time-accessoryLast>100){accessoryLast=time;const state=channel.snapshot();accessoryEvidence=checkAccessory(state.extensionMm,state.jawsOpen);if(!accessoryEvidence.allowed){scope.velocity=0;grabFeedback='REFERENCE ACCESSORY INTERFERENCE / RETRACT';}}
+      if(mode==='procedure'&&getMeshMode()==='reference')regionalEvidence.step(physicsSnapshot);else regionalEvidence.suspend();
       if(mode==='procedure'&&getMeshMode()==='reference')shaftEvidence=insertedShaft.update({timeMs:time,segments:SEG_MAP,curves:pathCurves,id:scope.segId,t:scope.t,diameterMm:getScopeDiameterMm(),mmPerUnit:getMmPerSceneUnit(),field:ctx.getLumenField?.()});
       else insertedShaft.hide();
       registrationEvidence=registrationObserver.step({tracked:viewerValid&&mode==='procedure'&&getMeshMode()==='reference',timeMs:time,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit())});

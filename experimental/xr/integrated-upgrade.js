@@ -61,5 +61,33 @@ function createCouplingEvidence(){
  function snapshot(){return {samples,skipped,referencePressureFlowIntegralJ:samples?work:null,maxConservationResidualM3PerS:samples?maxResidual:null,volumeRangeM3:samples?[minVolume,maxVolume]:null,displayScaleRange:samples?[minScale,maxScale]:null,coupling:'ONE_WAY_R3_TO_REFERENCE_GEOMETRY',measuredMechanicalWork:false,feedbackSolved:false};}
  return {step,snapshot,reset(){samples=skipped=work=maxResidual=0;minVolume=minScale=Infinity;maxVolume=maxScale=-Infinity;}};
 }
-root.PulmoXRIntegratedUpgrade=Object.freeze({inspectionVisibility,workspaceTransform,grasp,createTrackingQuality,accessoryClearance,createCouplingEvidence});
+// Virtual-only obstacle path test. No claim of physical Guardian/room geometry.
+function clearWorkspacePath(start,end,obstacles=[],buffer=.18){
+ if(!valid(start)||!valid(end)||!finite(buffer)||buffer<0)return false;
+ for(const o of obstacles){if(!valid(o?.center)||!finite(o.radius)||o.radius<0)return false;
+  const a=[start[0],start[2]],b=[end[0],end[2]],p=[o.center[0],o.center[2]],d=b.map((v,i)=>v-a[i]);
+  const len=d[0]**2+d[1]**2,t=len?clamp(((p[0]-a[0])*d[0]+(p[1]-a[1])*d[1])/len,0,1):0;
+  const nearest=Math.hypot(a[0]+t*d[0]-p[0],a[1]+t*d[1]-p[1]),initial=Math.hypot(a[0]-p[0],a[1]-p[1]),final=Math.hypot(b[0]-p[0],b[1]-p[1]);
+  if(nearest<o.radius+buffer&&!(initial<o.radius+buffer&&final>initial&&nearest>=initial-1e-6))return false;
+ }return true;
+}
+function targetOffset({head,target,room,radius=2.7,obstacles=[]}){
+ if(![head,target,room].every(valid)||Math.hypot(target[0]-room[0],target[2]-room[2])>radius||!clearWorkspacePath(head,target,obstacles))return null;
+ return {translation:[head[0]-target[0],0,head[2]-target[2]],yaw:0};
+}
+function createRegionalEvidence(){
+ let previous=null,regions={},accepted=0,gaps=0;
+ function step(p){
+  const t=p?.tSeconds,flows=p?.regionalFlowM3PerS;
+  if(!finite(t)||!flows||!Object.keys(flows).length||!Object.values(flows).every(finite)){previous=null;return snapshot();}
+  if(previous){const dt=t-previous.t;
+   if(dt>0&&dt<=.15&&Object.keys(flows).every(k=>finite(previous.flows[k]))){
+    for(const [k,q] of Object.entries(flows)){const mean=(q+previous.flows[k])*.5;const a=regions[k]||(regions[k]={inspiredM3:0,expiredM3:0,netM3:0,peakAbsFlowM3PerS:0});a.netM3+=mean*dt;a.inspiredM3+=Math.max(0,mean)*dt;a.expiredM3+=Math.max(0,-mean)*dt;a.peakAbsFlowM3PerS=Math.max(a.peakAbsFlowM3PerS,Math.abs(q));}accepted++;
+   }else if(dt!==0)gaps++;
+  }previous={t,flows:{...flows}};return snapshot();
+ }
+ function snapshot(){return {acceptedIntervals:accepted,gaps,regions:JSON.parse(JSON.stringify(regions)),source:'R3_REGIONAL_FLOW_OBSERVATION',regionalTissueDeformationSolved:false};}
+ return {step,snapshot,suspend(){previous=null},reset(){previous=null;regions={};accepted=gaps=0;}};
+}
+root.PulmoXRIntegratedUpgrade=Object.freeze({inspectionVisibility,workspaceTransform,grasp,createTrackingQuality,accessoryClearance,createCouplingEvidence,clearWorkspacePath,targetOffset,createRegionalEvidence});
 })(typeof window!=='undefined'?window:globalThis);
