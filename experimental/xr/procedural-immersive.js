@@ -1500,6 +1500,7 @@ function install(ctx){
         (a.id!=='redo'||viewHistory.status().redo>0) &&
         (!a.id.startsWith('trace-')||a.id==='trace-open'||a.id==='trace-back'||replay.snapshot().loaded) &&
         (a.id!=='procedure'||role==='reference');
+      a.disabled=!available;
       const settings=station.snapshot();
       const label=a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
         a.id==='radial-toggle'?(radialEnabled?'RADIAL ON':'RADIAL OFF'):

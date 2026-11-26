@@ -431,6 +431,15 @@ try {
    assert.equal(cap.sessions.mr,'unavailable');
    assert.match(await capabilityLauncher.locator('#mr-capability').textContent(),/unavailable|No mixed/i);
   }
+  assert.equal(await capabilityLauncher.locator('body.ps-launch').count(),1);
+  for(const width of [390,760,1440]){
+    await capabilityLauncher.setViewportSize({width,height:900});
+    const q=await capabilityLauncher.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:innerWidth,links:[...document.querySelectorAll('.mode')].map(a=>({width:a.getBoundingClientRect().width,height:a.getBoundingClientRect().height}))}));
+    assert.ok(q.scroll<=q.viewport+1,JSON.stringify(q));
+    assert.ok(q.links.every(a=>a.width>240&&a.height>100));
+  }
+  await capabilityLauncher.screenshot({path:'/tmp/pulmosimu-ui01-launcher.png',fullPage:true});
+  console.log('PASS UI01 responsive launcher and original XR links');
   console.log('PASS XR17A launcher: truthful browser VR/MR capability and direct desktop fallback');
  }finally{await capabilityLauncher.close()}
  // A normal Chrome/Edge browser must enter the original procedural
@@ -444,6 +453,22 @@ try {
    'Desktop entry must not request camera hand tracking');
   assert.equal(await desktop.locator('#pulmo-procedural-xr').count(),1,
    'Original procedural XR is available as a headset-specific option, not prerequisite');
+  assert.equal(await desktop.locator('#pulmo-launch-dock #pulmo-procedural-xr').count(),1);
+  assert.equal(await desktop.locator('#pulmo-launch-dock #pulmo-xr-session-report').count(),1);
+  assert.ok(await desktop.locator('#pulmo-launch-dock').isVisible());
+  await desktop.locator('.ps-dock-tools>summary').click();
+  assert.ok(await desktop.locator('#pulmo-xr-trace-import').isVisible());
+  await desktop.locator('.ps-dock-tools>summary').click();
+  const ui=await desktop.evaluate(()=>{
+   const U=window.PulmoXRSpatialUI,canvas=document.createElement('canvas');canvas.width=1024;canvas.height=600;const c=canvas.getContext('2d');U.frame(c,1024,600);U.header(c,1024,'PulmoSIMU / Spatial laboratory','Bronchoscopy workstation');
+   const title=U.text(c,'Extremely long source and instrument label that should be fitted rather than overflow the spatial panel',42,180,330,{size:28,min:21});
+   const fit=c.measureText(title).width;
+   U.control(c,{x:50,y:324,w:440,h:70,title:'PROCEDURE STATION',hovered:true,available:true,action:'view'});
+   return {fit,ink:c.getImageData(100,350,1,1).data[3],corner:c.getImageData(0,0,1,1).data[3]};
+  });
+  assert.ok(ui.fit<=330.01&&ui.ink===255&&ui.corner===0,JSON.stringify(ui));
+  await desktop.screenshot({path:'/tmp/pulmosimu-ui01-desktop.png'});
+  console.log('PASS UI01 desktop dock, measured canvas label and frame rendering');
   console.log('PASS direct desktop workstation: original clinical reference engine, no Quest or camera required');
  }finally{await desktop.close()}
  // XR16 final: the evidence lab must work from an ordinary browser and
