@@ -132,3 +132,7 @@ Offline adapter for externally segmented binary NIfTI structures, exact source/a
 ## J01–J03 — source-derived route rehearsal foundation
 
 Local airway skeleton binding, voxel-occupancy/edge verification, explicit entry/target and conservative geometric clearance-constrained shortest path; source CT crosshair route rehearsal with RAS position and forward direction. Original procedure remains independent. No patient endoscopic renderer or clinical navigation. See [J foundation](experimental/anatomy/J01_J03_AIRWAY_ROUTE.md).
+
+## K01–K03 — respiratory deformation foundation
+
+Offline paired CT baseline registration (SimpleITK), exact source-bound sampled displacement field and local Jacobian checks; original CT crosshair and J route point mapping with phase interpolation and geometric length comparison. No measured 4D motion, dynamic lumen surface, moving clearance or endoscopic coupling. See [K foundation](experimental/anatomy/K01_K03_RESPIRATORY_MOTION.md).

@@ -9,6 +9,7 @@ const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:nul
   window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[],metric:{a:null,b:null}};
 let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
 let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
+let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -226,7 +227,7 @@ async function loadNifti(file){
   setMessage('Reading local 3D NIfTI volume…');
   const bytes=await file.arrayBuffer();
   const nextVolume=window.PulmoNiftiSource.readNifti(bytes),nextCtSha=await sha256(bytes);
-  resetReview();resetSegmentation();state.ctSha=nextCtSha;state.volume=nextVolume;
+  resetReview();resetSegmentation();resetMotion();state.ctSha=nextCtSha;state.volume=nextVolume;
   state.cross=state.volume.dims.map(n=>Math.floor(n/2));
   $('ct-state').textContent='Loaded locally · '+(file.size/1024/1024).toFixed(1)+' MiB';
   $('source-shape').textContent=state.volume.dims.join(' × ');
@@ -396,7 +397,7 @@ function renderSlices(){
   $('slice-readout').textContent='i '+state.cross[0]+' · j '+state.cross[1]+' · k '+state.cross[2];
   const [i,j,k]=state.cross;
   $('ras-readout').textContent='RAS '+state.volume.ras(i,j,k).map(x=>x.toFixed(1)).join(' / ')+' mm';
-  updateMarker();applyClipping();renderMetricStatus();
+  updateMarker();applyClipping();renderMetricStatus();renderMotion();
 }
 function updateMarker(){
   if(!marker)return;
@@ -644,7 +645,7 @@ $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Or
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function clearCandidate(){
- route=null;$('route-step').value=0;$('route-step').max=0;
+ route=null;renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
 }
 function resetRoute(){
@@ -686,5 +687,43 @@ $('route-prev').addEventListener('click',()=>showRouteFrame(Number($('route-step
 $('route-next').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)+1));
 $('route-step').addEventListener('input',()=>showRouteFrame(Number($('route-step').value)));
 $('route-export').addEventListener('click',()=>{if(!route)return;const url=URL.createObjectURL(new Blob([JSON.stringify(route,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Route_'+route.mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
+
+function resetMotion(){
+ motionEpoch++;movingVolume=null;movingStudy=null;motionManifest=null;motionBytes=null;motionDigest=null;motion=null;
+ $('motion-phase').disabled=true;$('motion-phase').value=0;$('motion-value').textContent='0%';$('motion-status').textContent='Awaiting paired CT';
+ $('motion-detail').textContent='No mapped point. Original CT and route unchanged.';
+}
+function tryMotion(){
+ motion=null;$('motion-phase').disabled=true;
+ try{if(!movingStudy||!motionManifest||!motionBytes){$('motion-status').textContent='Awaiting expiration CT and field pair';return;}
+ motion=window.PulmoRespiratoryField.bind(currentStudy(),movingStudy,motionManifest,motionBytes,motionDigest);
+ $('motion-phase').disabled=false;$('motion-status').textContent='Exact field and CT identities · registration unreviewed';
+ }catch(e){$('motion-status').textContent='Rejected: '+e.message;}finally{renderMotion();}
+}
+function renderMotion(){
+ if(!motion){$('motion-detail').textContent='No mapped point. Original CT and route unchanged.';return;}
+ const phase=Number($('motion-phase').value);$('motion-value').textContent=Math.round(100*phase)+'%';
+ try{const p=motion.map(state.volume.ras(...state.cross),phase);
+ let text='Mapped RAS '+p.position_ras_mm.map(x=>x.toFixed(2)).join(' / ')+' mm · displacement '+Math.hypot(...p.displacement_mm).toFixed(2)+' mm\nLocal sampled Jacobian '+p.jacobian.toFixed(4);
+ if(phase===1&&p.in_moving_volume)text+=' · expiration CT nearest voxel HU '+movingVolume.voxel(...p.moving_voxel).toFixed(1);
+ if(!p.in_moving_volume)text+=' · outside expiration volume';
+ if(route){try{const q=motion.routeMap(route,phase);text+='\nMapped route '+q.length_mm.toFixed(2)+' mm (reference '+route.length_mm.toFixed(2)+' mm) · min node Jacobian '+q.minimum_sampled_jacobian.toFixed(4)+' · clearance NOT revalidated';}catch(e){text+='\nMapped route rejected: '+e.message;}}
+ $('motion-detail').textContent=text+'\nPoint/route review only. No surface or scope deformation.';
+ }catch(e){$('motion-detail').textContent='Mapping rejected: '+e.message;}
+}
+for(const [id,kind] of [['motion-ct','ct'],['motion-manifest','manifest'],['motion-field','field']])$(id).addEventListener('change',async ev=>{
+ const file=ev.target.files?.[0];ev.target.value='';if(!file)return;const epoch=++motionEpoch;
+ motion=null;$('motion-phase').disabled=true;renderMotion();
+ if(kind==='ct'){movingStudy=null;movingVolume=null;}else if(kind==='manifest')motionManifest=null;else{motionBytes=null;motionDigest=null;}
+ $('motion-status').textContent='Reading local '+kind;
+ try{
+ if(!state.volume)throw Error('Load inspiration CT first');
+ if(kind==='ct'){if(file.size>800*1024*1024)throw Error('CT exceeds local budget');const bytes=await file.arrayBuffer(),volume=window.PulmoNiftiSource.readNifti(bytes),ctSha=await sha256(bytes);if(epoch!==motionEpoch)return;movingStudy=window.PulmoStudy.build({volume,ctSha});movingVolume=volume;}
+ else if(kind==='manifest'){if(file.size>64*1024)throw Error('Manifest too large');const m=JSON.parse(await file.text());if(epoch!==motionEpoch)return;motionManifest=m;}
+ else{if(file.size>120000000)throw Error('Field exceeds local budget');const bytes=await file.arrayBuffer(),digest=await sha256(bytes);if(epoch!==motionEpoch)return;motionBytes=bytes;motionDigest=digest;}
+ tryMotion();
+ }catch(e){if(epoch===motionEpoch)$('motion-status').textContent='Rejected: '+e.message;}
+});
+$('motion-phase').addEventListener('input',renderMotion);$('motion-clear').addEventListener('click',resetMotion);
 applyQa();renderReviewStatus();start3d();
 })();

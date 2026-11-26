@@ -99,6 +99,11 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
   <div class="review-controls"><button id="route-prev" disabled>Previous</button><input id="route-step" type="range" min="0" max="0" value="0" disabled aria-label="Route position"><button id="route-next" disabled>Next</button><button id="route-export" disabled>Export candidate</button></div>
   <pre class="muted" id="route-detail" style="white-space:pre-wrap">No route. Existing reference simulator remains independent.</pre>
   </section>
+  <section class="review-panel" aria-label="Respiratory deformation research">
+  <div class="review-heading"><div><div class="eyebrow">K01–K03 / Respiratory motion</div><h2>Paired CT deformation review</h2><p>Use inspiration as the original CT and load the exact expiration CT and its offline registration field. Phase fraction is an interpolation, not a measured breathing waveform.</p></div><div class="review-status" id="motion-status" role="status">Awaiting paired CT</div></div>
+  <div class="review-controls"><label class="review-import" for="motion-ct">Expiration CT<input id="motion-ct" type="file" accept=".nii"></label><label class="review-import" for="motion-manifest">Field manifest<input id="motion-manifest" type="file" accept=".json"></label><label class="review-import" for="motion-field">Displacement field<input id="motion-field" type="file" accept=".raw,.bin"></label><label for="motion-phase">Phase fraction</label><input id="motion-phase" type="range" min="0" max="1" step=".05" value="0" disabled><output id="motion-value">0%</output><button id="motion-clear">Clear pair</button></div>
+  <pre class="muted" id="motion-detail" style="white-space:pre-wrap">No mapped point. Original CT and route unchanged.</pre>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -133,5 +138,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/patient-study.js?v=H03"></script>
 <script src="./anatomy/segmentation-review.js?v=I03"></script>
 <script src="./anatomy/airway-route.js?v=J03"></script>
-<script src="./anatomy/inspector-app.js?v=J03"></script>
+<script src="./anatomy/respiratory-field.js?v=K03"></script>
+<script src="./anatomy/inspector-app.js?v=K03"></script>
 </body></html>
