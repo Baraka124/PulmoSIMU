@@ -2,6 +2,7 @@
 <html lang="en">  
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PulmoSIMU — Respiratory Engineering Workstation</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -48,7 +49,8 @@
 <script src="./experimental/xr/display-path.js?v=XR17C-COMPOSITOR-READINESS"></script>
 <script src="./experimental/xr/native-quad.js?v=XR19-NATIVE-QUAD"></script>
 <script src="./experimental/xr/remote-target.js?v=XR11-SURFACE"></script>
-<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR31-XR32-AG01-AG02-AG03"></script>
+<script src="./experimental/xr/spatial-ui.js?v=UI01"></script>
+<script src="./experimental/xr/procedural-immersive.js?v=XR16-BRONCHOSCOPY-ENGINEERING-XR31-XR32-AG01-AG02-AG03-UI01"></script>
 <script type="module">
 import {loadXRReferencePhysics} from './experimental/xr/reference-physics.js';
 window.PulmoXRReferencePhysicsStatus='loading';
@@ -1258,8 +1260,9 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
  #ct-source-desk .source-actions{margin-top:9px}
 }
 </style>
+<link rel="stylesheet" href="./assets/pulmosimu-interface.css?v=UI01">
 </head>
-<body>
+<body class="ps-desktop">
 <div id="cur"></div>
 <!-- Single picker — select GLTF and JSON together (Ctrl/Cmd+click both) -->
 <input type="file" id="patient-picker" accept=".glb,.gltf,.json" multiple style="display:none">
@@ -1297,8 +1300,8 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
   <div class="scan"></div>
   <div class="splash-inner">
     <div class="sey">neumAC R&amp;I</div>
-    <div class="stitle">PNEUMO<span class="stitle-dot">·</span><em>VR</em></div>
-    <div class="sver">Bronchoscopic Surgical Planning System</div>
+    <div class="stitle">Pulmo<em>SIMU</em></div>
+    <div class="sver">Respiratory simulation and spatial research</div>
     <div class="splash-specs">
       <div class="splash-spec"><div class="ss-label">Rendering</div><div class="ss-val">PBR</div></div>
       <div class="splash-spec"><div class="ss-label">Segments</div><div class="ss-val">17</div></div>
@@ -1306,7 +1309,8 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
       <div class="splash-spec"><div class="ss-label">Platform</div><div class="ss-val">PulmoSIMU</div></div>
     </div>
     <div class="sln"></div>
-    <button id="sbtn"><span>INITIALISE SYSTEM</span></button>
+    <button id="sbtn"><span>Enter with camera gestures</span></button>
+    <a class="ps-no-camera" href="?entry=desktop" style="color:var(--ps-accent);font-size:14px;margin:0 0 10px;text-decoration:none">Continue without camera →</a>
     <div class="snote">Grab lung to rotate · Point to navigate · IJKL deflect · ? for keys</div>
     <div class="splash-foot" style="margin-top:28px;">Área Sanitaria de A Coruña y Cee</div>
   </div>
@@ -1324,8 +1328,8 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
   <!-- TOP BAR -->
   <div id="tb">
     <div class="brand-block">
-      <div class="brand-logo">PNEUMO<em>·</em>VR</div>
-      <div class="brand-ver">v20 SURGICAL</div>
+      <div class="brand-logo">Pulmo<em>SIMU</em></div>
+      <div class="brand-ver">Research workstation</div>
       <div class="brand-divider"></div>
       <div class="brand-inst">
         <div class="brand-inst-name">neumAC R&amp;I</div>
@@ -1503,7 +1507,7 @@ body.ct-source-mode.ct-lobe-open #ct-lobe-panel{
   <!-- LEFT PANEL: Gesture Engine -->
   <div id="lp">
     <div class="panel-hdr" onclick="togglePanel('lp')">
-      <span class="ph-t">Gesture Engine v19</span>
+      <span class="ph-t">Gesture tracking</span>
       <span class="ph-arr open" id="lp-arr">▶</span>
     </div>
     <div class="panel-body" id="lp-body">

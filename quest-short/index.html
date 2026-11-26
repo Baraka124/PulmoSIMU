@@ -77,9 +77,10 @@ footer strong{font-weight:550;color:#b4cbd4}
 }
 @media(prefers-reduced-motion:reduce){.mode{transition:none}.mode:hover{transform:none}}
 </style>
+<link rel="stylesheet" href="../assets/pulmosimu-interface.css?v=UI01">
 <script src="../experimental/xr/xr-capabilities.js?v=XR17A-MODE-NEGOTIATION-XR20"></script>
 </head>
-<body>
+<body class="ps-launch">
 <div class="shell">
   <header class="topbar">
     <div class="identity" aria-label="PulmoSIMU">Pulmo<span>SIMU</span></div>
@@ -90,16 +91,16 @@ footer strong{font-weight:550;color:#b4cbd4}
     <section aria-labelledby="page-title">
       <p class="eyebrow">Respiratory engineering laboratory</p>
       <h1 id="page-title">Anatomy, in space.</h1>
-      <p class="lead">One pulmonary research environment across desktop, immersive VR and mixed reality. Start with the workstation on your computer or enter spatial mode on a supported headset.</p>
+      <p class="lead">A respiratory simulation laboratory. Choose a workspace to explore anatomy, perform reference bronchoscopy or study spatial interaction.</p>
     </section>
 
     <section class="desktop-entry" aria-label="Use PulmoSIMU on this computer">
       <div>
         <p class="eyebrow">Desktop · No headset or camera needed</p>
-        <strong>Open the procedural workstation</strong>
+        <strong>Desktop workstation</strong>
         <p>Explore the anatomical reference, navigate bronchoscopy and inspect research instruments in your browser.</p>
       </div>
-      <a href="../index.html?entry=desktop" id="desktop-launch">Enter on this computer ↗</a>
+      <a href="../index.html?entry=desktop" id="desktop-launch">Open workstation ↗</a>
     </section>
 
     <nav class="modes" aria-label="Choose an immersive experience">
@@ -108,7 +109,7 @@ footer strong{font-weight:550;color:#b4cbd4}
           <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="10" width="26" height="14" rx="4"/><path d="M10 17h2m8 0h2M3 15l-2-2m28 2 2-2"/><path d="M13 24l3-3 3 3"/></svg>
         </div>
         <h2>Virtual laboratory</h2>
-        <p>Manipulate the original lung and follow guided bronchoscopy in a fully immersive environment.</p>
+        <p>Explore anatomy and operate the procedural instrument inside the spatial laboratory.</p>
         <div class="mode-capability" id="vr-capability" data-status="checking" role="status">Checking VR support on this device</div>
         <div class="mode-bottom"><small>Meta Quest 2 · Spatial VR</small><span>Enter VR <span class="arr" aria-hidden="true">↗</span></span></div>
       </a>
@@ -118,7 +119,7 @@ footer strong{font-weight:550;color:#b4cbd4}
           <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 11l12-7 12 7v13l-12 6L4 24z"/><path d="M4 11l12 7 12-7M16 18v12"/><path d="M12 16l8-5"/></svg>
         </div>
         <h2>Mixed reality</h2>
-        <p>Place the reference lung on a detected real-world surface when WebXR hit-testing is available. Quest 2 passthrough is grayscale; hardware verification remains pending.</p>
+        <p>Place and inspect reference anatomy in your physical surroundings when supported. Quest 2 passthrough is grayscale.</p>
         <div class="mode-capability" id="mr-capability" data-status="checking" role="status">Checking passthrough support · no room anchors claimed</div>
         <div class="mode-bottom"><small>Experimental · AR support required</small><span>Open MR <span class="arr" aria-hidden="true">↗</span></span></div>
       </a>
@@ -137,7 +138,7 @@ footer strong{font-weight:550;color:#b4cbd4}
       <div class="details-grid">
         <div>
           <h3>VR controls and procedure</h3>
-          <p>In anatomy mode, hold trigger or grip to move the lung. Press left Y for the spatial menu. Choose BRONCHOSCOPY to see the guided airway window and original-source endoscopic display. Use the left thumbstick or the guide ADVANCE / RETRACT controls. At actual junctions, choose a source branch. For bare hands, enable Quest hand tracking, set controllers down, then pinch at the lung or aim and pinch a control. FOCUS VIEW reduces scene clutter; EXPERT TOOLS restores instruments and guide controls.</p><p>XR-17C: On the desktop page, LOAD INSTRUMENT TRACE before entering VR to inspect an external measured bench record. In the headset choose BRONCHOSCOPY → PROCEDURE STATION → INSTRUMENT TRACE for playback, measurement residuals and the optional TRACKED TOOL PROXY (controller-only, uncalibrated). Clinical instrument control and compositor quad layers are not enabled.</p>
+          <p>In anatomy mode, hold trigger or grip to move the lung. Press left Y for the spatial menu. Choose BRONCHOSCOPY to see the guided airway window and original-source endoscopic display. Use the left thumbstick or the guide ADVANCE / RETRACT controls. At actual junctions, choose a source branch. For bare hands, enable Quest hand tracking, set controllers down, then pinch at the lung or aim and pinch a control. FOCUS VIEW reduces scene clutter; EXPERT TOOLS restores instruments and guide controls.</p><p>XR-17C: On the desktop page, LOAD INSTRUMENT TRACE before entering VR to inspect an external measured bench record. In the headset choose BRONCHOSCOPY → PROCEDURE STATION → INSTRUMENT TRACE for playback, measurement residuals and the optional TRACKED TOOL PROXY (controller-only, uncalibrated). Measured simulator input requires calibration and deliberate arming; native compositor layers remain disabled in the compatibility path.</p>
         </div>
         <div>
           <h3>Mixed Reality · Quest 2 passthrough preview</h3>

@@ -102,3 +102,6 @@ Reference selected-lobe visual clipping with cloned, restored materials (no cut-
 
 ## AG03 — integrated pre-headset checkpoint
 Adds independently movable and resizable spatial panels with deliberate grip and bounded position; real-frame environment capability observations (no room reconstruction); dimensionless contact overlap evidence; regional R3-flow-derived display markers (not regional tissue deformation); HIL-09 offline evidence manifest and read-only readiness checks. Fixes AG02 stale regression assertion while retaining deployment interlock. Physical headset acceptance, higher-fidelity tissue/optics, bidirectional mechanics and physical sensor manufacture remain outstanding.
+
+## UI01 — unified external and spatial interface
+Shared graphite/porcelain presentation from launcher, original boot and workstation to desktop spatial-session dock; world-space controls and guide use measured text, quiet state highlights and the original normalized hit targets. Endoscope chrome remains outside actual source pixels. No authentication service was added: entry is the existing research launcher, not a password-protected login. Original interaction, data, source gates and AG03 simulation are retained. Browser rendering tests cover launcher responsive layout and canvas primitives; Quest optical readability still requires physical assessment.

@@ -54,6 +54,7 @@ function install(ctx){
   const toolProxy=global.PulmoXRTrackedToolProxy.create();
   const videoScope=global.PulmoXRVideoScope.createVisual(THREE);
   const deviceLab=global.PulmoXRDeviceLab;
+  const spatialUI=global.PulmoXRSpatialUI;
   const upgrade=global.PulmoXRIntegratedUpgrade;
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
   let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
@@ -1432,12 +1433,8 @@ function install(ctx){
       ?(audit.source==='synthetic'?'SYNTHETIC · COFRAMED ONLY':'CT-DERIVED · COFRAMED / UNVERIFIED')
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
-    c.clearRect(0,0,w,h);c.fillStyle='#14222c';c.fillRect(0,0,w,h);
-    c.fillStyle='#7ea5b3';c.fillRect(0,0,w,8);
-    c.textAlign='left';c.fillStyle='#afc9d1';c.font='600 27px system-ui';
-    c.fillText(('PULMOSIMU AG03 / '+(hoverPanels.find(Boolean)?('MENU: '+hoverPanels.find(Boolean)):active?grabFeedback:'ORIGINAL ENGINE')).slice(0,58),48,64);
-    c.fillStyle='#e8f0f2';c.font='600 48px system-ui';
-    c.fillText(menuPage==='mr'?'Mixed-reality placement':
+    spatialUI.frame(c,w,h);
+    const pageTitle=menuPage==='mr'?'Mixed reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
@@ -1449,9 +1446,9 @@ function install(ctx){
       menuPage==='precision'?'Precision anatomy controls':
       menuPage==='advanced'?'Research instruments':
       menuPage==='ct'?'Source CT / spatial sections':
-      mode==='procedure'?'Bronchoscopy':'Anatomical exploration',48,131);
-    c.fillStyle='#d3e0e5';c.font='28px system-ui';
-    c.fillText((menuPage==='panel-edit'?'HOLD CONTROLLER GRIP TO MOVE SELECTED WINDOW':menuPage==='trace'?
+      mode==='procedure'?'Bronchoscopy':'Anatomical exploration';
+    spatialUI.header(c,w,'PulmoSIMU  /  '+(xrPresentation==='ar'?'Mixed reality':'Spatial laboratory'),pageTitle);
+    spatialUI.text(c,(menuPage==='panel-edit'?'HOLD CONTROLLER GRIP TO MOVE SELECTED WINDOW':menuPage==='trace'?
       (replay.snapshot().loaded?
         'READ-ONLY RECORD · '+replay.snapshot().reviewIndex+' / '+(replay.snapshot().total-1):
         'NO BENCH TRACE · LOAD FROM DESKTOP FIRST')
@@ -1460,24 +1457,21 @@ function install(ctx){
       ?('SEG '+scope.segId+' · '+(SEG_MAP[scope.segId]?.name||'—'))
       :menuPage==='ct'&&ctSpatial
         ?'CT '+ctAxis.toUpperCase()+' / slice '+ctSpatial.snapshot().sections[ctAxis]
-        :inspectMode?'INSPECTION · '+(lobes.find(l=>l.id===selectedLobe)?.name||'GRAB A LOBE'):'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )).slice(0,51),48,189);
-    c.fillStyle='#a8c4cc';c.font='23px system-ui';
-    c.fillText(menuPage==='trace'
+        :inspectMode?'INSPECTION · '+(lobes.find(l=>l.id===selectedLobe)?.name||'GRAB A LOBE'):'Original anatomical scene · '+scaleMode+' scale'+(referenceFocus?' · '+referenceFocus:'' )),42,159,w-84,{size:28,min:23,weight:500});
+    spatialUI.text(c,spatialUI.label(menuPage==='trace'
        ?'PHYSICAL MEASUREMENT REVIEW · NEVER DRIVES THE ORIGINAL SCOPE'
        :mode==='procedure'
        ?(menuPage==='channel'?'AT JUNCTION: TRIGGERS SELECT BRANCH · USE ACTUATE FOR TOOL':'L GRIP: FEED SHAFT · L STICK: INSERT/ROLL · R GRIP: STEER')
        :xrPresentation==='ar'&&!placed
          ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
-         :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU',48,236);
-    c.fillStyle='#95bdc8';c.font='23px system-ui';
-    c.fillText((menuPage==='trace'
+         :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU'),42,200,w-84,{size:25,min:22,color:spatialUI.C.muted});
+    spatialUI.text(c,spatialUI.label(menuPage==='trace'
       ?('TRACE QA '+replay.snapshot().engineeringStatus+' / '+
         (replay.snapshot().observation?.tracking?'TRACKING OK':'TRACKING NOT VERIFIED'))
       :xrPresentation==='ar'?
       'MR '+mrPlacement.snapshot().state.toUpperCase()+' / '+
       mrPlacement.snapshot().anchorStatus.toUpperCase()+' · UNVERIFIED ROOM DEPTH'
-      :source).slice(0,83),48,274);
-    c.fillStyle='#d8e1e4';c.font='22px system-ui';
+      :source),42,235,w-84,{size:23,min:20,color:spatialUI.C.fine});
     const clinicalLabel=mode==='procedure'
       ?(clearance
         ?'EST. LUMEN '+clearance.diameterMm.toFixed(1)+' mm  /  TOOL '+clearance.scopeDiameterMm.toFixed(1)+' mm  ·  '+(clearance.canAdvance?'PASS':'BLOCK')
@@ -1489,12 +1483,14 @@ function install(ctx){
         ?'R3 REDUCED-ORDER RESEARCH · LOADING / UNAVAILABLE'
         :'CT SOURCE SCALE IS METADATA-DERIVED, NOT CLINICALLY VERIFIED');
     const traceObs=replay.snapshot().observation;
-    c.fillText((menuPage==='trace'&&traceObs
+    spatialUI.text(c,spatialUI.label(menuPage==='trace'&&traceObs
       ?'MEAS INS '+traceObs.measured.insertionMm.toFixed(1)+' mm · ERR '+
         traceObs.residual.insertionMm.toFixed(1)+' mm · TIP H '+traceObs.measured.tipHDeg.toFixed(1)+'°'
       :menuPage==='trace'
         ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
-        :clinicalLabel).slice(0,83),48,311);
+        :clinicalLabel),42,272,w-84,{size:24,min:21,color:spatialUI.C.muted});
+    spatialUI.text(c,spatialUI.label(active?grabFeedback:'Reference engine ready'),42,305,w-84,{size:23,min:20,color:/BLOCK|FAIL|UNAVAILABLE|INTERFERENCE/.test(grabFeedback)?spatialUI.C.warn:spatialUI.C.accent});
+    spatialUI.line(c,42,318,w-84);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
@@ -1537,13 +1533,7 @@ function install(ctx){
           stage.snapshot().mode==='studio'?'FOCUS VIEW':'STUDIO VIEW'):
         a.id==='pivot'?(pivotMode==='center'?'PIVOT CENTER':'PIVOT ORIGIN'):
         a.id==='axis'?'AXIS '+axisMode.toUpperCase():a.label;
-      c.fillStyle=hovered?'#476774':selected?'#345463':available?'#213641':'#1c2a32';
-      c.fillRect(x,y,width,height);
-      c.strokeStyle=hovered?'#f1d3a5':selected?'#adcdd5':available?'#4b6673':'#314652';
-      c.lineWidth=2;c.strokeRect(x,y,width,height);
-      c.fillStyle=available?'#e5eef1':'#6f8791';
-      c.font='600 27px system-ui';
-      c.fillText(label,x+23,y+height*.66);
+      spatialUI.control(c,{x,y,w:width,h:height,title:label,hovered,selected,available,action:a.id});
     }
     panelTex.needsUpdate=true;
     paintGuide();
@@ -1566,7 +1556,7 @@ function install(ctx){
   const monitorRoot=new THREE.Group();
   monitorRoot.name='xr16-independent-endoscopy-display';
   const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(1.00,.665),
-    new THREE.MeshBasicMaterial({color:0x0b161e,side:THREE.DoubleSide}));
+    new THREE.MeshBasicMaterial({color:0x171b1e,side:THREE.DoubleSide}));
   monitorFrame.position.z=-.012;monitorRoot.add(monitorFrame);
   // Keep anatomical source pixels clear: identification and instrument data
   // are physically above/below the image, never drawn across the lumen.
@@ -1611,15 +1601,12 @@ function install(ctx){
     const seg=SEG_MAP[scope.segId];
     function draw(strip,left,rightText,small=false){
       const c=strip.ctx,w=strip.canvas.width,h=strip.canvas.height;
-      c.clearRect(0,0,w,h);c.fillStyle='#14242d';c.fillRect(0,0,w,h);
-      c.fillStyle='#8fb5c0';c.fillRect(0,0,w,3);
-      c.fillStyle='#e3edf0';c.font='600 '+(small?23:27)+'px system-ui';
-      c.textAlign='left';c.fillText(left.slice(0,75),18,49);
-      c.textAlign='right';c.fillStyle='#a4c1ca';
-      c.fillText(rightText.slice(0,45),w-17,49);
+      c.clearRect(0,0,w,h);c.fillStyle=spatialUI.C.surface;c.fillRect(0,0,w,h);
+      spatialUI.text(c,spatialUI.label(left),18,48,w*.60,{size:small?25:30,min:22,weight:550});
+      spatialUI.text(c,spatialUI.label(rightText),w-18,48,w*.36,{size:24,min:20,align:'right',color:spatialUI.C.accent});
       strip.texture.needsUpdate=true;
     }
-    draw(topStrip,(seg?.name||'REFERENCE AIRWAY').toUpperCase(),'GEN '+(seg?.gen??'—')+' · '+monitorStatus.toUpperCase());
+    draw(topStrip,'Endoscopy  /  '+(seg?.name||'Reference airway'),'GEN '+(seg?.gen??'—')+' · '+monitorStatus.toUpperCase());
     draw(bottomStrip,
       'SEG '+scope.segId+' · '+(seg?.name||'—')+' · DEPTH '+Math.round(scope.depth)+' MM',
       settings.capture.label+' · '+settings.fovDegrees+'°',true);
@@ -1648,27 +1635,20 @@ function install(ctx){
     });
     guideLastState=state;
     const c=guideCtx,w=guideCanvas.width,h=guideCanvas.height;
-    c.clearRect(0,0,w,h);
-    c.fillStyle='#112028';c.fillRect(0,0,w,h);
-    c.fillStyle='#6a9eab';c.fillRect(0,0,w,6);
-    c.textAlign='left';
-    c.fillStyle='#a9c3cc';c.font='600 23px system-ui';
-    c.fillText('PULMOSIMU  /  PROCEDURE GUIDE',42,50);
-    c.textAlign='right';c.fillStyle='#bad1da';
-    c.fillText('STEP '+(guideStep+1)+'/5  ·  '+guideStages[guideStep],w-42,50);
-    c.textAlign='left';c.fillStyle='#f0f5f7';
-    c.font='550 42px system-ui';c.fillText(state.heading,42,116);
-    c.font='550 31px system-ui';
-    c.fillText(state.location.slice(0,51),42,165);
+    spatialUI.frame(c,w,h);
+    spatialUI.text(c,'PulmoSIMU  /  Procedure guide',42,46,w*.62,{size:24,weight:550,color:spatialUI.C.muted});
+    spatialUI.text(c,'Step '+(guideStep+1)+'/5  ·  '+spatialUI.label(guideStages[guideStep]),w-42,46,w*.32,{size:24,align:'right',color:spatialUI.C.accent});
+    spatialUI.text(c,spatialUI.label(state.heading),42,110,w-84,{size:44,min:34,weight:530});
+    spatialUI.text(c,spatialUI.label(state.location),42,157,w-84,{size:32,weight:500});
     c.fillStyle='#9cb7c2';c.font='26px system-ui';
     c.fillText('GEN '+(state.generation??'—')+
       '    SEGMENT '+scope.segId+'    PATH '+state.progressPercent+'%',42,213);
-    c.fillStyle='#304651';c.fillRect(42,236,w-84,8);
-    c.fillStyle='#a4d3d9';c.fillRect(42,236,(w-84)*state.progressPercent/100,8);
+    c.fillStyle=spatialUI.C.edge;c.fillRect(42,236,w-84,4);
+    c.fillStyle=spatialUI.C.accent;c.fillRect(42,236,(w-84)*state.progressPercent/100,4);
     c.fillStyle='#dce8eb';c.font='600 26px system-ui';
     c.fillText(state.tool+'   /   '+state.monitor,42,289);
     c.fillStyle='#aebfc7';c.font='24px system-ui';
-    c.fillText(route.labels.join(' > ').slice(0,73),42,337);
+    spatialUI.text(c,route.labels.join(' › '),42,337,w-84,{size:25,min:20,color:spatialUI.C.muted});
     c.fillStyle=state.clearance.includes('BLOCKING')?'#e8b99d':'#93adba';
     c.font='23px system-ui';
     const observed=procedureMetrics.snapshot();
@@ -1686,17 +1666,9 @@ function install(ctx){
     for(const a of guideHitboxes){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
       const hovered=hoverPanels.includes(a.id);
-      c.fillStyle=a.disabled?'#17252e':hovered?'#436b76':'#223843';
-      c.fillRect(x,y,width,height);
-      c.strokeStyle=hovered?'#e4cba5':a.disabled?'#273740':'#4b6975';
-      c.lineWidth=2;c.strokeRect(x,y,width,height);
-      c.fillStyle=a.disabled?'#647d88':'#e6f0f3';
-      c.font='600 23px system-ui';
-      c.font='600 '+(a.w<.31?20:23)+'px system-ui';
-      c.fillText(a.label.slice(0,25),x+12,y+height*.65,width-24);
+      spatialUI.control(c,{x,y,w:width,h:height,title:a.label,hovered,available:!a.disabled,action:a.id});
     }
-    c.fillStyle='#839da7';c.font='19px system-ui';
-    c.fillText(state.provenance,42,652);
+    spatialUI.text(c,spatialUI.label(state.provenance),42,672,w-84,{size:18,min:17,color:spatialUI.C.fine});
     // Real current instrument commands, deliberately separate from the
     // endoscopic image. Angles are reference actuator inputs, not measured
     // patient mechanics.
@@ -2053,7 +2025,7 @@ function install(ctx){
   // alpha compositing reveals the room; no fabricated room scan or occlusion.
   arButton=document.createElement('button');
   arButton.type='button';arButton.id='pulmo-passthrough-ar';
-  arButton.textContent='ENTER MR · PASSTHROUGH PREVIEW';
+  arButton.textContent='Enter mixed reality';
   Object.assign(arButton.style,{position:'fixed',bottom:'18px',right:'241px',
     zIndex:10020,padding:'13px 16px',border:'1px solid #9ab8bd',
     background:'#15252d',color:'#d4e5ea',font:'600 12px system-ui',
@@ -2100,11 +2072,19 @@ function install(ctx){
     color:'#d0e1e6',background:'#14232bcf',padding:'7px 10px',
     border:'1px solid #49636f',borderRadius:'3px',display:'none'});
   document.body.appendChild(runtimeStatus);
+  // Consolidate the original controls into one desktop dock; all original IDs and handlers survive.
+  const launchDock=document.createElement('aside');launchDock.id='pulmo-launch-dock';launchDock.setAttribute('aria-label','Spatial session controls');
+  const dockControls=document.createElement('div');dockControls.className='ps-dock-controls';
+  const dockLabel=document.createElement('span');dockLabel.className='ps-dock-label';dockLabel.textContent='Spatial session';
+  const dockTools=document.createElement('details');dockTools.className='ps-dock-tools';const toolSummary=document.createElement('summary');toolSummary.textContent='Session tools';const toolsPanel=document.createElement('div');toolsPanel.className='ps-tools-panel';toolsPanel.append(traceButton,instrumentSetup,reportButton);dockTools.append(toolSummary,toolsPanel);
+  dockControls.append(dockLabel,arButton,button,dockTools);launchDock.append(runtimeStatus,dockControls);document.body.appendChild(launchDock);
+  const syncDock=()=>{launchDock.hidden=rBro.xr.isPresenting||document.getElementById('splash')?.style.display!=='none';};
+  if(splash&&typeof MutationObserver!=='undefined')new MutationObserver(syncDock).observe(splash,{attributes:true,attributeFilter:['style']});syncDock();
   function refreshXRAvailability(info){
     const caps=info||xrCapabilities.snapshot(),q=caps.sessions;
     button.disabled=q.vr==='unsupported'||q.vr==='unavailable'||q.vr==='error';
-    if(button.disabled)button.textContent='PROCEDURAL VR · UNAVAILABLE';
-    else button.textContent='ENTER PROCEDURAL XR';
+    if(button.disabled)button.textContent='VR unavailable';
+    else button.textContent='Enter VR';
     // MR is passthrough only; room anchors and physical occlusion are
     // NOT supported merely because immersive-ar is available.
     arButton.style.display=q.mr==='supported'?'block':'none';
@@ -2131,6 +2111,7 @@ function install(ctx){
       for(const [o] of mrHidden)o.visible=false;
       rBro.setClearColor(0x000000,0);
     }
+    launchDock.hidden=true;dockTools.open=false;
     health.begin(rBro.xr.getSession()?.frameRate??null);
     displayPath.inspect({session:rBro.xr.getSession(),renderer:rBro,
       gl:rBro.getContext?.()||null});
@@ -2374,7 +2355,7 @@ function install(ctx){
     toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
     procedureMetrics.suspend();health.end();reportButton.style.display='block';
-    active=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;handGrasped.fill(false);scope.velocity=0;
+    active=false;launchDock.hidden=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;handGrasped.fill(false);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     worldMenu.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
