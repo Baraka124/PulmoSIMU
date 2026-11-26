@@ -438,6 +438,7 @@ function install(ctx){
     if(next!=='procedure'){if(localRecording.snapshot().running){stopRecording('PROCEDURE_EXIT');const packet=localRecording.packet();if(packet)loadRecordedReview(packet);}lastShaftAt=-Infinity;lastShaftSample=shaftEvidence;lastShaftKey=null;hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(previousMode!==next){monitorFocus=false;menuPage=next==='procedure'?'station':xrPresentation==='ar'&&!placed?'mr':'primary';actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
+    if(next!=='procedure'){ebusScreen.visible=false;endoscopyTower.hide();ultrasoundTower.hide();}
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
     if(next==='anatomy'){scope.velocity=0;if(active&&physicalControl?.snapshot().armed&&previousMode==='procedure')physicalControl.stop('PROCEDURE_EXIT');}
     updateRouteOverlay();
@@ -575,7 +576,7 @@ function install(ctx){
     try{const [x,y,z]=spec.translation;rBro.xr.setReferenceSpace(ref.getOffsetReferenceSpace(new Ctor({x,y,z},{x:0,y:Math.sin(spec.yaw/2),z:0,w:Math.cos(spec.yaw/2)})));workspaceMoves++;workspaceRelayout=true;return true;}
     catch(error){grabFeedback='WORKSPACE OFFSET UNAVAILABLE';paint();return false;}
   }
-  function selectedPanel(){return panelTarget==='guide'?guidePlane:panelTarget==='menu'?worldMenu:scopeScreen;}
+  function selectedPanel(){return panelTarget==='ebus'?ebusScreen:panelTarget==='guide'?guidePlane:panelTarget==='menu'?worldMenu:scopeScreen;}
   function stopPanelEdit(){if(panelEdit){panelPinned.add(panelEdit.object);panelEdit=null;panelMoves++;}}
   function startPanelEdit(i,object){if(!object?.visible||panelEdit||!viewerValid)return false;const grip=trackedController(i);if(!grip)return false;grip.updateWorldMatrix(true,false);object.updateWorldMatrix(true,false);panelEdit={i,object,relative:new THREE.Matrix4().copy(grip.matrixWorld).invert().multiply(object.matrixWorld)};return true;}
   function updatePanelEdit(dt){if(!panelEdit)return;const {i,object,relative}=panelEdit;const grip=trackedController(i);if(!grip||!controllerSources[i]||!viewerValid){stopPanelEdit();return;}grip.updateWorldMatrix(true,false);const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();new THREE.Matrix4().multiplyMatrices(grip.matrixWorld,relative).decompose(p,q,s);const bounded=upgrade.boundedPanelPosition(head.toArray(),p.toArray());if(!bounded)return;const step=upgrade.limitedStep(object.position.toArray(),bounded,dt,1.8);if(step)object.position.set(...step);object.lookAt(head);object.updateWorldMatrix(true,false);}
@@ -606,6 +607,7 @@ function install(ctx){
       place(scopeScreen,pose.monitor);
       place(guidePlane,pose.guide);
     }
+    if(radialEnabled&&mode==='procedure')place(ebusScreen,{depth:1.54,right:1.47,y:.10,scale:1});
     composeSpatialWorkspace();
   }
   function composeSpatialWorkspace(){
@@ -620,6 +622,7 @@ function install(ctx){
     }
     const entries=[
       {id:'monitor',object:scopeScreen,w:1.03,h:.69,lower:.12,visible:mode==='procedure'},
+      {id:'ebus',object:ebusScreen,w:.66,h:.70,lower:.09,visible:mode==='procedure'&&radialEnabled},
       {id:'guide',object:guidePlane,w:.90,h:.60,lower:0,visible:mode==='procedure'&&guideVisible},
       {id:'console',object:worldMenu,w:.82,h:.48,lower:0,visible:worldMenu.visible},
       {id:'rail',object:compactDock,w:.76,h:.112,lower:0,visible:!worldMenu.visible}
@@ -632,6 +635,7 @@ function install(ctx){
       const preferred={right:p[0],y:p[1],depth:p[2],scale};
       const sign=e.id==='monitor'||e.id==='guide'?1:panelOffset>0?1:-1;
       const alternatives=e.id==='monitor'?[{right:.91,y:.25,depth:1.40,scale},{right:1.06,y:.32,depth:1.57,scale}]:
+        e.id==='ebus'?[{right:1.75,y:.15,depth:1.76,scale},{right:1.28,y:.64,depth:1.65,scale},{right:-1.25,y:.23,depth:1.60,scale}]:
         e.id==='guide'?[{right:1.0,y:-.48,depth:1.48,scale},{right:1.26,y:-.12,depth:1.62,scale},{right:.98,y:-.67,depth:1.52,scale}]:
         e.id==='console'?[{right:sign*.98,y:.08,depth:1.24,scale},{right:sign*1.22,y:.13,depth:1.42,scale},{right:sign*.98,y:.48,depth:1.45,scale}]:
         [{right:sign*.65,y:-.57,depth:1.18,scale},{right:sign*.87,y:-.48,depth:1.28,scale},{right:0,y:-.68,depth:1.25,scale}];
@@ -894,7 +898,9 @@ function install(ctx){
       {object:guidePlane,actions:guideHitboxes,role:'procedure-guide'},
       {object:compactDock,actions:railActions,role:'compact-command-rail'},
       {object:scopeScreen?.visible?monitorToolbar:null,actions:monitorActions,role:'monitor-controls'},
-      {object:scopeScreen?.visible?monitorFrame:null,actions:[],role:'endoscopy-monitor'}
+      {object:scopeScreen?.visible?monitorFrame:null,actions:[],role:'endoscopy-monitor'},
+      {object:ebusScreen.visible?ebusToolbar:null,actions:ebusActions,role:'ebus-controls'},
+      {object:ebusScreen.visible?ebusFrame:null,actions:[],role:'ebus-monitor'}
     ]){
       if(!panel.object?.visible)continue;
       panel.object.updateWorldMatrix(true,false);
@@ -1010,7 +1016,7 @@ function install(ctx){
   function probeClearance(extension){try{return global.PulmoXREBUS.clearance({pose:probeBasis(extension),extensionMm:extension,field:ctx.getLumenField?.(),mmPerUnit:getMmPerSceneUnit()*(ctx.getReferenceMotionFactor?.()||1)});}catch{return false;}}
   function feedProbe(delta){if(delta>0&&!patientMotionAllowed())return false;if(mode!=='procedure'||getMeshMode()!=='reference'||channel.snapshot().tool!=='none'||physicalControl?.snapshot().armed)return false;const ok=ebusProbe.feed(delta,probeClearance);if(probeLocked()){scope.velocity=0;scopeSteering=null;}radialLast=-Infinity;return ok;}
   function driveProbe(point,closed,valid,dt,q){const local=point?new THREE.Vector3(...point).sub(videoScope.group.position).applyQuaternion(q.clone().invert()).toArray():null;const near=Boolean(local&&Math.hypot(local[0]-.10,local[1]+.012,local[2])<.065);const p=probeGrip.step({valid,closed,near,point:local,axis:[-1,0,0],dt});if(p.held&&p.deltaMm)feedProbe(p.deltaMm);}
-  function selectEBUS(next){if(mode!=='procedure'||getMeshMode()!=='reference'||physicalControl?.snapshot().armed||channel.snapshot().tool!=='none'){grabFeedback='EMPTY WORKING CHANNEL AND DISARMED REFERENCE REQUIRED';return false;}if(!ebusProbe.select(next)){grabFeedback='RETRACT PROBE BEFORE MODE CHANGE';return false;}radialEnabled=next!=='off';radialLast=-Infinity;probeGrip.reset();return true;}
+  function selectEBUS(next){if(mode!=='procedure'||getMeshMode()!=='reference'||physicalControl?.snapshot().armed||channel.snapshot().tool!=='none'){grabFeedback='EMPTY WORKING CHANNEL AND DISARMED REFERENCE REQUIRED';return false;}if(!ebusProbe.select(next)){grabFeedback='RETRACT PROBE BEFORE MODE CHANGE';return false;}radialEnabled=next!=='off';radialLast=-Infinity;probeGrip.reset();ebusScreen.visible=radialEnabled;if(!radialEnabled){panelPinned.delete(ebusScreen);if(panelTarget==='ebus')panelTarget='monitor';ultrasoundTower.hide();}positionPanels();return true;}
   function checkAccessory(length,open){
     const state=channel.snapshot();
     const frame=ctx.getReferenceMotionFrame?.()||mGrp;
@@ -1021,7 +1027,7 @@ function install(ctx){
   function actuateAccessory(){const state=channel.snapshot();if(state.tool==='forceps'&&!state.jawsOpen&&state.extensionMm>=3){accessoryEvidence=checkAccessory(state.extensionMm,true);if(!accessoryEvidence.allowed){grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;return;}}channel.action();}
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
-    if(active){for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.press(action,performance.now());}
+    if(active){for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface,ebusControlSurface])surface.press(action,performance.now());}
     if(action==='console-collapse'){worldMenu.visible=false;compactDock.visible=true;hoverPanels.fill(null);stopPanelEdit();positionPanels();paint();return;}
     if(action==='console-reading'){readingMode=!readingMode;panelPinned.delete(worldMenu);panelPinned.delete(guidePlane);positionPanels();contextActions++;paint();return;}
     if(action==='dock-channel'||action==='monitor-station'){if(mode!=='procedure')return;menuPage=action==='dock-channel'?'channel':'station';actionHitbox=panelLayouts[menuPage];worldMenu.visible=true;compactDock.visible=false;positionPanels();contextActions++;paint();return;}
@@ -1077,7 +1083,7 @@ function install(ctx){
     if(action==='section-prev'||action==='section-next'){sectionFraction=safe(.05,.95,sectionFraction+(action==='section-next'?.1:-.1));updateSection();paint();return;}
     if(action==='panel-shift'){panelPinned.delete(worldMenu);panelOffset=panelOffset===0?1.44:0;positionPanels();paint();return;}
     if(action==='panel-edit-open'){panelTarget=mode==='procedure'?'monitor':'menu';menuPage='panel-edit';actionHitbox=panelLayouts['panel-edit'];paint();return;}
-    if(action==='panel-select'){const targets=mode==='procedure'?['monitor','guide','menu']:['menu'];panelTarget=targets[(targets.indexOf(panelTarget)+1)%targets.length];paint();return;}
+    if(action==='panel-select'){const targets=mode==='procedure'?(radialEnabled?['monitor','ebus','guide','menu']:['monitor','guide','menu']):['menu'];panelTarget=targets[(targets.indexOf(panelTarget)+1)%targets.length];paint();return;}
     if(action==='panel-size'){const object=selectedPanel();if(object?.visible){object.scale.setScalar(object.scale.x>=1.25?.75:Math.min(1.3,object.scale.x+.15));panelPinned.add(object);}paint();return;}
     if(action==='panel-reset'){stopPanelEdit();panelPinned.clear();panelOffset=0;positionPanels();paint();return;}
     if(action==='panel-compose'){if(panelEdit)return;positionPanels();grabFeedback='WORKSPACE ARRANGED / PINNED WINDOWS RETAINED';paint();return;}
@@ -1764,7 +1770,7 @@ function install(ctx){
     railActions=spatialExperience.layoutRail(mode);
     dockCtx.clearRect(0,0,1024,180);for(const a of railActions){const title=a.id==='dock-mode'?(mode==='anatomy'?'Bronchoscopy':'Anatomy'):a.id==='dock-guide'?(guideVisible?'Hide guide':'Guide'):a.label;spatialUI.control(dockCtx,{x:a.u*1024,y:a.v*180,w:a.w*1024,h:a.h*180,title,hovered:hoverPanels.includes(a.id),available:!(a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference'),action:a.id,physical:true});a.disabled=a.id==='dock-mode'&&mode==='anatomy'&&role!=='reference';}railSurface.setActions(railActions);railSurface.update(hoverPanels);dockTex.needsUpdate=true;
     panelTex.needsUpdate=true;
-    paintMonitorControls();paintGuide();
+    paintMonitorControls();paintEBUSControls();paintGuide();
   }
   // Live bronchoscopy is rendered from the ORIGINAL camScope directly
   // into a render target owned by the SAME VR WebGL context. No canvas
@@ -1782,6 +1788,7 @@ function install(ctx){
   let monitorFailures=0,monitorRecoveries=0,monitorRetryAt=0;
   let monitorBudget=instrument.videoCostGovernor();
   const monitorRoot=new THREE.Group();
+  const endoscopyTower=global.PulmoXRProcedureTower.create(THREE,scene),ultrasoundTower=global.PulmoXRProcedureTower.create(THREE,scene,{secondary:true});
   monitorRoot.name='xr16-independent-endoscopy-display';
   const monitorFrame=new THREE.Mesh(new THREE.PlaneGeometry(1.00,.665),
     new THREE.MeshBasicMaterial({color:0x171b1e,side:THREE.DoubleSide}));
@@ -1802,9 +1809,22 @@ function install(ctx){
   monitorImage.visible=false;monitorImage.renderOrder=30;monitorRoot.add(monitorImage);
   const radialCanvas=document.createElement('canvas');radialCanvas.width=512;radialCanvas.height=512;
   const radialTexture=new THREE.CanvasTexture(radialCanvas);radialTexture.encoding=THREE.sRGBEncoding;
-  const radialPanel=new THREE.Mesh(new THREE.PlaneGeometry(.44,.44),new THREE.MeshBasicMaterial({map:radialTexture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
-  radialPanel.material.depthTest=true;radialPanel.material.depthWrite=true;
-  radialPanel.position.set(.246,-.012,.003);radialPanel.renderOrder=31;radialPanel.visible=false;monitorRoot.add(radialPanel);
+  const ebusScreen=new THREE.Group();ebusScreen.name='ui09-independent-ebus-display';ebusScreen.visible=false;scene.add(ebusScreen);
+  const ebusFrame=new THREE.Mesh(new THREE.PlaneGeometry(.64,.69),new THREE.MeshBasicMaterial({color:0x171b1e,side:THREE.DoubleSide}));ebusFrame.position.z=-.012;ebusScreen.add(ebusFrame);
+  const ebusHousing=spatialGeometry.monitorHousing(THREE,ebusScreen,{width:.64,height:.69,depth:.052});
+  const radialPanel=new THREE.Mesh(new THREE.PlaneGeometry(.57,.57),new THREE.MeshBasicMaterial({map:radialTexture,side:THREE.DoubleSide,depthTest:true,depthWrite:true,toneMapped:false}));
+  radialPanel.position.set(0,-.006,.003);radialPanel.renderOrder=31;radialPanel.visible=false;ebusScreen.add(radialPanel);
+  const ebusStatusCanvas=document.createElement('canvas');ebusStatusCanvas.width=1024;ebusStatusCanvas.height=76;
+  const ebusStatusCtx=ebusStatusCanvas.getContext('2d'),ebusStatusTexture=new THREE.CanvasTexture(ebusStatusCanvas);ebusStatusTexture.encoding=THREE.sRGBEncoding;
+  const ebusStatusMesh=new THREE.Mesh(new THREE.PlaneGeometry(.60,.044),new THREE.MeshBasicMaterial({map:ebusStatusTexture,toneMapped:false}));ebusStatusMesh.position.set(0,.313,.005);ebusScreen.add(ebusStatusMesh);
+  const ebusControlCanvas=document.createElement('canvas');ebusControlCanvas.width=1024;ebusControlCanvas.height=150;
+  const ebusControlCtx=ebusControlCanvas.getContext('2d'),ebusControlTexture=new THREE.CanvasTexture(ebusControlCanvas);ebusControlTexture.encoding=THREE.sRGBEncoding;
+  const ebusToolbar=new THREE.Mesh(new THREE.PlaneGeometry(.61,.078),new THREE.MeshBasicMaterial({map:ebusControlTexture}));ebusToolbar.position.set(0,-.393,.005);ebusScreen.add(ebusToolbar);
+  const ebusActions=[{id:'ebus-feed',label:'Feed',u:.018,v:.10,w:.232,h:.80},{id:'ebus-retract',label:'Retract',u:.264,v:.10,w:.232,h:.80},{id:'ebus-roll',label:'Rotate',u:.510,v:.10,w:.232,h:.80},{id:'radial-range',label:'Range',u:.756,v:.10,w:.226,h:.80}];
+  const ebusControlSurface=spatialGeometry.create(THREE,ebusToolbar,{width:.61,height:.078,radius:2.5,deckStart:0,depth:.017,texture:ebusControlTexture});
+  function paintEBUSControls(){const p=ebusProbe.snapshot(),c=ebusControlCtx;c.clearRect(0,0,1024,150);for(const a of ebusActions){a.disabled=p.mode==='off'||a.id!=='radial-range'&&p.mode!=='radial'||a.id==='ebus-feed'&&p.extensionMm>=12||a.id==='ebus-retract'&&p.extensionMm<=0;const title=a.id==='radial-range'?radialRange+' mm':a.label;spatialUI.control(c,{x:a.u*1024,y:a.v*150,w:a.w*1024,h:a.h*150,title,hovered:hoverPanels.includes(a.id),available:!a.disabled,action:a.id,physical:true});}ebusControlSurface.setActions(ebusActions);ebusControlSurface.update(hoverPanels);ebusControlTexture.needsUpdate=true;}
+  function paintEBUSStatus(){const p=ebusProbe.snapshot(),c=ebusStatusCtx;c.fillStyle='#171e23';c.fillRect(0,0,1024,76);spatialUI.text(c,p.mode.toUpperCase()+' EBUS / REFERENCE',18,48,670,{size:32,min:24,weight:550});spatialUI.text(c,p.mode==='radial'?p.extensionMm.toFixed(1)+' mm':radialRange+' mm',1005,48,300,{size:28,min:22,align:'right',color:spatialUI.C.accent});ebusStatusTexture.needsUpdate=true;ebusHousing.setStatus(radialEvidence?.state==='SCAN_UNAVAILABLE'?'unavailable':'live');}
+  function updateProcedureTowers(){const enabled=active&&viewerValid&&mode==='procedure'&&xrPresentation==='vr'&&stage.snapshot().mode==='studio';const args={enabled,floor:room.position.y,room:room.position.toArray(),head:head.toArray(),patient:patientStation.snapshot().placement};endoscopyTower.update({...args,screen:scopeScreen,halfHeight:.344,lowerExtension:.10});ultrasoundTower.update({...args,screen:ebusScreen,halfHeight:.35,lowerExtension:.09});}
   function updateEBUSAssembly(){
     if(mode!=='procedure'||getMeshMode()!=='reference'||!viewerValid){ebusVisual.hide();return;}
     const frame=ctx.getReferenceMotionFrame?.()||mGrp;frame.updateWorldMatrix(true,false);const rootCurve=pathCurves[deviceLab.ancestry(SEG_MAP,scope.segId)[0]],entry=rootCurve?.getPoint(0).applyMatrix4(frame.matrixWorld),entryDirection=rootCurve?.getTangent(0).transformDirection(frame.matrixWorld),p=ebusProbe.snapshot(),b=probeBasis(p.mode==='radial'?p.extensionMm:0),tipWorld=scope.pos.clone().applyMatrix4(frame.matrixWorld),probeWorld=new THREE.Vector3(...b.origin).applyMatrix4(frame.matrixWorld),worldPerMm=frame.getWorldScale(new THREE.Vector3()).x/(getMmPerSceneUnit()*(ctx.getReferenceMotionFactor?.()||1));
@@ -1812,7 +1832,7 @@ function install(ctx){
   }
   function updateRadial(now){
     const show=mode==='procedure'&&getMeshMode()==='reference'&&radialEnabled;
-    radialPanel.visible=show;monitorImage.scale.setScalar(show?.52:1);monitorImage.position.x=show?-.235:0;
+    ebusScreen.visible=show;radialPanel.visible=show;monitorImage.scale.setScalar(1);monitorImage.position.x=0;
     if(!show)return;
     if(now-radialLast<500)return;radialLast=now;
     try{const field=ctx.getLumenField?.();if(!field)throw Error('NO_SOURCE_FIELD');
@@ -1820,7 +1840,7 @@ function install(ctx){
      if(p.mode==='radial'&&(p.extensionMm<=0||!probeClearance(p.extensionMm)))radialEvidence={state:p.extensionMm<=0?'PROBE_STOWED':'CLEARANCE_BLOCKED',rays:[],rangeMm:radialRange,coupling:radialCoupling};
      else radialEvidence=p.mode==='convex'?global.PulmoXREBUS.sector(args):global.PulmoXRRadialImaging.scan(args);
     }catch(error){radialEvidence={state:'SCAN_UNAVAILABLE',reason:String(error?.message||error).slice(0,80),coupling:radialCoupling};}
-    if(ebusProbe.snapshot().mode==='convex')global.PulmoXREBUS.paint(radialCanvas,radialEvidence);else global.PulmoXRRadialImaging.paint(radialCanvas,radialEvidence);radialTexture.needsUpdate=true;
+    if(ebusProbe.snapshot().mode==='convex')global.PulmoXREBUS.paint(radialCanvas,radialEvidence);else global.PulmoXRRadialImaging.paint(radialCanvas,radialEvidence);radialTexture.needsUpdate=true;paintEBUSStatus();paintEBUSControls();
   }
   function monitorStrip(y){
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=74;
@@ -1935,7 +1955,7 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,ebusVisual.group,patientStation.group,spatialVisual.group,planeMask.group,compactDock,embodiment.group,...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,ebusVisual.group,patientStation.group,spatialVisual.group,planeMask.group,ebusScreen,endoscopyTower.group,ultrasoundTower.group,compactDock,embodiment.group,...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -2447,7 +2467,7 @@ function install(ctx){
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
-        viewerValid=false;if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();patientStation.group.visible=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
+        viewerValid=false;ebusScreen.visible=false;endoscopyTower.hide();ultrasoundTower.hide();if(benchAligned){invalidateBench();mGrp.visible=false;placed=false;}clearSpatialCalibration();patientStation.group.visible=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
         ebusVisual.hide();probeGrip.reset();toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
         handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);embodiment.reset();resetEmbodiedGrip();handSamples={};handMenuBlocked={left:false,right:false};
@@ -2535,7 +2555,7 @@ function install(ctx){
       motionEvidence=respiratoryMotion.step(physicsSnapshot,motionEnabled&&mode==='procedure'&&getMeshMode()==='reference'&&viewerValid,dt);
       if(mode==='procedure'&&getMeshMode()==='reference'&&viewerValid)couplingEvidence.step(physicsSnapshot,motionEvidence,dt);
       ctx.setReferenceMotion?.(motionEvidence.scale,[routeOverlay,insertedShaft.mesh]);
-      updateScope();updateRouteOverlay();updateEBUSAssembly();updateRadial(time);updateSection();
+      updateScope();updateRouteOverlay();updateEBUSAssembly();updateRadial(time);updateProcedureTowers();updateSection();
       if(mode==='procedure'&&accessoryDeployed()&&time-accessoryLast>100){accessoryLast=time;const state=channel.snapshot();accessoryEvidence=checkAccessory(state.extensionMm,state.jawsOpen);if(!accessoryEvidence.allowed){scope.velocity=0;grabFeedback='REFERENCE ACCESSORY INTERFERENCE / RETRACT';}}
       if(mode==='procedure'&&getMeshMode()==='reference')regionalEvidence.step(physicsSnapshot);else regionalEvidence.suspend();
       updateRegionalOverlay(time);
@@ -2610,7 +2630,7 @@ function install(ctx){
       orientationLocked,spatialCT:ctSpatial?.snapshot()||null
     };
     regionalEvidenceFinal=regionalEvidence.snapshot();stopPanelEdit();panelPinned.clear();if(regionalOverlay)regionalOverlay.visible=false;regionalDisplay=false;
-    motionReport={...motionEvidence};ctx.setReferenceMotion?.(1);ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialPanel.visible=false;monitorImage.scale.setScalar(1);monitorImage.position.x=0;
+    motionReport={...motionEvidence};ctx.setReferenceMotion?.(1);ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialPanel.visible=false;ebusScreen.visible=false;endoscopyTower.hide();ultrasoundTower.hide();monitorImage.scale.setScalar(1);monitorImage.position.x=0;
     // Capture status before disposal; no raw room/headset coordinates.
     if(inspectMode)setInspection(false);
     opticalIndex=0;ctx.setEndoscopeLighting?.(opticalModes[0].gain,opticalModes[0].glare);
@@ -2677,6 +2697,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
+    proceduralEquipment:{endoscopy:endoscopyTower.snapshot(),ultrasound:ultrasoundTower.snapshot(),independentEBUSDisplay:true,primaryImagePreserved:true,hardwareControl:false},
     spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence,composition:compositionEvidence},
     patientStation:{...patientStation.snapshot(),operatorZone:patientZone},
     spatialCalibration:spatialFinal||{...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()},

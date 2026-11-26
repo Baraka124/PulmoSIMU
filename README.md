@@ -184,3 +184,7 @@ Persistent 3D/CT viewports, nine contextual source tasks, compact workspace laun
 ## UI08 — spatial laboratory architecture
 
 Instanced architectural finishes, perimeter casework and refined approximate manikin/operator presentation. See [UI08](experimental/UI08_SPATIAL_DESIGN.md).
+
+## UI09 — physical procedural workstation
+
+Independent EBUS display, full-size optical image, dedicated EBUS controls and conditional floor-supported equipment. See [UI09](experimental/UI09_PROCEDURE_STATION.md).
