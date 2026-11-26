@@ -192,3 +192,7 @@ Independent EBUS display, full-size optical image, dedicated EBUS controls and c
 ## UI10 — scientific visualization
 
 Independent slice-local route, shaft and sampled deformation overlays, synchronized mask visibility and horizontal physical scale. See [UI10](experimental/UI10_SCIENTIFIC_VISUALIZATION.md).
+
+## UI11 — interaction recovery and software freeze
+
+See [final acceptance gates](experimental/UI11_ACCEPTANCE.md). Run `node experimental/tests/run-release-checks.mjs`. Software candidate; headset and physical acceptance remain pending.

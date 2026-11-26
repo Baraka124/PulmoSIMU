@@ -212,7 +212,7 @@ function install(ctx){
     const leftSource=Array.from(session?.inputSources||[]).find(s=>s.handedness==='left'&&s.gripSpace&&!s.hand);
     const rp=rightSource&&frame?.getPose(rightSource.gripSpace,space)?.transform;
     const lp=leftSource&&frame?.getPose(leftSource.gripSpace,space)?.transform;
-    const valid=mode==='procedure'&&viewerValid&&Boolean(rp);
+    const valid=mode==='procedure'&&viewerValid&&Boolean(rp)&&currentControllerPose[controllerSources.indexOf(rightSource)]===true;
     videoScope.group.visible=valid&&deviceVisible;
     if(valid){
       videoScope.group.position.set(rp.position.x,rp.position.y,rp.position.z);
@@ -221,9 +221,9 @@ function install(ctx){
     }
     if(ebusProbe.snapshot().mode==='radial'){
       shaftClutch.reset();clutchAxis=null;clutchHeld=false;scope.velocity=0;
-      if(valid&&patientMotionAllowed()&&lp&&!physicalControl?.snapshot().armed&&!panelEdit)driveProbe([lp.position.x,lp.position.y,lp.position.z],Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed),true,dt,videoScope.group.quaternion);else probeGrip.reset();return;
+      if(valid&&patientMotionAllowed()&&lp&&currentControllerPose[controllerSources.indexOf(leftSource)]===true&&!physicalControl?.snapshot().armed&&!panelEdit)driveProbe([lp.position.x,lp.position.y,lp.position.z],Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed),true,dt,videoScope.group.quaternion);else probeGrip.reset();return;
     }
-    const held=valid&&patientMotionAllowed()&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed&&!accessoryDeployed()&&!panelEdit;
+    const held=valid&&patientMotionAllowed()&&Boolean(lp)&&currentControllerPose[controllerSources.indexOf(leftSource)]===true&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed&&!accessoryDeployed()&&!panelEdit;
     if(!held){shaftClutch.reset();clutchAxis=null;clutchHeld=false;return;}
     const rel=new THREE.Vector3(lp.position.x-rp.position.x,lp.position.y-rp.position.y,lp.position.z-rp.position.z);
     if(!clutchAxis){if(rel.length()<.12){scope.velocity=0;return;}clutchAxis=rel.clone().normalize().toArray();}
@@ -371,7 +371,7 @@ function install(ctx){
     grabFeedback=unit==='lung'?'SEPARATED LUNGS / GRAB EITHER SIDE':'EXPLODED VIEW / GRAB INDIVIDUAL LOBES';
   }
   const surfaceTarget=()=> (inspectMode?lobes.map(l=>l.mesh):getAnatomyMeshes()).filter(o=>o&&o.visible&&o.isObject3D);
-  const trackedController=i=>controllerSources[i]?.gripSpace?grips[i]:hands[i];
+  const trackedController=i=>currentControllerPose[i]?(controllerSources[i]?.gripSpace?grips[i]:hands[i]):null;
   const effectiveGrip=i=>grabSource[i]==='hand'?handProxies[i]:trackedController(i);
   const release=(i,source=null,input=null)=>{
     if(panelEdit?.i===i&&(!source||source==='controller')&&(!input||input==='grip'))stopPanelEdit();
@@ -431,7 +431,7 @@ function install(ctx){
     }
     if(mode==='anatomy'&&next!=='anatomy'){finishViewChange();if(inspectMode)setInspection(false);}
     summonGeneration++;
-    const previousMode=mode;if(next!=='procedure')leavePatientStation();resetEmbodiedGrip();
+    const previousMode=mode;if(next!==previousMode){resetControllerRecovery();handNeutral.fill(false);scope.velocity=0;}if(next!=='procedure')leavePatientStation();resetEmbodiedGrip();
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
@@ -567,7 +567,7 @@ function install(ctx){
     }catch{return null}
   }
   function moveWorkspace(command){
-    if(!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean)||workspaceRelayout||panelEdit)return false;
+    if(benchAligned||spatialCal.snapshot().armed||!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean)||workspaceRelayout||panelEdit)return false;
     const ref=rBro.xr.getReferenceSpace(),Ctor=global.XRRigidTransform;
     if(!Ctor||!ref?.getOffsetReferenceSpace||!rBro.xr.setReferenceSpace)return false;
     const start=head.toArray(),origin=room.position.toArray(),obstacles=[{center:plinth.getWorldPosition(new THREE.Vector3()).toArray(),radius:.78}];
@@ -788,6 +788,7 @@ function install(ctx){
        mGrp.quaternion.angleTo(previousOrientation)>.004)
       attempts.movedFrames++;
   }
+  const handNeutral=[false,false];
   function updateTrackedHands(frame){
     handSamples={};
     const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
@@ -832,9 +833,9 @@ function install(ctx){
           contactMarkers[i].position.copy(proxy.position);
           contactMarkers[i].visible=mode==='anatomy';
         }
-        const pinchDistance=pA.distanceTo(pB);
+        const pinchDistance=pA.distanceTo(pB);if(!handNeutral[i]&&pinchDistance>.055){const middle=source.hand.get('middle-finger-tip'),m=middle&&frame.getJointPose(middle,space)?.transform?.position;if(m&&palmPose&&Math.hypot(m.x-palmPose.x,m.y-palmPose.y,m.z-palmPose.z)>.045)handNeutral[i]=true;}
         const pressed=!handGrasped[i]&&(handPinched[i]?pinchDistance<.055:pinchDistance<=.026);
-        if(pressed&&!handPinched[i]){
+        if(pressed&&!handPinched[i]&&handNeutral[i]){
           const hit=panelIntersection(rayFrom(i));
           if(hit?.action){handMenuBlocked[source.handedness]=true;attempts.menuActions++;activate(hit.action);}
           else if(mode==='anatomy'){
@@ -849,13 +850,13 @@ function install(ctx){
         const joint=name=>{const j=source.hand.get(name),p=j&&frame.getJointPose(j,space)?.transform?.position;return p?[p.x,p.y,p.z]:null;};
         const palm=joint('middle-finger-phalanx-proximal'),wristPos=joint('wrist');
         const closed=mode==='anatomy'&&placed&&!pressed&&upgrade.grasp({wrist:wristPos,palm,index:pA.toArray(),middle:joint('middle-finger-tip'),ring:joint('ring-finger-tip'),pinky:joint('pinky-finger-tip'),thumb:pB.toArray(),held:handGrasped[i]});
-        if(closed&&!handGrasped[i]&&!grab[i]){if(palm){proxy.position.set(...palm);proxy.updateMatrixWorld(true);}const near=surfaceContact(i,'hand');if(near.hit){startGrab(i,'hand','grasp');handGrasped[i]=grabSource[i]==='hand';}}
+        if(closed&&!handGrasped[i]&&!grab[i]&&handNeutral[i]){if(palm){proxy.position.set(...palm);proxy.updateMatrixWorld(true);}const near=surfaceContact(i,'hand');if(near.hit){startGrab(i,'hand','grasp');handGrasped[i]=grabSource[i]==='hand';}}
         if(!closed&&handGrasped[i]){release(i,'hand','grasp');handGrasped[i]=false;}
       }
     }
     for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
       if(handSeen[i])health.event('handTrackingLost');
-      handSeen[i]=false;handPinched[i]=false;handGrasped[i]=false;
+      handSeen[i]=false;handPinched[i]=true;handGrasped[i]=false;handNeutral[i]=false;
       if(contactMarkers[i])contactMarkers[i].visible=false;
       if(grabSource[i]==='hand')release(i,'hand');
     }
@@ -882,7 +883,7 @@ function install(ctx){
     scopeSteering.lastUpdate=performance.now();
   }
   function rayFrom(i){
-    const source=hands[i];if(!source)return null;
+    const source=hands[i];if(!source||(!currentControllerRay[i]&&!handSeen[i]))return null;
     source.updateMatrixWorld(true);
     tempMatrix.identity().extractRotation(source.matrixWorld);
     ray.ray.origin.setFromMatrixPosition(source.matrixWorld);
@@ -1297,7 +1298,11 @@ function install(ctx){
     if(action==='exit')rBro.xr.getSession()?.end().catch(()=>{});
     paint();
   }
-  const mapButtons=[[],[]];
+  const mapButtons=[[],[]],inputRecovery=[global.PulmoXRRecovery.create(),global.PulmoXRRecovery.create()];
+  const currentControllerPose=[false,false],currentControllerRay=[false,false];let trackedFloor=false;
+  function resetControllerRecovery(){for(const gate of inputRecovery)gate.reset();currentControllerPose.fill(false);currentControllerRay.fill(false);scope.velocity=0;}
+  function updateControllerRecovery(frame){const space=rBro.xr.getReferenceSpace(),session=rBro.xr.getSession();for(let i=0;i<2;i++){const src=controllerSources[i],present=!!src&&Array.from(session?.inputSources||[]).includes(src);if(!present||src.hand){inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;continue;}let pose=null,rayPose=null;try{pose=frame?.getPose(src.gripSpace||src.targetRaySpace,space);rayPose=frame?.getPose(src.targetRaySpace,space);}catch{}const valid=p=>!!p?.transform&&[p.transform.position.x,p.transform.position.y,p.transform.position.z,p.transform.orientation.x,p.transform.orientation.y,p.transform.orientation.z,p.transform.orientation.w].every(Number.isFinite);const ok=inputRecovery[i].step({id:src,pose:valid(pose)&&valid(rayPose),buttons:Array.from(src.gamepad?.buttons||[]),axes:Array.from(src.gamepad?.axes||[])});currentControllerPose[i]=ok;currentControllerRay[i]=ok;if(!ok){if(grabSource[i]==='controller'||scopeSteering?.i===i||panelEdit?.i===i)release(i,'controller');if(src.handedness==='left'){scope.velocity=0;shaftClutch.reset();clutchAxis=null;clutchHeld=false;probeGrip.reset();}mapButtons[i]=Array.from(src.gamepad?.buttons||[],b=>!!b.pressed);squeezeHeld[i]=!!src.gamepad?.buttons?.[1]?.pressed;}}}
+
   function toggleSpatialPanel(i){
     if(!active||!viewerValid)return false;
     if(worldMenu.visible){
@@ -1351,11 +1356,11 @@ function install(ctx){
     const session=rBro.xr.getSession();if(!session)return;
     let leftControllerAvailable=false;
     for(const src of session.inputSources){
-      if(!src.gamepad)continue;
+      if(!src.gamepad||src.hand)continue;
       // Gamepad commands depend on handedness, not a connected-event slot.
       const mapped=controllerSources.indexOf(src);
       const i=mapped>=0?mapped:src.handedness==='left'?0:src.handedness==='right'?1:-1;
-      if(i<0)continue;
+      if(i<0||controllerSources[i]!==src||!currentControllerPose[i])continue;
       // Input-source array slots are connection order, NOT left/right.
       const side=src.handedness||controllerSide[i];
       if(side==='left')leftControllerAvailable=true;
@@ -2026,7 +2031,7 @@ function install(ctx){
     for(let i=0;i<2;i++){
       const laser=laserLines[i],tip=laserTips[i];
       if(!laser||!tip)continue;
-      const available=Boolean(controllerSources[i]||handSeen[i])&&(placed||xrPresentation==='ar');
+      const available=Boolean(currentControllerRay[i]||handSeen[i])&&(placed||xrPresentation==='ar');
       laser.visible=Boolean(available);
       tip.visible=false;aimTargets[i]=null;
       if(!available){
@@ -2076,6 +2081,7 @@ function install(ctx){
     controller.addEventListener('connected',event=>{
       controllerSide[i]=event.data?.handedness||null;
       controllerSources[i]=event.data||null;
+      inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;
       mapButtons[i].length=0;squeezeHeld[i]=false;
       health.event('controllerConnected');
     });
@@ -2083,7 +2089,9 @@ function install(ctx){
       // Hand selectstart is the physical pinch handled by XRJointPose.
       // Mark the corresponding gamepad edge handled to prevent a duplicate
       // procedure action when both WebXR events and buttons report the press.
-      if(!event.data?.hand){
+      if(!event.data?.hand&&currentControllerPose[i]&&!mapButtons[i][0]){
+        // Calibration capture belongs to the frame-polled path.
+        if(controllerSide[i]==='right'&&spatialCal.snapshot().armed)return;
         mapButtons[i][0]=true;
         onTrigger(i);
       }
@@ -2091,7 +2099,8 @@ function install(ctx){
     controller.addEventListener('selectend',event=>{
       if(!event.data?.hand)release(i,'controller','trigger');
     });
-    controller.addEventListener('squeezestart',()=>{
+    controller.addEventListener('squeezestart',event=>{
+      if(event.data?.hand||!currentControllerPose[i]||squeezeHeld[i])return;
       squeezeHeld[i]=true;
       startGrab(i,'controller','grip');
     });
@@ -2101,7 +2110,7 @@ function install(ctx){
     });
     controller.addEventListener('disconnected',()=>{
       health.event('controllerDisconnected');
-      release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;
+      release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;
       toolProxyOverlay.visible=false;
       mapButtons[i].length=0;squeezeHeld[i]=false;
       if(laserLines[i])laserLines[i].visible=false;
@@ -2319,7 +2328,7 @@ function install(ctx){
       const session=await xrCapabilities.request(presentation);
       // local-floor is not guaranteed for passthrough. A local space is
       // sufficient for hit-test placement and avoids a rejected XR setup.
-      const floorGranted=Array.from(session.enabledFeatures||[]).includes('local-floor');
+      const floorGranted=Array.from(session.enabledFeatures||[]).includes('local-floor');trackedFloor=presentation==='vr'&&floorGranted;
       rBro.xr.setReferenceSpaceType(presentation==='ar'||!floorGranted?'local':'local-floor');
       xrPresentation=presentation;
       xrCapabilities.bind(session,presentation);
@@ -2402,7 +2411,7 @@ function install(ctx){
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
     rBro.xr.setReferenceSpace?.(null);clearSpatialCalibration();planeMaskEnabled=false;spatialFinal=null;workspaceMoves=0;workspaceRelayout=false;panelOffset=0;panelMoves=0;panelTarget='monitor';panelPinned.clear();panelEdit=null;environmentEvidence=upgrade.observeEnvironment(null);environmentLast=-Infinity;regionalDisplay=false;regionalLast=-Infinity;regionalEvidenceFinal=null;contactProxy={state:'UNAVAILABLE'};sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
-    active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;
+    active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;resetControllerRecovery();handNeutral.fill(false);
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
@@ -2461,7 +2470,7 @@ function install(ctx){
       if(!active||!rBro.xr.isPresenting)return;
       health.startFrame(time);
       if(!headPose(frame)){
-        localRecording.suspend();
+        localRecording.suspend();resetControllerRecovery();handNeutral.fill(false);
         // Tracking loss: never continue the last object or instrument command.
         registrationEvidence=registrationObserver.step({tracked:false});contactEvidence=global.PulmoXRContactInterface.evaluate();hapticDryRun.stop('TRACKING_LOST');hapticEvidence=hapticLab.estimate();lastShaftAt=-Infinity;lastShaftSample=null;
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
@@ -2478,7 +2487,7 @@ function install(ctx){
       }
       if(workspaceRelayout){workspaceRelayout=false;positionPanels();}
       if(!placed&&xrPresentation!=='ar'){
-        room.position.copy(head).setY(head.y-1.18);
+        room.position.copy(head).setY(global.PulmoXRRecovery.floorY({floorGranted:trackedFloor,headY:head.y}));
         const center=head.clone().addScaledVector(forward,1.5);
         plinth.position.x=center.x-head.x;plinth.position.z=center.z-head.z;
         frameGroup();
@@ -2510,13 +2519,13 @@ function install(ctx){
       }
       const dt=lastFrame?Math.min(.05,Math.max(0,(time-lastFrame)/1000)):.016;lastFrame=time;
       replay.tick(time); // Non-actuating, local measured trace playback.
-      observeCalibration(frame);updatePatientStation();poll(dt);
+      updateControllerRecovery(frame);observeCalibration(frame);updatePatientStation();poll(dt);
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
       updateTrackedHands(frame);updateEmbodiedBody(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
       compactDock.visible=active&&viewerValid&&!worldMenu.visible;
       updateToolProxy();updateVideoScope(frame,dt);updatePointerAim(time);
-      for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.update(hoverPanels,time);sampleVisualGeometry(time);
+      for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface,ebusControlSurface])surface.update(hoverPanels,time);sampleVisualGeometry(time);
       // The identical SI-unit R3 solver used in the research laboratory;
       // explicitly reference-only, never CT-fitted or mesh-deforming.
       if(getMeshMode()==='reference'&&global.PulmoXRReferencePhysics?.step){
@@ -2698,6 +2707,7 @@ function install(ctx){
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
     proceduralEquipment:{endoscopy:endoscopyTower.snapshot(),ultrasound:ultrasoundTower.snapshot(),independentEBUSDisplay:true,primaryImagePreserved:true,hardwareControl:false},
+    interactionRecovery:{controller:inputRecovery.map(x=>x.snapshot()),floor:trackedFloor?'RUNTIME_LOCAL_FLOOR':'ESTIMATED_FLOOR',physicalAcceptance:false},
     spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence,composition:compositionEvidence},
     patientStation:{...patientStation.snapshot(),operatorZone:patientZone},
     spatialCalibration:spatialFinal||{...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()},
