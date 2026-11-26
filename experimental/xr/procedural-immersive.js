@@ -180,7 +180,7 @@ function install(ctx){
       videoScope.group.quaternion.set(rp.orientation.x,rp.orientation.y,rp.orientation.z,rp.orientation.w);
       videoScope.update({h:scope.deflH,v:scope.deflV,roll:scope.roll,diameterMm:getScopeDiameterMm()});
     }
-    const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed&&!accessoryDeployed();
+    const held=valid&&Boolean(lp)&&Boolean(leftSource?.gamepad?.buttons?.[1]?.pressed)&&!physicalControl?.snapshot().armed&&!accessoryDeployed()&&!panelEdit;
     if(!held){shaftClutch.reset();clutchAxis=null;clutchHeld=false;return;}
     const rel=new THREE.Vector3(lp.position.x-rp.position.x,lp.position.y-rp.position.y,lp.position.z-rp.position.z);
     if(!clutchAxis){if(rel.length()<.12){scope.velocity=0;return;}clutchAxis=rel.clone().normalize().toArray();}
@@ -578,7 +578,7 @@ function install(ctx){
   }
   function startGrab(i,source='controller',input='grip'){
     const side=controllerSide[i]||controllerSources[i]?.handedness;
-    if(source==='controller'&&input==='grip'&&active&&menuPage==='panel-edit'){const object=selectedPanel();if(startPanelEdit(i,object)){grabFeedback='HOLD GRIP / MOVE SELECTED WINDOW';paint();return true;}}
+    if(source==='controller'&&input==='grip'&&active&&menuPage==='panel-edit'){const object=selectedPanel();if(startPanelEdit(i,object)){scope.velocity=0;scopeSteering=null;shaftClutch.reset();if(physicalControl?.snapshot().armed)physicalControl.stop('WINDOW_EDIT');grabFeedback='HOLD GRIP / MOVE SELECTED WINDOW';paint();return true;}}
     if(source==='controller'&&mode==='procedure'&&active&&side==='right'){
       if(input!=='grip')return false;
       const g=trackedController(i);if(!g)return false;
@@ -878,7 +878,7 @@ function install(ctx){
     grabFeedback='MR INITIALIZING / TRY AGAIN';paint();return false;
   }
   function onTrigger(i){
-    if(!active||!rayFrom(i))return;
+    if(!active||!rayFrom(i)||panelEdit)return;
     const chosen=choosePointer(i);
     const side=controllerSide[i]||controllerSources[i]?.handedness||'unknown';
     if(chosen.choice.kind==='panel'){
@@ -916,7 +916,7 @@ function install(ctx){
   function actuateAccessory(){const state=channel.snapshot();if(state.tool==='forceps'&&!state.jawsOpen&&state.extensionMm>=3){accessoryEvidence=checkAccessory(state.extensionMm,true);if(!accessoryEvidence.allowed){grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;return;}}channel.action();}
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
-    if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){
+    if(action==='more'||action==='back'||action==='precision'||action==='back-expert'){stopPanelEdit();
       menuPage=action==='more'||action==='back-expert'?'advanced':
         action==='precision'?(mode==='procedure'?'station':'precision'):'primary';
       actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);
@@ -959,7 +959,7 @@ function install(ctx){
     if(action==='section-axis'){sectionAxis=['x','y','z'][(['x','y','z'].indexOf(sectionAxis)+1)%3];updateSection();paint();return;}
     if(action==='section-prev'||action==='section-next'){sectionFraction=safe(.05,.95,sectionFraction+(action==='section-next'?.1:-.1));updateSection();paint();return;}
     if(action==='panel-shift'){panelPinned.delete(worldMenu);panelOffset=panelOffset===0?1.44:0;positionPanels();paint();return;}
-    if(action==='panel-edit-open'){menuPage='panel-edit';actionHitbox=panelLayouts['panel-edit'];paint();return;}
+    if(action==='panel-edit-open'){panelTarget=mode==='procedure'?'monitor':'menu';menuPage='panel-edit';actionHitbox=panelLayouts['panel-edit'];paint();return;}
     if(action==='panel-select'){const targets=mode==='procedure'?['monitor','guide','menu']:['menu'];panelTarget=targets[(targets.indexOf(panelTarget)+1)%targets.length];paint();return;}
     if(action==='panel-size'){const object=selectedPanel();if(object?.visible){object.scale.setScalar(object.scale.x>=1.25?.75:Math.min(1.3,object.scale.x+.15));panelPinned.add(object);}paint();return;}
     if(action==='panel-reset'){stopPanelEdit();panelPinned.clear();panelOffset=0;positionPanels();paint();return;}
@@ -1222,11 +1222,11 @@ function install(ctx){
       // a permanent HUD and works from either anatomy or bronchoscopy.
       if(side==='left'&&edge(5))toggleSpatialPanel(i);
       if(mode==='anatomy'){
-        applyAnalogAnatomy(side,x,y,dt);
+        if(!panelEdit)applyAnalogAnatomy(side,x,y,dt);
         continue;
       }
       if(mode!=='procedure')continue;
-      if(accessoryDeployed()){scope.velocity=0;continue;}
+      if(accessoryDeployed()||panelEdit){scope.velocity=0;continue;}
       if(physicalControl?.snapshot().armed)continue;
       if(side==='left'){
         // Insertion and shaft roll are independent. Neutral stick stops
@@ -1603,6 +1603,7 @@ function install(ctx){
   }
   const topStrip=monitorStrip(.294),bottomStrip=monitorStrip(-.303);
   function updateRegionalOverlay(now){
+    if(!regionalOverlay&&!regionalDisplay)return;
     if(!regionalOverlay){regionalOverlay=new THREE.Group();regionalOverlay.name='AG03 regional reference ventilation display';for(const l of lobes){const marker=new THREE.Mesh(new THREE.SphereGeometry(.035,12,8),new THREE.MeshBasicMaterial({color:0x77aabb,transparent:true,opacity:.85,depthWrite:false}));marker.userData.lobe=l.id;regionalOverlay.add(marker);}mGrp.add(regionalOverlay);}
     regionalOverlay.visible=regionalDisplay&&mode==='procedure'&&getMeshMode()==='reference';if(!regionalOverlay.visible||now-regionalLast<400)return;regionalLast=now;const values=regionalEvidence.snapshot().regions;const baseline=.0025/5;for(const marker of regionalOverlay.children){const l=lobes.find(v=>v.id===marker.userData.lobe);if(!l)continue;l.mesh.geometry.computeBoundingBox();const center=l.mesh.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(l.mesh.matrixWorld);marker.position.copy(mGrp.worldToLocal(center));const value=values[l.id]?.netM3;const scale=upgrade.regionalDisplayScale(value,baseline);marker.visible=scale!==null;if(scale!==null){marker.scale.setScalar(1+8*(scale-1));marker.material.color.setHex(scale>=1?0x6da9bd:0xc4a076);}}}
   function paintMonitorChrome(){
@@ -2259,6 +2260,7 @@ function install(ctx){
       // Only a calibrated, live, local device can request simulator motion.
       // Left grip is a dead-man; no replay, no hardware write, no patient input.
       if(physicalControl?.snapshot().armed&&accessoryDeployed())physicalControl.stop('ACCESSORY_DEPLOYED');
+      if(physicalControl?.snapshot().armed&&panelEdit)physicalControl.stop('WINDOW_EDIT');
       if(physicalControl?.snapshot().armed){
         scope.velocity=0;scopeSteering=null;
         const deadman=Array.from(rBro.xr.getSession()?.inputSources||[]).some(s=>

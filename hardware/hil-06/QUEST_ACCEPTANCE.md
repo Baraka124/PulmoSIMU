@@ -50,3 +50,13 @@ GPU timing and motion-to-photon latency are not proven by the exported CPU diagn
 - Report file:
 - Review decision: PENDING / RETEST / ACCEPT SOFTWARE BASELINE
 - Physical instrument gate: separate HIL-06B; not completed.
+
+## AG01–AG03 extension — physical test additions
+- Q18: isolate a lobe, enable sectioning, sweep axis and restore; verify source materials/visibility restored on procedure entry.
+- Q19: use virtual steps, turn and viewpoint; verify virtual plinth blocked, no physical room safety claims.
+- Q20: enter window placement, select a visible panel, hold controller grip and move, release, resize and reset. In procedure confirm scope does not advance while dragging a window.
+- Q21: if hand tracking available, distinguish pinch from closed-palm grasp and verify tracking loss releases it.
+- Q22: in MR confirm stable surface; inspect capability status and test reposition; do not deliberately create unsafe tracking loss or fabricate anchoring.
+- Q23: deploy accessory, verify scope motion and branch change inhibited, retract and resume; record clearance alerts.
+- Q24: switch regional markers on/off, verify they remain separate from the optical feed; report numeric region values, not measured physiology.
+- Q25: export session report and verify all AG evidence; physical HIL record inventory is separate. No physical device connected for this run.

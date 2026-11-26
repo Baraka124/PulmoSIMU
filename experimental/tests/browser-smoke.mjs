@@ -926,6 +926,21 @@ try {
    assert.ok(integratedEvidence.fieldFinite&&Number.isFinite(integratedEvidence.margin));
    assert.equal(integratedEvidence.missing,'UNAVAILABLE');
    console.log('PASS AG01 workspace rotation pivot and source/deformed-frame accessory field');
+   const ag03=await legacy.evaluate(()=>{
+     const U=window.PulmoXRIntegratedUpgrade,T=window.THREE;
+     const p=U.boundedPanelPosition([0,1.3,0],[4,1.3,0]);
+     const moved=U.limitedStep([0,1.3,0],p,.05,1.8);
+     const regional=U.createRegionalEvidence();
+     regional.step({tSeconds:0,regionalFlowM3PerS:{RUL:.0002,LLL:.0001}});
+     regional.step({tSeconds:.05,regionalFlowM3PerS:{RUL:.0002,LLL:.0001}});
+     return {distance:new T.Vector3(...p).distanceTo(new T.Vector3(0,1.3,0)),step:new T.Vector3(...moved).distanceTo(new T.Vector3(0,1.3,0)),regional:regional.snapshot().regions.RUL.netM3,environment:U.observeEnvironment(null),contact:U.contactEstimate(-.3,4)};
+   });
+   assert.ok(Math.abs(ag03.distance-2.1)<1e-8);
+   assert.ok(Math.abs(ag03.step-.09)<1e-8);
+   assert.ok(Math.abs(ag03.regional-.00001)<1e-10);
+   assert.equal(ag03.environment.physicalOcclusion,false);
+   assert.equal(ag03.contact.forceN,null);
+   console.log('PASS AG03 spatial window bounds, regional integration and honest environment/contact evidence');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 
