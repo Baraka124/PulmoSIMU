@@ -10,6 +10,7 @@ const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:nul
 let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
 let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
+let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -645,7 +646,7 @@ $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Or
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function clearCandidate(){
- route=null;renderMotion();$('route-step').value=0;$('route-step').max=0;
+ route=null;invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
 }
 function resetRoute(){
@@ -673,7 +674,7 @@ for(const id of ['route-root','route-target'])$(id).addEventListener('click',()=
 for(const id of ['route-diameter','route-margin'])$(id).addEventListener('input',()=>{clearCandidate();if(routeGraph)describeRoute();});
 $('route-plan').addEventListener('click',()=>{
  if(!routeGraph||!routeStart||!routeTarget)return;clearCandidate();
- try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));
+ try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));invalidateShaft();
  $('route-step').max=route.nodes.length-1;for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=false;
  $('route-status').textContent='Geometric candidate · review pending';showRouteFrame(0);
  }catch(e){$('route-status').textContent=e.message;}
@@ -689,6 +690,7 @@ $('route-step').addEventListener('input',()=>showRouteFrame(Number($('route-step
 $('route-export').addEventListener('click',()=>{if(!route)return;const url=URL.createObjectURL(new Blob([JSON.stringify(route,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Route_'+route.mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function resetMotion(){
+ resetShaftMoving();
  motionEpoch++;movingVolume=null;movingStudy=null;motionManifest=null;motionBytes=null;motionDigest=null;motion=null;
  $('motion-phase').disabled=true;$('motion-phase').value=0;$('motion-value').textContent='0%';$('motion-status').textContent='Awaiting paired CT';
  $('motion-detail').textContent='No mapped point. Original CT and route unchanged.';
@@ -713,7 +715,7 @@ function renderMotion(){
 }
 for(const [id,kind] of [['motion-ct','ct'],['motion-manifest','manifest'],['motion-field','field']])$(id).addEventListener('change',async ev=>{
  const file=ev.target.files?.[0];ev.target.value='';if(!file)return;const epoch=++motionEpoch;
- motion=null;$('motion-phase').disabled=true;renderMotion();
+ motion=null;resetShaftMoving();$('motion-phase').disabled=true;renderMotion();
  if(kind==='ct'){movingStudy=null;movingVolume=null;}else if(kind==='manifest')motionManifest=null;else{motionBytes=null;motionDigest=null;}
  $('motion-status').textContent='Reading local '+kind;
  try{
@@ -725,5 +727,37 @@ for(const [id,kind] of [['motion-ct','ct'],['motion-manifest','manifest'],['moti
  }catch(e){if(epoch===motionEpoch)$('motion-status').textContent='Rejected: '+e.message;}
 });
 $('motion-phase').addEventListener('input',renderMotion);$('motion-clear').addEventListener('click',resetMotion);
+
+function drawShaft(){
+ const cv=$('shaft-plot'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+ ctx.font='12px system-ui';ctx.fillStyle='#9ab0bc';
+ if(!shaftResult){ctx.fillText('No shaft solution',20,28);return;}
+ const p=shaftResult.points_ras_mm,axes=[0,1,2].sort((a,b)=>(Math.max(...p.map(q=>q[b]))-Math.min(...p.map(q=>q[b])))-(Math.max(...p.map(q=>q[a]))-Math.min(...p.map(q=>q[a])))).slice(0,2);
+ const lo=axes.map(a=>Math.min(...p.map(q=>q[a]))),hi=axes.map(a=>Math.max(...p.map(q=>q[a]))),scale=Math.min((cv.width-80)/Math.max(1,hi[0]-lo[0]),(cv.height-65)/Math.max(1,hi[1]-lo[1]));
+ ctx.fillText('Orthographic RAS projection · '+axes.map(a=>'XYZ'[a]).join(' / ')+' · mm',20,22);
+ ctx.strokeStyle='#b3d0d9';ctx.lineWidth=3;ctx.beginPath();p.forEach((q,i)=>{const x=40+(q[axes[0]]-lo[0])*scale,y=cv.height-25-(q[axes[1]]-lo[1])*scale;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();
+ ctx.fillStyle='#e4b785';for(const q of p){ctx.beginPath();ctx.arc(40+(q[axes[0]]-lo[0])*scale,cv.height-25-(q[axes[1]]-lo[1])*scale,2,0,Math.PI*2);ctx.fill();}
+}
+function invalidateShaft(){
+ shaftResult=null;$('shaft-export').disabled=true;$('shaft-run').disabled=!route||($('shaft-phase').value==='1'&&(!motion||!shaftMovingSeg));
+ $('shaft-status').textContent=route?'Awaiting mechanics calculation':'Awaiting J route';$('shaft-detail').textContent='No mechanics result. Original procedure remains independent.';drawShaft();
+}
+function resetShaftMoving(){shaftEpoch++;shaftMovingSeg=null;shaftManifest=null;shaftBytes=null;shaftDigest=null;invalidateShaft();}
+function bindShaftMoving(){
+ shaftMovingSeg=null;invalidateShaft();
+ try{if(!movingStudy||!shaftManifest||!shaftBytes)return;const s=window.PulmoSegmentation.bind(movingStudy,shaftManifest,shaftBytes,shaftDigest);if(s.structure!=='airway_lumen')throw Error('Expiration airway lumen required');shaftMovingSeg=s;invalidateShaft();$('shaft-status').textContent='Expiration lumen identity matched · unreviewed';}catch(e){$('shaft-status').textContent=e.message;}
+}
+for(const [id,kind] of [['shaft-moving-manifest','manifest'],['shaft-moving-mask','mask']])$(id).addEventListener('change',async ev=>{
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;const epoch=++shaftEpoch;shaftMovingSeg=null;if(kind==='manifest')shaftManifest=null;else{shaftBytes=null;shaftDigest=null;}invalidateShaft();
+ try{if(!movingStudy||!motion)throw Error('Load K paired field first');if(kind==='manifest'){if(f.size>65536)throw Error('Manifest too large');const m=JSON.parse(await f.text());if(epoch!==shaftEpoch)return;shaftManifest=m;}else{if(f.size>250000000)throw Error('Mask too large');const b=await f.arrayBuffer(),d=await sha256(b);if(epoch!==shaftEpoch)return;shaftBytes=new Uint8Array(b);shaftDigest=d;}bindShaftMoving();}catch(e){if(epoch===shaftEpoch)$('shaft-status').textContent=e.message;}
+});
+for(const id of ['shaft-phase','shaft-ei','shaft-stretch','shaft-wall','shaft-friction'])$(id).addEventListener('input',invalidateShaft);
+$('shaft-run').addEventListener('click',()=>{
+ invalidateShaft();if(!route)return;
+ try{shaftResult=window.PulmoShaftMechanics.solve({route,study:currentStudy(),seg,motion,movingStudy,movingSeg:shaftMovingSeg,phase:Number($('shaft-phase').value),EI:Number($('shaft-ei').value),stretch:Number($('shaft-stretch').value),wall:Number($('shaft-wall').value),friction:Number($('shaft-friction').value),iterations:20});
+ const r=shaftResult;$('shaft-status').textContent='Research calculation · '+r.termination.replaceAll('_',' ');$('shaft-detail').textContent='Shaft length '+r.shaft_length_mm.toFixed(2)+' mm · max curvature '+r.maximum_curvature_per_mm.toFixed(4)+' /mm\nEnergy '+r.initial_energy_Nmm.toFixed(4)+' → '+r.energy.toFixed(4)+' N·mm (assumed model) · accepted steps '+r.accepted_iterations+'\nNodal overlap '+r.maximum_nodal_overlap_mm.toFixed(3)+' mm · midpoint overlap '+r.maximum_midpoint_overlap_mm.toFixed(3)+' mm · unresolved nodes '+r.unresolved_contact_nodes+'\nAssumed friction diagnostic '+r.assumed_coulomb_sum_N.toFixed(4)+' N; not a measured insertion force. No swept collision or tissue mechanics.';$('shaft-export').disabled=false;drawShaft();
+ }catch(e){$('shaft-status').textContent='Calculation rejected: '+e.message;}
+});
+$('shaft-export').addEventListener('click',()=>{if(!shaftResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(shaftResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Shaft_'+shaftResult.active_mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 applyQa();renderReviewStatus();start3d();
 })();

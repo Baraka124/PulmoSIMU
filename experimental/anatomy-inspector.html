@@ -104,6 +104,13 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
   <div class="review-controls"><label class="review-import" for="motion-ct">Expiration CT<input id="motion-ct" type="file" accept=".nii"></label><label class="review-import" for="motion-manifest">Field manifest<input id="motion-manifest" type="file" accept=".json"></label><label class="review-import" for="motion-field">Displacement field<input id="motion-field" type="file" accept=".raw,.bin"></label><label for="motion-phase">Phase fraction</label><input id="motion-phase" type="range" min="0" max="1" step=".05" value="0" disabled><output id="motion-value">0%</output><button id="motion-clear">Clear pair</button></div>
   <pre class="muted" id="motion-detail" style="white-space:pre-wrap">No mapped point. Original CT and route unchanged.</pre>
   </section>
+  <section class="review-panel" aria-label="Flexible shaft mechanics">
+  <div class="review-heading"><div><div class="eyebrow">L01–L03 / Computational instrument mechanics</div><h2>Flexible shaft research</h2><p>Quasi-static, fixed-endpoint rod relaxation against source lumen. Inputs are assumed model parameters, not measured device or tissue properties. Expiration requires an independently segmented expiration lumen.</p></div><div class="review-status" id="shaft-status" role="status">Awaiting J route</div></div>
+  <div class="review-controls"><label for="shaft-phase">Geometry</label><select id="shaft-phase"><option value="0">Inspiration / original</option><option value="1">Expiration endpoint</option></select><label class="review-import" for="shaft-moving-manifest">Expiration mask manifest<input id="shaft-moving-manifest" type="file" accept=".json"></label><label class="review-import" for="shaft-moving-mask">Expiration mask<input id="shaft-moving-mask" type="file" accept=".raw,.bin"></label></div>
+  <div class="review-controls"><label for="shaft-ei">EI (N·mm²)</label><input id="shaft-ei" type="number" min="0" max="500" step=".5" value="5" style="width:75px"><label for="shaft-stretch">Stretch (N/mm)</label><input id="shaft-stretch" type="number" min=".01" max="100" step=".1" value="2" style="width:75px"><label for="shaft-wall">Wall penalty (N/mm)</label><input id="shaft-wall" type="number" min=".01" max="100" step=".1" value=".5" style="width:75px"><label for="shaft-friction">Assumed friction μ</label><input id="shaft-friction" type="number" min="0" max="1" step=".05" value=".2" style="width:65px"><button id="shaft-run" disabled>Relax shaft</button><button id="shaft-export" disabled>Export evidence</button></div>
+  <canvas id="shaft-plot" width="720" height="240" style="display:block;width:100%;height:auto;max-height:240px;background:#0e1820;border-radius:4px" aria-label="Orthographic RAS projection of relaxed shaft"></canvas>
+  <pre id="shaft-detail" class="muted" style="white-space:pre-wrap">No mechanics result. Original procedure remains independent.</pre>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -139,5 +146,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/segmentation-review.js?v=I03"></script>
 <script src="./anatomy/airway-route.js?v=J03"></script>
 <script src="./anatomy/respiratory-field.js?v=K03"></script>
-<script src="./anatomy/inspector-app.js?v=K03"></script>
+<script src="./anatomy/shaft-mechanics.js?v=L03"></script>
+<script src="./anatomy/inspector-app.js?v=L03"></script>
 </body></html>

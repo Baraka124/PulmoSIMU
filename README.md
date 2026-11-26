@@ -136,3 +136,7 @@ Local airway skeleton binding, voxel-occupancy/edge verification, explicit entry
 ## K01–K03 — respiratory deformation foundation
 
 Offline paired CT baseline registration (SimpleITK), exact source-bound sampled displacement field and local Jacobian checks; original CT crosshair and J route point mapping with phase interpolation and geometric length comparison. No measured 4D motion, dynamic lumen surface, moving clearance or endoscopic coupling. See [K foundation](experimental/anatomy/K01_K03_RESPIRATORY_MOTION.md).
+
+## L01–L03 — flexible shaft mechanics foundation
+
+Source-linked fixed-endpoint discrete elastic shaft relaxation, assumed nodal wall penalty and friction diagnostic; independent expiration lumen contact recomputation using K-mapped geometry and fixed inspiration rest length. No bidirectional tissue mechanics or measured device properties. See [L foundation](experimental/anatomy/L01_L03_SHAFT_MECHANICS.md).
