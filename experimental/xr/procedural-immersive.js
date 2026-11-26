@@ -555,8 +555,13 @@ function install(ctx){
       object.scale.setScalar(spec.scale*(object===guidePlane&&readingMode?1.18:1));
       object.lookAt(head);object.updateWorldMatrix(true,false);
     }
-    place(scopeScreen,monitorFocus?{depth:1.12,right:.62,y:.16,scale:1.23}:pose.monitor);
-    place(guidePlane,monitorFocus?{depth:1.27,right:.91,y:-.62,scale:.88}:pose.guide);
+    if(monitorFocus){
+      place(scopeScreen,{depth:1.12,right:.62,y:.16,scale:1.23});
+      place(guidePlane,{depth:1.27,right:.91,y:-.62,scale:.88});
+    }else{
+      place(scopeScreen,pose.monitor);
+      place(guidePlane,pose.guide);
+    }
   }
   let lastContact=null;
   function surfaceContact(i,source='controller'){
