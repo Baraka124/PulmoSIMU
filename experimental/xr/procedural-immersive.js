@@ -58,6 +58,7 @@ function install(ctx){
   const spatialGeometry=global.PulmoXRSpatialGeometry;
   const spatialExperience=global.PulmoXRSpatialExperience;
   let readingMode=false,monitorFocus=false,visualEvidence={},visualLast=-Infinity,contextActions=0;
+  let compositionEvidence=null,compositionCount=0;
   const upgrade=global.PulmoXRIntegratedUpgrade;
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
   let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
@@ -402,7 +403,7 @@ function install(ctx){
       camScope.fov=station.snapshot().fovDegrees;
       camScope.updateProjectionMatrix();
       positionPanels();
-    }
+    }else if(active&&viewerValid)positionPanels();
     paint();return true;
   }
   function headPose(frame){
@@ -562,6 +563,40 @@ function install(ctx){
       place(scopeScreen,pose.monitor);
       place(guidePlane,pose.guide);
     }
+    composeSpatialWorkspace();
+  }
+  function composeSpatialWorkspace(){
+    if(!active||!viewerValid||panelEdit||xrPresentation==='ar'&&!placed)return;
+    const R=forward.clone().cross(new THREE.Vector3(0,1,0)).normalize();
+    const project=p=>{const d=p.clone().sub(head);return [d.dot(R),d.y,d.dot(forward)];};
+    function corners(obj,min,max){obj.updateWorldMatrix(true,false);const pts=[];for(const a of [min.x,max.x])for(const b of [min.y,max.y])for(const z of [min.z,max.z])pts.push(project(new THREE.Vector3(a,b,z).applyMatrix4(obj.matrixWorld)));return pts;}
+    let protectedEnvelope=null;
+    if(placed&&boundsCache&&mGrp.visible){
+      const half=boundsCache.size.clone().multiplyScalar(.5),center=boundsCache.center;
+      protectedEnvelope=spatialExperience.envelope(corners(mGrp,center.clone().sub(half),center.clone().add(half)));
+    }
+    const entries=[
+      {id:'monitor',object:scopeScreen,w:1.03,h:.69,lower:.12,visible:mode==='procedure'},
+      {id:'guide',object:guidePlane,w:.90,h:.60,lower:0,visible:mode==='procedure'&&guideVisible},
+      {id:'console',object:worldMenu,w:.82,h:.48,lower:0,visible:worldMenu.visible},
+      {id:'rail',object:compactDock,w:.76,h:.112,lower:0,visible:!worldMenu.visible}
+    ].filter(e=>e.visible);
+    const fixed=[],items=[];
+    for(const e of entries){
+      const obj=e.object,halfX=e.w/2,halfY=e.h/2;
+      if(panelPinned.has(obj)){fixed.push(spatialExperience.envelope(corners(obj,new THREE.Vector3(-halfX,-halfY-e.lower,-.05),new THREE.Vector3(halfX,halfY,.05))));continue;}
+      const p=project(obj.position),scale=obj.scale.x;
+      const preferred={right:p[0],y:p[1],depth:p[2],scale};
+      const sign=e.id==='monitor'||e.id==='guide'?1:panelOffset>0?1:-1;
+      const alternatives=e.id==='monitor'?[{right:.91,y:.25,depth:1.40,scale},{right:1.06,y:.32,depth:1.57,scale}]:
+        e.id==='guide'?[{right:1.0,y:-.48,depth:1.48,scale},{right:1.26,y:-.12,depth:1.62,scale},{right:.98,y:-.67,depth:1.52,scale}]:
+        e.id==='console'?[{right:sign*.98,y:.08,depth:1.24,scale},{right:sign*1.22,y:.13,depth:1.42,scale},{right:sign*.98,y:.48,depth:1.45,scale}]:
+        [{right:sign*.65,y:-.57,depth:1.18,scale},{right:sign*.87,y:-.48,depth:1.28,scale},{right:0,y:-.68,depth:1.25,scale}];
+      items.push({id:e.id,preferred,alternatives,width:e.w,height:e.h,lowerExtension:e.lower});
+    }
+    const result=spatialExperience.compose({items,protectedEnvelope,fixed});
+    for(const e of entries){const p=result.poses[e.id];if(!p||panelPinned.has(e.object))continue;const o=e.object;o.position.copy(head).addScaledVector(R,p.right).addScaledVector(forward,p.depth);o.position.y+=p.y;o.scale.setScalar(p.scale);o.lookAt(head);o.updateWorldMatrix(true,false);}
+    compositionCount++;compositionEvidence={method:result.method,reports:result.reports,protectedEnvelope,pinnedWindows:fixed.length,layoutEvents:compositionCount,physicalOcclusionVerified:false};
   }
   let lastContact=null;
   function surfaceContact(i,source='controller'){
@@ -932,10 +967,10 @@ function install(ctx){
   function activate(action){
     grabFeedback='MENU SELECTED / '+String(action||'').toUpperCase();
     if(active){for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.press(action,performance.now());}
-    if(action==='console-collapse'){worldMenu.visible=false;compactDock.visible=true;hoverPanels.fill(null);stopPanelEdit();paint();return;}
+    if(action==='console-collapse'){worldMenu.visible=false;compactDock.visible=true;hoverPanels.fill(null);stopPanelEdit();positionPanels();paint();return;}
     if(action==='console-reading'){readingMode=!readingMode;panelPinned.delete(worldMenu);panelPinned.delete(guidePlane);positionPanels();contextActions++;paint();return;}
     if(action==='dock-channel'||action==='monitor-station'){if(mode!=='procedure')return;menuPage=action==='dock-channel'?'channel':'station';actionHitbox=panelLayouts[menuPage];worldMenu.visible=true;compactDock.visible=false;positionPanels();contextActions++;paint();return;}
-    if(action==='dock-guide'||action==='monitor-guide'){if(mode!=='procedure')return;guideVisible=!guideVisible;guidePlane.visible=guideVisible;contextActions++;paint();return;}
+    if(action==='dock-guide'||action==='monitor-guide'){if(mode!=='procedure')return;guideVisible=!guideVisible;guidePlane.visible=guideVisible;positionPanels();contextActions++;paint();return;}
     if(action==='monitor-focus'){if(mode!=='procedure')return;monitorFocus=!monitorFocus;panelPinned.delete(scopeScreen);panelPinned.delete(guidePlane);positionPanels();contextActions++;paint();return;}
     if(action==='dock-open'){worldMenu.visible=true;compactDock.visible=false;positionPanels();paint();return;}
     if(action==='dock-mode'){setMode(mode==='anatomy'?'procedure':'anatomy');paint();return;}
@@ -988,6 +1023,7 @@ function install(ctx){
     if(action==='panel-select'){const targets=mode==='procedure'?['monitor','guide','menu']:['menu'];panelTarget=targets[(targets.indexOf(panelTarget)+1)%targets.length];paint();return;}
     if(action==='panel-size'){const object=selectedPanel();if(object?.visible){object.scale.setScalar(object.scale.x>=1.25?.75:Math.min(1.3,object.scale.x+.15));panelPinned.add(object);}paint();return;}
     if(action==='panel-reset'){stopPanelEdit();panelPinned.clear();panelOffset=0;positionPanels();paint();return;}
+    if(action==='panel-compose'){if(panelEdit)return;positionPanels();grabFeedback='WORKSPACE ARRANGED / PINNED WINDOWS RETAINED';paint();return;}
     if(action==='regional-toggle'){regionalDisplay=!regionalDisplay;regionalLast=-Infinity;paint();return;}
     if(action==='workspace-open'){menuPage='workspace';actionHitbox=panelLayouts.workspace;paint();return;}
     if(action==='workspace-options'){menuPage='workspace-options';actionHitbox=panelLayouts['workspace-options'];paint();return;}
@@ -1135,9 +1171,9 @@ function install(ctx){
     if(action==='tool')setClinMode(modes[(modes.indexOf(getClinMode())+1)%modes.length]);
     if(action==='guide'){
       guideVisible=!guideVisible;
-      if(guidePlane)guidePlane.visible=mode==='procedure'&&guideVisible;
+      if(guidePlane)guidePlane.visible=mode==='procedure'&&guideVisible;positionPanels();
     }
-    if(action==='guide-hide'){guideVisible=false;if(guidePlane)guidePlane.visible=false}
+    if(action==='guide-hide'){guideVisible=false;if(guidePlane)guidePlane.visible=false;positionPanels()}
     if(mode==='procedure'&&!accessoryDeployed()&&!physicalControl?.snapshot().armed&&action==='scope-forward'){advance(.045);scope.velocity=0;}
     if(mode==='procedure'&&!accessoryDeployed()&&!physicalControl?.snapshot().armed&&action==='scope-back'){retract(.045);scope.velocity=0;}
     if(action==='guide-next')guideStep=Math.min(4,guideStep+1);
@@ -1167,11 +1203,10 @@ function install(ctx){
       worldMenu.visible=false;hoverPanels.fill(null);
       grabFeedback='SPATIAL CONTROLS HIDDEN / LEFT Y TO SHOW';
     }else{
-      positionPanels();
       worldMenu.visible=true;
       grabFeedback='SPATIAL CONTROLS READY / AIM AND TRIGGER';
     }
-    compactDock.visible=active&&viewerValid&&!worldMenu.visible;
+    compactDock.visible=active&&viewerValid&&!worldMenu.visible;positionPanels();
     attempts.panelToggles++;
     haptic(i,.20,36);paint();return true;
   }
@@ -1378,7 +1413,7 @@ function install(ctx){
     ],
     'panel-edit':[
       {id:'panel-select',label:'SELECT WINDOW',u:.05,v:.54,w:.43,h:.095},{id:'panel-size',label:'RESIZE WINDOW',u:.52,v:.54,w:.43,h:.095},
-      {id:'panel-reset',label:'RESET WINDOWS',u:.05,v:.65,w:.43,h:.095},{id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'panel-reset',label:'RESET WINDOWS',u:.05,v:.65,w:.43,h:.095},{id:'panel-compose',label:'ARRANGE WORKSPACE',u:.52,v:.65,w:.43,h:.095},{id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     inspection:[
       {id:'inspect-toggle',label:'INDIVIDUAL LOBES',u:.05,v:.54,w:.43,h:.12},
@@ -1924,8 +1959,8 @@ function install(ctx){
     geometryValidated:false,airwayReviewed:false,motionStudy:null
   })||null;
   const localSessionReport=()=>({
-    release:'AG03 / UI05 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
-    spatialErgonomics:{observations:visualEvidence,contextActions,physicalReadabilityVerified:false},
+    release:'AG03 / UI06 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
+    spatialErgonomics:{observations:visualEvidence,contextActions,composition:compositionEvidence,physicalReadabilityVerified:false},
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
@@ -2190,7 +2225,7 @@ function install(ctx){
     orientationLocked=false;orientationAnchor=null;ctAxis='axial';
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     menuPage='primary';actionHitbox=panelLayouts.primary;
-    readingMode=false;monitorFocus=false;visualEvidence={};visualLast=-Infinity;contextActions=0;
+    readingMode=false;monitorFocus=false;visualEvidence={};visualLast=-Infinity;contextActions=0;compositionEvidence=null;compositionCount=0;
     stage.setMode('studio');stage.root.getObjectByName('xr-architectural-datums').visible=false;laboratory.root.visible=true;chamber.visible=false;floor.material.opacity=0;
     physicsSnapshot=null;physicsError=null;
     global.PulmoXRReferencePhysics?.reset?.();
@@ -2466,7 +2501,7 @@ function install(ctx){
     activeControllerSides:controllerSide.slice(),
     menuHoverActions:hoverPanels.slice(),
     spatialMenuVisible:Boolean(worldMenu.visible),
-    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence},
+    spatialInterface:{main:mainSpatialSurface.snapshot(),guide:guideSpatialSurface.snapshot(),rail:railSurface.snapshot(),monitor:{depthM:monitorHousing.depthM,videoUnchanged:monitorHousing.videoUnchanged,ventCount:monitorHousing.ventCount,beveledChassis:monitorHousing.beveledChassis},laboratory:laboratory.snapshot(),monitorControls:monitorControlSurface.snapshot(),readingMode,monitorFocus,visualEvidence,composition:compositionEvidence},
     roomShellVisible:Boolean(room.visible),
     stagePresentation:stage.snapshot(),xrFoveation:qualityStatus,
     xrPresentation,

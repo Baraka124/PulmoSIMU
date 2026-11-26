@@ -991,6 +991,16 @@ try {
    });
    assert.ok(ui05.icon&&ui05.alpha>100&&ui05.instanced>=3&&ui05.ventCount===24&&ui05.beveled&&ui05.source&&ui05.noLights);assert.equal(ui05.indicator,0xa9d6cd);assert.equal(ui05.environment.additionalSceneLights,0);
    console.log('PASS UI05 vector icon pixels, instanced architectural details and medical monitor status');
+   const ui06=await legacy.evaluate(()=>{const U=window.PulmoXRSpatialExperience;
+     const blocked={right:0,y:0,depth:1,scale:1},clear={right:1.15,y:.1,depth:1.3,scale:1};
+     const protectedEnvelope=U.envelope([[-.25,-.3,.8],[.25,.3,.8]]);
+     const result=U.compose({protectedEnvelope,items:[{id:'console',preferred:blocked,alternatives:[clear],width:.6,height:.4}]});
+     const baseline=U.overlap(U.panelEnvelope(blocked,.6,.4),protectedEnvelope);
+     const chosen=U.overlap(U.panelEnvelope(result.poses.console,.6,.4),protectedEnvelope);
+     return {baseline,chosen,evidence:result};
+   });
+   assert.ok(ui06.baseline>0&&ui06.chosen<ui06.baseline);assert.equal(ui06.evidence.poses.console.right,1.15);assert.equal(ui06.evidence.physicalOcclusionVerified,false);
+   console.log('PASS UI06 source-protected angular composition and honest visibility evidence');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

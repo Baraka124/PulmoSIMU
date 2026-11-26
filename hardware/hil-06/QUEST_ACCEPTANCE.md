@@ -75,3 +75,7 @@ GPU timing and motion-to-photon latency are not proven by the exported CPU diagn
 ## UI05 extension
 - Q33: compare studio and focus finishes, verify wall fins and ceiling wash remain in VR only, no decorative grid over the work area; verify no obstruction to normal locomotion.
 - Q34: evaluate semantic symbols and labels at normal/enlarged scale; inspect monitor edge, rear geometry and status indicator; source video must remain unchanged by the enclosure. Note readability or material issues in headset rather than inferring performance from desktop checks.
+
+## UI06 final composition acceptance
+- Q35: with the lung centered, open and collapse controls, change modes, switch station layouts and use Arrange Workspace. Confirm the anatomy stays fixed, visible panels are distinct, and no continuous head-following occurs. Check actual headset overlap rather than relying on estimates.
+- Q36: pin a window through the existing grip placement workflow, arrange the workspace, verify it stays in place; reset windows to explicitly unpin. Repeat focus and normal monitor layouts, and MR surface placement. Export composition evidence and record any residual obstruction, discomfort, unreadable text or slow frame rendering.
