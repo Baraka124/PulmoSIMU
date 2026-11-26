@@ -12,6 +12,7 @@ let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
 let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
 let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
+let intelEpoch=0,intelBusy=false,intelResult=null,intelReference=null,intelVideoURL=null,intelVideoSha=null,intelVideoEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -647,7 +648,7 @@ $('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Or
 $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function clearCandidate(){
- route=null;resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
+ route=null;resetIntelligence();resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
 }
 function resetRoute(){
@@ -675,7 +676,7 @@ for(const id of ['route-root','route-target'])$(id).addEventListener('click',()=
 for(const id of ['route-diameter','route-margin'])$(id).addEventListener('input',()=>{clearCandidate();if(routeGraph)describeRoute();});
 $('route-plan').addEventListener('click',()=>{
  if(!routeGraph||!routeStart||!routeTarget)return;clearCandidate();
- try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));invalidateOptics();invalidateShaft();
+ try{route=routeGraph.plan(routeStart.node,routeTarget.node,Number($('route-diameter').value),Number($('route-margin').value));refreshIntelligence();invalidateOptics();invalidateShaft();
  $('route-step').max=route.nodes.length-1;for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=false;
  $('route-status').textContent='Geometric candidate · review pending';showRouteFrame(0);
  }catch(e){$('route-status').textContent=e.message;}
@@ -762,6 +763,7 @@ $('shaft-run').addEventListener('click',()=>{
 $('shaft-export').addEventListener('click',()=>{if(!shaftResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(shaftResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Shaft_'+shaftResult.active_mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function invalidateOptics(){
+ cancelIntelSearch();
  opticFrame=null;$('optic-render').disabled=!route;$('optic-compare').disabled=true;
  $('optic-status').textContent=route?'Route frame ready to render':'Awaiting J route';
  $('optic-detail').textContent='No optical frame. Render explicitly after changing route position.';
@@ -788,13 +790,70 @@ $('optic-points').addEventListener('change',async ev=>{
 });
 $('optic-overlay').addEventListener('change',drawOptic);
 $('optic-reference').addEventListener('change',async ev=>{
- const f=ev.target.files?.[0];ev.target.value='';if(!f)return;const epoch=++opticRefEpoch;opticReference=null;$('optic-compare').disabled=true;
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;const epoch=++opticRefEpoch;opticReference=null;intelReference=null;cancelIntelSearch();refreshIntelligence();$('optic-compare').disabled=true;
  const cv=$('optic-ref-canvas'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
- try{if(!route||!['image/png','image/jpeg'].includes(f.type)||f.size>10*1024*1024)throw Error('Route and local PNG/JPEG up to 10 MiB required');const b=await createImageBitmap(f);try{if(epoch!==opticRefEpoch)return;if(b.width*b.height>16000000)throw Error('Reference pixel budget exceeded');const scale=Math.min(cv.width/b.width,cv.height/b.height),dw=b.width*scale,dh=b.height*scale;ctx.drawImage(b,(cv.width-dw)/2,(cv.height-dh)/2,dw,dh);opticReference=ctx.getImageData(0,0,cv.width,cv.height).data;$('optic-compare').disabled=!opticFrame;$('optic-status').textContent='Local reference loaded · no geometric registration';}finally{b.close();}}
+ try{if(!route||!['image/png','image/jpeg'].includes(f.type)||f.size>10*1024*1024)throw Error('Route and local PNG/JPEG up to 10 MiB required');const digest=await sha256(await f.arrayBuffer());const b=await createImageBitmap(f);try{if(epoch!==opticRefEpoch)return;if(b.width*b.height>16000000)throw Error('Reference pixel budget exceeded');const scale=Math.min(cv.width/b.width,cv.height/b.height),dw=b.width*scale,dh=b.height*scale;ctx.drawImage(b,(cv.width-dw)/2,(cv.height-dh)/2,dw,dh);opticReference=ctx.getImageData(0,0,cv.width,cv.height).data;intelReference={sha256:digest,kind:'still',timestamp_s:null};refreshIntelligence();$('optic-compare').disabled=!opticFrame;$('optic-status').textContent='Local reference loaded · no geometric registration';}finally{b.close();}}
  catch(e){if(epoch===opticRefEpoch)$('optic-status').textContent='Reference rejected: '+e.message;}
 });
 $('optic-compare').addEventListener('click',()=>{
  if(!opticFrame||!opticReference)return;try{drawOptic();const q=window.PulmoOptics.compare(opticFrame,opticReference);$('optic-detail').textContent+='\nUnregistered comparison: '+q.wall_pixels+' opaque wall pixels · RGB MAE '+q.mae.toFixed(2)+' /255 · RMSE '+q.rmse.toFixed(2)+' · PSNR '+(q.identical?'identical':q.psnr_db.toFixed(2)+' dB')+' · not anatomical or optical validation.';}catch(e){$('optic-status').textContent=e.message;}
+});
+
+function refreshIntelligence(){
+ $('intel-search').disabled=!route||!opticReference||!intelReference||intelBusy;
+ $('intel-report').disabled=!route||intelBusy;
+ $('intel-cancel').disabled=!intelBusy;
+}
+function cancelIntelSearch(){intelEpoch++;intelBusy=false;intelResult=null;$('intel-status').textContent=route?'Awaiting evidence review':'Awaiting J route';$('intel-detail').textContent='No current optical candidate result. Export current route evidence or rank a reference.';refreshIntelligence();}
+function resetIntelligence(){
+ cancelIntelSearch();intelReference=null;intelVideoEpoch++;intelVideoSha=null;
+ const v=$('intel-player');v.pause();v.removeAttribute('src');v.load();v.hidden=true;if(intelVideoURL)URL.revokeObjectURL(intelVideoURL);intelVideoURL=null;$('intel-capture').disabled=true;refreshIntelligence();
+}
+$('intel-video').addEventListener('change',async ev=>{
+ const f=ev.target.files?.[0];ev.target.value='';if(!f)return;
+ const epoch=++intelVideoEpoch;const v=$('intel-player');v.pause();v.removeAttribute('src');v.load();v.hidden=true;
+ if(intelVideoURL)URL.revokeObjectURL(intelVideoURL);intelVideoURL=null;intelVideoSha=null;$('intel-capture').disabled=true;
+ try{if(!route||!f.type.startsWith('video/')||f.size>100*1024*1024)throw Error('Route and local video up to 100 MiB required');const digest=await sha256(await f.arrayBuffer());if(epoch!==intelVideoEpoch)return;
+ intelVideoSha=digest;intelVideoURL=URL.createObjectURL(f);v.src=intelVideoURL;v.hidden=false;$('intel-status').textContent='Pause video and capture a reference frame.';
+ }catch(e){if(epoch===intelVideoEpoch)$('intel-status').textContent=e.message;}
+});
+const player=$('intel-player');
+for(const e of ['loadeddata','pause','playing','seeked','seeking','emptied','error'])player.addEventListener(e,()=>{$('intel-capture').disabled=!route||!intelVideoSha||!player.paused||player.seeking||player.readyState<2;});
+$('intel-capture').addEventListener('click',()=>{
+ if(!route||!intelVideoSha||!player.paused||player.seeking||player.readyState<2)return;
+ opticRefEpoch++;cancelIntelSearch();const cv=$('optic-ref-canvas'),ctx=cv.getContext('2d'),scale=Math.min(cv.width/player.videoWidth,cv.height/player.videoHeight),dw=player.videoWidth*scale,dh=player.videoHeight*scale;
+ ctx.clearRect(0,0,cv.width,cv.height);ctx.drawImage(player,(cv.width-dw)/2,(cv.height-dh)/2,dw,dh);
+ opticReference=ctx.getImageData(0,0,cv.width,cv.height).data;intelReference={sha256:intelVideoSha,kind:'video_frame',timestamp_s:player.currentTime};
+ $('optic-compare').disabled=!opticFrame;refreshIntelligence();$('intel-status').textContent='Video frame captured locally; not registered.';
+});
+$('intel-radius').addEventListener('input',cancelIntelSearch);$('intel-cancel').addEventListener('click',cancelIntelSearch);
+$('intel-search').addEventListener('click',async()=>{
+ if(!route||!opticReference||!intelReference||intelBusy)return;
+ cancelIntelSearch();const epoch=intelEpoch;intelBusy=true;refreshIntelligence();
+ try{
+ const source=route,study=currentStudy(),mask=seg,ref={...intelReference},U=window.PulmoResearchIntelligence,options={fov:Number($('optic-fov').value),exposure:Number($('optic-exp').value),baseRoll:Number($('optic-roll').value)},search=U.candidates(source.nodes.length,Number($('route-step').value),Number($('intel-radius').value));
+ const c=document.createElement('canvas');c.width=64;c.height=48;const ctx=c.getContext('2d');ctx.drawImage($('optic-ref-canvas'),0,0,64,48);const desc=U.descriptor(ctx.getImageData(0,0,64,48).data,64,48),rows=[];
+ const routeSha=await sha256(new TextEncoder().encode(JSON.stringify(source)).buffer);
+ for(let i=0;i<search.length;i++){
+  if(epoch!==intelEpoch)return;const s=search[i],roll=options.baseRoll+s.roll_offset;
+  $('intel-status').textContent='Computing candidate '+(i+1)+' / '+search.length;
+  const frame=window.PulmoOptics.render({study,seg:mask,route:source,index:s.index,width:64,height:48,fov:options.fov,roll,exposure:options.exposure});
+  const q=U.score(desc,U.descriptor(frame.rgba,64,48));if(q)rows.push({index:s.index,roll,...q,wall_fraction:frame.counts.WALL/(64*48)});
+  await new Promise(resolve=>setTimeout(resolve,0));
+ }
+ if(epoch!==intelEpoch)return;const result=U.rank(rows);intelResult={...result,route_sha256:routeSha,reference:ref,options,search_count:search.length,method:'gradient_magnitude_pearson',clinical_navigation_allowed:false};
+ $('intel-status').textContent=result.status.replaceAll('_',' ');
+ $('intel-detail').textContent='Unverified image similarity · '+search.length+' sampled poses · distinct-node score gap '+(result.score_gap===null?'unavailable':result.score_gap.toFixed(3))+'\n'+result.candidates.map(q=>'Node '+(q.index+1)+' / roll '+q.roll+'° · correlation '+q.correlation.toFixed(3)+' · wall coverage '+Math.round(q.wall_fraction*100)+'%').join('\n')+'\nNo automatic scope movement or estimated position confidence.';
+ }catch(e){if(epoch===intelEpoch)$('intel-status').textContent='Search rejected: '+e.message;}
+ finally{if(epoch===intelEpoch){intelBusy=false;refreshIntelligence();}}
+});
+$('intel-report').addEventListener('click',async()=>{
+ if(!route||intelBusy)return;const source=route,epoch=intelEpoch;
+ try{const digest=await sha256(new TextEncoder().encode(JSON.stringify(source)).buffer);if(epoch!==intelEpoch||source!==route)return;
+ const evidence=window.PulmoResearchIntelligence.assess({study:currentStudy(),seg,route:source,shaft:shaftResult,optics:opticFrame,localization:intelResult,routeSha:digest});
+ const url=URL.createObjectURL(new Blob([JSON.stringify(evidence,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Evidence_'+digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+ $('intel-detail').textContent=evidence.findings.map(x=>x.id+' · '+x.state+' — '+x.basis).join('\n')+'\nEvidence exported locally. Review pending.';
+ }catch(e){$('intel-status').textContent=e.message;}
 });
 applyQa();renderReviewStatus();start3d();
 })();

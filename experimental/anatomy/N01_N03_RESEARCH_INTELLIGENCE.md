@@ -1,0 +1,9 @@
+# N01–N03 | Research intelligence foundation
+
+N01: deterministic evidence review, not a language model or clinical decision system. Computes physical route length and turning angles, compares J lower-bound margin with required radius, records L sampled overlap and assumptions, and M optical ray counts if present. Missing evidence is explicit; no automatic route recommendation.
+
+N02: bounded local candidate search using M mask-derived pinhole frames at sampled J nodes (at most 33 poses, 64x48 pixels, three roll offsets). Pearson correlation of luminance gradient magnitude on common opaque support; rejects low variance or inadequate support. Reports top candidates and gap to best different node; thresholds are heuristic flags, not calibrated uncertainty or confidence. No continuous six-DoF registration, video tracking, real-time localization, calibrated optics or learned inference. Reference PNG/JPEG from M or paused local video frame (100 MiB max, browser-decodable). Video file SHA and timestamp are recorded; no frame identity authentication or correspondence. Search cancellation and route/optics/reference changes invalidate result. No automatic scope movement.
+
+N03: local export of current evidence JSON with exact CT, mask and route SHA-256, candidate similarity metadata and explicit missing or assumed evidence. Route hash is SHA-256 of serialized current route object, not digital signature. Shaft and optics use current in-memory outputs, invalidated by route changes; report not an approval. No patient data in Git. Use independently registered real video, calibrated camera, benchmark pose error and ambiguity/coverage before any further localization claim.
+
+Run node --test experimental/tests/n03-research-intelligence.test.mjs. Existing reference procedure and A4 gate unchanged. Full integration and hardware tests remain necessary.

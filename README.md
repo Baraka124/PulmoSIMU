@@ -144,3 +144,7 @@ Source-linked fixed-endpoint discrete elastic shaft relaxation, assumed nodal wa
 ## M01–M03 — source optical foundation
 
 Explicit voxel-lumen raycast endoscopic preview at J route node; optional depth-gated optical point kernels and local unregistered still comparison. No trained 3DGS, real mucosa reconstruction or XR binding. See [M foundation](experimental/anatomy/M01_M03_SOURCE_OPTICS.md).
+
+## N01–N03 — computational research assistance
+
+Deterministic source-linked route evidence review, bounded optical gradient-similarity search of nearby route poses, local still/video-frame capture and traceable evidence JSON. No real-time registration or clinical localization. See [N foundation](experimental/anatomy/N01_N03_RESEARCH_INTELLIGENCE.md).
