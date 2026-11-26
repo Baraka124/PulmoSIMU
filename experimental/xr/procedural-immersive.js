@@ -1823,7 +1823,7 @@ function install(ctx){
   const ebusActions=[{id:'ebus-feed',label:'Feed',u:.018,v:.10,w:.232,h:.80},{id:'ebus-retract',label:'Retract',u:.264,v:.10,w:.232,h:.80},{id:'ebus-roll',label:'Rotate',u:.510,v:.10,w:.232,h:.80},{id:'radial-range',label:'Range',u:.756,v:.10,w:.226,h:.80}];
   const ebusControlSurface=spatialGeometry.create(THREE,ebusToolbar,{width:.61,height:.078,radius:2.5,deckStart:0,depth:.017,texture:ebusControlTexture});
   function paintEBUSControls(){const p=ebusProbe.snapshot(),c=ebusControlCtx;c.clearRect(0,0,1024,150);for(const a of ebusActions){a.disabled=p.mode==='off'||a.id!=='radial-range'&&p.mode!=='radial'||a.id==='ebus-feed'&&p.extensionMm>=12||a.id==='ebus-retract'&&p.extensionMm<=0;const title=a.id==='radial-range'?radialRange+' mm':a.label;spatialUI.control(c,{x:a.u*1024,y:a.v*150,w:a.w*1024,h:a.h*150,title,hovered:hoverPanels.includes(a.id),available:!a.disabled,action:a.id,physical:true});}ebusControlSurface.setActions(ebusActions);ebusControlSurface.update(hoverPanels);ebusControlTexture.needsUpdate=true;}
-  function paintEBUSStatus(){const p=ebusProbe.snapshot(),c=ebusStatusCtx;c.fillStyle='#171e23';c.fillRect(0,0,1024,76);spatialUI.text(c,p.mode.toUpperCase()+' EBUS / REFERENCE',18,48,670,{size:32,min:24,weight:550});spatialUI.text(c,p.mode==='radial'?p.extensionMm.toFixed(1)+' mm':radialRange+' mm',1005,48,300,{size:28,min:22,align:'right',color:spatialUI.C.accent});ebusStatusTexture.needsUpdate=true;ebusHousing.setStatus(radialEvidence?.state==='SCAN_UNAVAILABLE'?'unavailable':'live');}
+  function paintEBUSStatus(){const p=ebusProbe.snapshot(),c=ebusStatusCtx;c.fillStyle='#171e23';c.fillRect(0,0,1024,76);spatialUI.text(c,p.mode.toUpperCase()+' EBUS / REFERENCE',18,48,670,{size:32,min:24,weight:550});spatialUI.text(c,p.mode==='radial'?p.extensionMm.toFixed(1)+' mm':radialRange+' mm',1005,48,300,{size:28,min:22,align:'right',color:spatialUI.C.accent});ebusStatusTexture.needsUpdate=true;ebusHousing.setStatus(!radialEvidence||['SCAN_UNAVAILABLE','ORIGIN_OUTSIDE_LUMEN','PROBE_STOWED','CLEARANCE_BLOCKED'].includes(radialEvidence.state)?'unavailable':'live');}
   function updateProcedureTowers(){const enabled=active&&viewerValid&&mode==='procedure'&&xrPresentation==='vr'&&stage.snapshot().mode==='studio';const args={enabled,floor:room.position.y,room:room.position.toArray(),head:head.toArray(),patient:patientStation.snapshot().placement};endoscopyTower.update({...args,screen:scopeScreen,halfHeight:.344,lowerExtension:.10});ultrasoundTower.update({...args,screen:ebusScreen,halfHeight:.35,lowerExtension:.09});}
   function updateEBUSAssembly(){
     if(mode!=='procedure'||getMeshMode()!=='reference'||!viewerValid){ebusVisual.hide();return;}
@@ -1833,7 +1833,7 @@ function install(ctx){
   function updateRadial(now){
     const show=mode==='procedure'&&getMeshMode()==='reference'&&radialEnabled;
     ebusScreen.visible=show;radialPanel.visible=show;monitorImage.scale.setScalar(1);monitorImage.position.x=0;
-    if(!show)return;
+    if(!show){ultrasoundTower.hide();return;}
     if(now-radialLast<500)return;radialLast=now;
     try{const field=ctx.getLumenField?.();if(!field)throw Error('NO_SOURCE_FIELD');
      const p=ebusProbe.snapshot(),basis=probeBasis(p.mode==='radial'?p.extensionMm:0),args={...basis,field,mmPerUnit:getMmPerSceneUnit()*(ctx.getReferenceMotionFactor?.()||1),rangeMm:radialRange,coupling:radialCoupling};
