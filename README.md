@@ -124,3 +124,7 @@ A bounded viewer-relative angular-envelope layout heuristic estimates overlap wi
 ## H01–H03 — patient-study foundation
 
 Existing Source Anatomy inspector now supports local versioned study manifest export/verification, explicit mm voxel/RAS/LPS transforms and exact optional reconstruction linkage. Offline classic single-series DICOM conversion is provided separately; no patient data is included. No CT-specific procedure authorization or segmentation validation. See [H01–H03 foundation](experimental/anatomy/H01_H03_PATIENT_STUDY.md).
+
+## I01–I03 — source-linked segmentation foundation
+
+Offline adapter for externally segmented binary NIfTI structures, exact source/affine/hash binding, six-connected component QA and preliminary airway voxel skeleton graph; local MPR mask overlays, sparse correction and source-bound patch export. No bundled segmentation inference, validated branch graph or patient navigation. See [I01–I03](experimental/anatomy/I01_I03_SEGMENTATION.md).

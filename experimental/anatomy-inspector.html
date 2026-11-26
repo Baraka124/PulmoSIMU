@@ -88,6 +88,11 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
     <pre id="study-summary" class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">No source available.</pre>
     <div class="review-controls"><button id="study-export" disabled>Export study manifest</button><label class="review-import" for="study-import">Verify study manifest<input id="study-import" type="file" accept=".json" disabled></label><span class="muted" id="study-result" role="status"></span></div>
   </section>
+  <section class="review-panel" aria-label="Segmentation review">
+    <div class="review-heading"><div><div class="eyebrow">I01–I03 / Segmentation evidence</div><h2>Source-linked mask review</h2><p>Inspect a single externally segmented binary structure on the original CT. The amber overlay is the mask, not inferred anatomy. Edits are local proposals, not approved segmentation.</p></div><div class="review-status" id="seg-status" role="status">No mask loaded</div></div>
+    <div class="review-controls"><label class="review-import" for="seg-manifest">Mask manifest<input id="seg-manifest" type="file" accept=".json"></label><label class="review-import" for="seg-mask">Binary mask<input id="seg-mask" type="file" accept=".raw,.bin"></label><label class="toggle"><input id="seg-overlay" type="checkbox" checked> Show overlay</label><button id="seg-add" disabled>Add crosshair voxel</button><button id="seg-remove" disabled>Remove crosshair voxel</button><button id="seg-clear" disabled>Discard edits</button><button id="seg-export" disabled>Export correction proposal</button></div>
+    <div class="muted" id="seg-metrics">Load CT, then its mask manifest and binary mask. Offline preparation and topology analysis are documented in the repository.</div>
+  </section>
   <section class="review-panel" aria-label="CT-linked source review observations">
     <div class="review-heading"><div><div class="eyebrow">A2.3 / Source review</div><h2>Local anatomical observations</h2><p>Place manual point annotations at the MPR crosshair. All marks remain in memory unless you explicitly export JSON. A review point is not a fissure segmentation or clinical approval.</p></div><div class="review-status" id="review-status" role="status">Exact matching CT, GLB and manifest required</div></div>
     <div class="review-controls">
@@ -120,5 +125,6 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/a4-source-gate.js?v=A4-SOURCE"></script>
 <script src="./anatomy/source-review.js?v=A23-REVIEW"></script>
 <script src="./anatomy/patient-study.js?v=H03"></script>
-<script src="./anatomy/inspector-app.js?v=H03"></script>
+<script src="./anatomy/segmentation-review.js?v=I03"></script>
+<script src="./anatomy/inspector-app.js?v=I03"></script>
 </body></html>

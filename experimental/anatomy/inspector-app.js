@@ -7,6 +7,7 @@
 const $=id=>document.getElementById(id);
 const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:null,meshNames:[],ctSha:null,meshSha:null,cross:[256,256,75],surfaceOpacity:1,
   window:'lung',clip:false,clipping:[],fileNames:[],numSlices:0,reviewMarks:[],metric:{a:null,b:null}};
+let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
 const huWindows={lung:[-600,1500],mediastinum:[40,400],bone:[350,1700]};
 const THREE=window.THREE;
 const has3d=Boolean(THREE&&THREE.GLTFLoader&&THREE.OrbitControls);
@@ -224,7 +225,7 @@ async function loadNifti(file){
   setMessage('Reading local 3D NIfTI volume…');
   const bytes=await file.arrayBuffer();
   const nextVolume=window.PulmoNiftiSource.readNifti(bytes),nextCtSha=await sha256(bytes);
-  resetReview();state.ctSha=nextCtSha;state.volume=nextVolume;
+  resetReview();resetSegmentation();state.ctSha=nextCtSha;state.volume=nextVolume;
   state.cross=state.volume.dims.map(n=>Math.floor(n/2));
   $('ct-state').textContent='Loaded locally · '+(file.size/1024/1024).toFixed(1)+' MiB';
   $('source-shape').textContent=state.volume.dims.join(' × ');
@@ -376,6 +377,7 @@ function renderSlice(plane){
     const p=position(x,y),value=state.volume.voxel(...p);
     const v=Math.max(0,Math.min(255,Math.round(255*(value-min)/(max-min))));
     const z=4*(x+y*w);px[z]=v;px[z+1]=v;px[z+2]=v;px[z+3]=255;
+    if(seg&&$('seg-overlay').checked&&seg.at(p)){px[z]=Math.round(v*.58+255*.42);px[z+1]=Math.round(v*.58+178*.42);px[z+2]=Math.round(v*.58+70*.42);}
   }
   ctx.putImageData(img,0,0);
   ctx.lineWidth=Math.max(.7,w/512);ctx.strokeStyle='rgba(222,183,131,.85)';
@@ -609,5 +611,34 @@ $('study-import').addEventListener('change',async ev=>{
  try{if(f.size>64*1024)throw Error('Study manifest exceeds 64 KiB');const imported=JSON.parse(await f.text());window.PulmoStudy.verify(imported,currentStudy());$('study-result').textContent='Exact local package match. Clinical review remains pending.';}catch(e){$('study-result').textContent='Rejected: '+e.message;}
 });
 
+
+function updateSegUI(message){
+ $('seg-status').textContent=message;
+ for(const id of ['seg-add','seg-remove','seg-clear','seg-export'])$(id).disabled=!seg;
+ const m=seg?.metrics();
+ $('seg-metrics').textContent=m?seg.structure+' · '+m.edited_voxels.toLocaleString()+' voxels · '+m.volume_ml.toFixed(3)+' mL · +'+m.added+' / −'+m.removed+' proposed edits · agreement to original (Dice): '+(m.dice_to_original===null?'undefined':m.dice_to_original.toFixed(4))+' · not accuracy against ground truth.':'Load CT, then matching mask manifest and raw mask.';
+}
+function resetSegmentation(){segEpoch++;seg=null;segManifest=null;segBytes=null;segDigest=null;updateSegUI('No mask loaded');}
+function trySeg(){
+ seg=null;
+ try{if(!segManifest||!segBytes){updateSegUI('Awaiting manifest and binary mask');return;}
+  seg=window.PulmoSegmentation.bind(currentStudy(),segManifest,segBytes,segDigest);
+  updateSegUI('Exact source-linked mask · unreviewed');
+ }catch(e){updateSegUI('Rejected: '+e.message);}finally{if(state.volume)renderSlices();}
+}
+$('seg-manifest').addEventListener('change',async ev=>{
+ const file=ev.target.files?.[0];ev.target.value='';if(!file)return;
+ const epoch=++segEpoch;seg=null;segManifest=null;updateSegUI('Reading mask manifest');renderSlices();
+ try{if(file.size>64*1024)throw Error('Manifest exceeds 64 KiB');const m=JSON.parse(await file.text());if(epoch!==segEpoch)return;segManifest=m;trySeg();}catch(e){if(epoch===segEpoch)updateSegUI('Rejected: '+e.message);}
+});
+$('seg-mask').addEventListener('change',async ev=>{
+ const file=ev.target.files?.[0];ev.target.value='';if(!file)return;
+ const epoch=++segEpoch;seg=null;segBytes=null;segDigest=null;updateSegUI('Reading mask');renderSlices();
+ try{if(!state.volume)throw Error('Load CT first');if(file.size>250000000)throw Error('Mask exceeds local size limit');const bytes=await file.arrayBuffer(),digest=await sha256(bytes);if(epoch!==segEpoch)return;segBytes=new Uint8Array(bytes);segDigest=digest;trySeg();}catch(e){if(epoch===segEpoch)updateSegUI('Rejected: '+e.message);}
+});
+for(const [id,value] of [['seg-add',1],['seg-remove',0]])$(id).addEventListener('click',()=>{if(!seg)return;try{seg.set(state.cross.slice(),value);updateSegUI('Local correction proposal · unreviewed');renderSlices();}catch(e){updateSegUI(e.message);}});
+$('seg-overlay').addEventListener('change',renderSlices);
+$('seg-clear').addEventListener('click',()=>{if(seg){seg.clear();updateSegUI('Original mask restored');renderSlices();}});
+$('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.createObjectURL(new Blob([JSON.stringify(seg.patch(),null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_MaskPatch_'+seg.digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 applyQa();renderReviewStatus();start3d();
 })();

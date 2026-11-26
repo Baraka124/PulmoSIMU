@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';const window={};runInNewContext(readFileSync(new URL('../anatomy/segmentation-review.js',import.meta.url),'utf8'),{window,Uint8Array});
+const U=window.PulmoSegmentation,a=[[1,0,0,0],[0,2,0,0],[0,0,3,0],[0,0,0,1]],ct='a'.repeat(64),mask='b'.repeat(64);
+const study={schema:'pulmosimu.study/1',source:{sha256:ct,dimensions:[2,2,2]},spatial:{voxel_to_ras_mm:a}},m={schema:'pulmosimu.mask/1',ct_sha256:ct,mask_sha256:mask,dimensions:[2,2,2],voxel_to_ras_mm:a,structure:'airway_lumen',encoding:'uint8-x-fast-binary'};
+const src=()=>new Uint8Array([1,0,0,0,0,0,0,0]);
+test('exact source, hash, affine, binary encoding required',()=>{for(const x of [{ct_sha256:mask},{mask_sha256:ct},{dimensions:[2,2,3]},{voxel_to_ras_mm:[[1,0,0,5],...a.slice(1)]}])assert.throws(()=>U.bind(study,{...m,...x},src(),mask));assert.throws(()=>U.bind(study,m,new Uint8Array(7),mask));const bad=src();bad[0]=2;assert.throws(()=>U.bind(study,m,bad,mask));});
+test('sparse correction, physical volume, undo and immutable source',()=>{const raw=src(),s=U.bind(study,m,raw,mask);s.set([1,0,0],1);assert.equal(s.at([1,0,0]),1);assert.equal(raw[1],0);assert.equal(s.metrics().volume_ml,.012);assert.equal(s.metrics().dice_to_original,2/3);assert.equal(s.patch().edits[0].index,1);s.set([1,0,0],0);assert.equal(s.patch().edits.length,0);assert.throws(()=>s.set([2,0,0],1));});
