@@ -16,7 +16,7 @@ function create({calibration}={}){
  function step({now,deadman,reference,procedure,visible,connected,segmentLengthMm,deflectionMax}={}){
   if(!armed)return null;
   if(!connected||!visible||!reference||!procedure){prior=null;
-   if(!connected||!visible||!reference)stop('CONTEXT_OR_CONNECTION_LOST');
+   stop('CONTEXT_OR_CONNECTION_LOST');
    return null}
   const state=calibration.snapshot(now);
   if(!state.armed){stop(state.lastError||'CALIBRATION_STOP');return null}

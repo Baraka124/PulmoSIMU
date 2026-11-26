@@ -168,3 +168,7 @@ Optional supine manikin and procedure bed, source-aligned neck entry, operator p
 ## S01–S03 — physical–virtual bench registration
 
 Local pivot-calibrated controller pointer, four-landmark reference jig alignment and capability-dependent runtime plane masking. No patient registration or force feedback. See [S foundation](experimental/S01_S03_SPATIAL_CALIBRATION.md).
+
+## T01–T03 — instrument contact and haptic research interface
+
+Bounded geometry cues, read-only live motion/load observation and a local no-output dry run. See [T foundation](experimental/T01_T03_HAPTIC_LAB.md).

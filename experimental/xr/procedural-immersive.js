@@ -99,6 +99,16 @@ function install(ctx){
   const physicalCalibration=global.PulmoXRPhysicalCalibration?.create({parseFrame:global.PulmoXRInstrumentTelemetry.parseFrame});
   const physicalControl=physicalCalibration&&global.PulmoXRCalibratedControl?.create({calibration:physicalCalibration});
   let serialInput=null;
+  const hapticLab=global.PulmoXRHapticLab,cueEngine=hapticLab.createCue(),sensorObserver=hapticLab.createObserver(global.PulmoXRInstrumentTelemetry.parseFrame),hapticDryRun=hapticLab.createDryRun();
+  let hapticEvidence=hapticLab.estimate(),lastAdvanceAt=-Infinity,lastAdvanceBlocked=false,lastShaftAt=-Infinity,lastShaftSample=null,hapticFinal=null,advanceAttempted=false;
+  function resetHapticContext(){cueEngine.reset();hapticDryRun.stop('CONTEXT_RESET');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;lastAdvanceBlocked=false;lastShaftAt=-Infinity;lastShaftSample=null;advanceAttempted=false;}
+  function trackedLeftGrip(frame){const s=Array.from(rBro.xr.getSession()?.inputSources||[]).find(x=>x.handedness==='left'&&!x.hand&&x.gripSpace);return !!(s?.gamepad?.buttons?.[1]?.pressed&&frame?.getPose(s.gripSpace,rBro.xr.getReferenceSpace()));}
+  function updateHapticLab(frame,time){const now=performance.now();if(shaftEvidence!==lastShaftSample){lastShaftSample=shaftEvidence;lastShaftAt=now;}const advancing=now-lastAdvanceAt<180;hapticEvidence=hapticLab.estimate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure',marginAgeMs:now-lastShaftAt,advancing,blocked:lastAdvanceBlocked});
+   const session=rBro.xr.getSession(),left=Array.from(session?.inputSources||[]).find(x=>x.handedness==='left'&&!x.hand&&x.gripSpace),i=controllerSources.indexOf(left),grip=trackedLeftGrip(frame),allowed=active&&viewerValid&&mode==='procedure'&&xrPresentation==='vr'&&patientMotionAllowed()&&!probeLocked()&&!accessoryDeployed()&&!panelEdit;
+   const cue=cueEngine.step({now,evidence:hapticEvidence,activeGrip:grip&&i>=0,allowed});if(cue)haptic(i,cue.intensity,cue.durationMs);
+   const measured=sensorObserver.snapshot(now),cal=physicalCalibration?.snapshot(now),connected=serialInput?.status().state==='ACQUIRING';hapticDryRun.step({now,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure',connected,calibrated:!!calibrationLoaded&&!!physicalControl?.snapshot().armed,fresh:!!measured.motion&&!!cal?.corrected,deadman:grip,eligible:allowed&&ebusProbe.snapshot().mode==='off',evidence:hapticEvidence});
+  }
+
   rBro.xr.enabled=true;
   if(rBro.xr.setFramebufferScaleFactor)rBro.xr.setFramebufferScaleFactor(.78);
   // Meta Quest Browser may expose fixed foveation on its XR base layer.
@@ -416,7 +426,7 @@ function install(ctx){
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
-    if(next!=='procedure'){ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
+    if(next!=='procedure'){hapticDryRun.stop('PROCEDURE_EXIT');hapticEvidence=hapticLab.estimate();lastAdvanceAt=-Infinity;ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialEvidence=null;ctx.setReferenceMotion?.(1);motionEvidence=respiratoryMotion.snapshot(false);procedureMetrics.suspend();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;insertedShaft.hide();channel.reset();accessory.group.visible=false;}
     if(previousMode!==next){monitorFocus=false;menuPage=next==='procedure'?'station':xrPresentation==='ar'&&!placed?'mr':'primary';actionHitbox=panelLayouts[menuPage];hoverPanels.fill(null);}
     if(scopeScreen)scopeScreen.visible=next==='procedure';
     if(guidePlane)guidePlane.visible=next==='procedure'&&guideVisible;
@@ -1135,6 +1145,11 @@ function install(ctx){
     if(action==='research-clear'){
       researchLoadEpoch++;researchSnapshot=null;researchCanvas=null;grabFeedback='RESEARCH SNAPSHOT CLEARED';paint();return;
     }
+    if(action==='haptic-open'){menuPage='haptic-lab';actionHitbox=panelLayouts['haptic-lab'];paint();return;}
+    if(action==='haptic-cue'){cueEngine.set(!cueEngine.snapshot().enabled);paint();return;}
+    if(action==='haptic-arm'){if(mode!=='procedure'||xrPresentation!=='vr'||!physicalControl?.snapshot().armed||!sensorObserver.snapshot(performance.now()).motion){grabFeedback='FRESH CALIBRATED LOCAL INSTRUMENT REQUIRED';paint();return;}hapticDryRun.arm();grabFeedback='LOCAL DRY RUN / RELEASE LEFT GRIP FIRST';paint();return;}
+    if(action==='haptic-stop'){hapticDryRun.stop();paint();return;}
+    if(action==='haptic-back'){menuPage='trace';actionHitbox=panelLayouts.trace;paint();return;}
     if(action==='trace-open'){
       replay.pause(performance.now());
       menuPage='trace';actionHitbox=panelLayouts.trace;hoverPanels.fill(null);
@@ -1412,8 +1427,8 @@ function install(ctx){
   const patientStation=global.PulmoXRPatient.createVisual(THREE,scene);
   let patientReturn=null,patientZone={allowed:false,state:'INACTIVE'},patientView='external',patientZoneLast=null;
   function patientMotionAllowed(){return !patientReturn||Boolean(viewerValid&&patientStation.zone(head.toArray()).allowed);}
-  function advance(amount){if(!patientMotionAllowed()){scope.velocity=0;return;}return sourceAdvance(amount);}
-  function retract(amount){if(!patientMotionAllowed()){scope.velocity=0;return;}return sourceRetract(amount);}
+  function advance(amount){if(!patientMotionAllowed()){scope.velocity=0;return;}const prior=scope.t,id=scope.segId;const r=sourceAdvance(amount);if(amount>0){lastAdvanceAt=performance.now();lastAdvanceBlocked=scope.segId===id&&Math.abs(scope.t-prior)<1e-7&&!scope.atBranch;advanceAttempted=true;}return r;}
+  function retract(amount){lastAdvanceAt=-Infinity;lastAdvanceBlocked=false;if(!patientMotionAllowed()){scope.velocity=0;return;}return sourceRetract(amount);}
   function enterBranch(index){if(!patientMotionAllowed())return;return sourceEnterBranch(index);}
   function leavePatientStation(){
     if(!patientReturn)return;const old=patientReturn;patientReturn=null;
@@ -1581,8 +1596,9 @@ function install(ctx){
       {id:'tool-proxy',label:'TRACKED TOOL PROXY',u:.05,v:.76,w:.43,h:.095},
       {id:'trace-clear',label:'CLEAR TRACE',u:.52,v:.76,w:.43,h:.095},
       {id:'trace-back',label:'BACK TO STATION',u:.05,v:.87,w:.43,h:.095},
-      {id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
+      {id:'haptic-open',label:'HAPTIC LAB',u:.52,v:.87,w:.43,h:.095}
     ],
+    'haptic-lab':[{id:'haptic-cue',label:'CONTACT CUES',u:.05,v:.54,w:.43,h:.12},{id:'haptic-arm',label:'ARM LOCAL DRY RUN',u:.52,v:.54,w:.43,h:.12},{id:'haptic-stop',label:'STOP DRY RUN',u:.05,v:.69,w:.43,h:.12},{id:'haptic-back',label:'BACK TO TRACE',u:.52,v:.69,w:.43,h:.12},{id:'trace-back',label:'PROCEDURE STATION',u:.05,v:.84,w:.43,h:.12},{id:'exit',label:'EXIT XR',u:.52,v:.84,w:.43,h:.12}],
     precision:[
       {id:'undo',label:'UNDO',u:.05,v:.54,w:.43,h:.12},
       {id:'redo',label:'REDO',u:.52,v:.54,w:.43,h:.12},
@@ -1606,7 +1622,7 @@ function install(ctx){
       :'PROCEDURAL REFERENCE · UNCALIBRATED';
     const clearance=mode==='procedure'?clearanceState():null;
     spatialUI.frame(c,w,h);
-    const pageTitle=menuPage==='spatial-cal'?'Spatial bench calibration':menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
+    const pageTitle=menuPage==='haptic-lab'?'Instrument contact laboratory':menuPage==='spatial-cal'?'Spatial bench calibration':menuPage==='patient'?'Reference patient station':menuPage==='ebus'?'EBUS instrument research':menuPage==='research'?'Source research evidence':menuPage==='mr'?'Mixed reality placement':
       menuPage==='trace'?'Physical instrument trace':
       menuPage==='station'?'Bronchoscopy workstation':
       menuPage==='channel'?'Working channel':
@@ -1662,6 +1678,7 @@ function install(ctx){
         ?'NO IMPORTED EXTERNAL REFERENCE RECORD · SOURCE SCOPE UNCHANGED'
         :clinicalLabel),42,272,w-84,{size:24,min:21,color:spatialUI.C.muted});
     spatialUI.text(c,spatialUI.label(active?grabFeedback:'Reference engine ready'),42,305,w-84,{size:23,min:20,color:/BLOCK|FAIL|UNAVAILABLE|INTERFERENCE/.test(grabFeedback)?spatialUI.C.warn:spatialUI.C.accent});
+    if(menuPage==='haptic-lab'){const live=sensorObserver.snapshot(performance.now()),dry=hapticDryRun.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,'GEOMETRY · '+hapticEvidence.state.replaceAll('_',' '),42,165,w-84,{size:24,min:18});spatialUI.text(c,'Margin '+(hapticEvidence.marginMm===null?'—':hapticEvidence.marginMm.toFixed(2)+' mm')+' · Index '+(hapticEvidence.risk===null?'—':hapticEvidence.risk.toFixed(2)),42,205,w-84,{size:22,min:17});spatialUI.text(c,live.state.replaceAll('_',' ')+' / Load '+(live.reportedAxialForceN===null?'—':live.reportedAxialForceN.toFixed(2)+' N (device reported)'),42,245,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,dry.reason.replaceAll('_',' ')+' · NO PHYSICAL OUTPUT',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='spatial-cal'){const s=spatialCal.snapshot(),oc=planeMask.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);const instruction=s.kind==='pivot'?'FIX POINTER TIP / CAPTURE 5 DIFFERENT ORIENTATIONS':s.kind==='jig'?['TOUCH ORIGIN','TOUCH +X 200 mm','TOUCH +Z 150 mm','TOUCH OPPOSITE CORNER'][s.captured]:'START POINTER PIVOT OR JIG LANDMARKS';spatialUI.text(c,instruction,42,165,w-84,{size:23,min:17});spatialUI.text(c,s.state.replaceAll('_',' ')+' · '+s.captured+' samples',42,205,w-84,{size:21,min:17});spatialUI.text(c,'Pointer check '+(s.pointerHoldoutMm===null?'—':s.pointerHoldoutMm.toFixed(1)+' mm')+' / Jig check '+(s.jigHoldoutMm===null?'—':s.jigHoldoutMm.toFixed(1)+' mm'),42,244,w-84,{size:20,min:17,color:spatialUI.C.muted});spatialUI.text(c,(benchAligned?'MANUAL JIG ALIGNED':'NOT REGISTERED')+' · '+oc.state.replaceAll('_',' '),42,287,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='patient'){c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,patientReturn?'SUPINE MANIKIN · '+patientView.toUpperCase():'ACTIVATE TO PLACE A REFERENCE PATIENT',42,165,w-84,{size:25,min:19});spatialUI.text(c,patientReturn?patientZone.state.replaceAll('_',' '):'Existing source anatomy remains unchanged',42,205,w-84,{size:22,min:18});spatialUI.text(c,'HEAD-END OPERATOR ZONE · MOUTH TO TRACHEA VISUAL GUIDE',42,246,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,'REFERENCE CONTEXT ONLY · NO PATIENT REGISTRATION',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
     if(menuPage==='ebus'){const p=ebusProbe.snapshot();c.save();c.fillStyle='#101b23';c.fillRect(35,142,w-70,175);spatialUI.text(c,'REFERENCE / '+p.mode.toUpperCase()+' · '+p.extensionMm.toFixed(1)+' mm extension',42,165,w-84,{size:25,min:19});spatialUI.text(c,p.status.replaceAll('_',' ')+' · '+(p.shaftLocked?'SCOPE LOCKED':'SCOPE NOT LOCKED'),42,205,w-84,{size:22,min:18});spatialUI.text(c,'LEFT GRIP OR PINCH PROBE AT CHANNEL PORT · FEED/RETRACT',42,245,w-84,{size:19,min:15,color:spatialUI.C.muted});spatialUI.text(c,'IDEAL INTERFACE ONLY · NO TISSUE ULTRASOUND',42,288,w-84,{size:19,min:15,color:spatialUI.C.warn});c.restore();}
@@ -1690,7 +1707,7 @@ function install(ctx){
       a.disabled=!available;
       const settings=station.snapshot();
       const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
-        a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
+        a.id==='haptic-cue'?(cueEngine.snapshot().enabled?'CONTACT CUES ON':'CONTACT CUES OFF'):a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
         a.id==='ebus-mode'?'TYPE '+ebusProbe.snapshot().mode.toUpperCase():a.id==='radial-toggle'?(radialEnabled?'EBUS ON':'EBUS OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
@@ -2089,6 +2106,7 @@ function install(ctx){
     integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),mrAnchorFault,coupling:couplingEvidence.snapshot(),regional:regionalEvidenceFinal||regionalEvidence.snapshot(),regionalDisplay:'REGIONAL_FLOW_DERIVED_MARKERS_ONLY',accessory:accessoryEvidence,contactProxy,environment:environmentEvidence,panelMoves,handGrasped:handGrasped.slice()},
     spatialRegistration:registrationEvidence,
     passiveContactInterface:contactEvidence,
+    hapticLab:hapticFinal||{contact:hapticEvidence,cues:cueEngine.snapshot(),sensor:sensorObserver.snapshot(performance.now()),dryRun:hapticDryRun.snapshot()},
     respiratoryMotion:motionReport||motionEvidence,
     ebusInstrument:ebusProbe.snapshot(),
     radialImaging:radialEvidence?{...radialEvidence,rays:undefined}:null,
@@ -2190,22 +2208,18 @@ function install(ctx){
   const inputStatus=instrumentSetup.querySelector('[role="status"]');
   let calibrationLoaded=false,serialConnecting=false;
   const inputStatusRefresh=()=>{
-    const a=physicalControl?.snapshot(),s=serialInput?.status();
+    const a=physicalControl?.snapshot(),s=serialInput?.status(),live=sensorObserver.snapshot(performance.now());
     inputStatus.textContent=(calibrationLoaded?'Calibration loaded':'Calibration required')+' · '+
-      (s?.state||'DISCONNECTED')+' · '+(a?.reason||'UNAVAILABLE');
+      (s?.state||'DISCONNECTED')+' · '+(a?.reason||'UNAVAILABLE')+' · '+live.state+' · '+(live.motion?live.motion.insertionMm.toFixed(1)+' mm / '+live.motion.shaftRollDeg.toFixed(1)+'°':'No fresh motion')+' · '+(live.reportedAxialForceN===null?'No fresh load':live.reportedAxialForceN.toFixed(2)+' N device-reported');
   };
   if(physicalCalibration&&physicalControl&&global.PulmoXRReadOnlySerial){
    serialInput=global.PulmoXRReadOnlySerial.create({navigatorObject:navigator,
-    onLine:(line,now)=>{if(physicalControl.snapshot().armed){
-      const result=physicalCalibration.ingest(line,now);
-      if(!result.accepted)physicalControl.stop(result.reason);
-    }},
-    onState:s=>{if(s.state==='DISCONNECTED'&&physicalControl.snapshot().armed)
-      physicalControl.stop('SERIAL_DISCONNECTED');inputStatusRefresh();}
+    onLine:(line,now)=>{const observed=sensorObserver.ingest(line,now);if(observed.kind==='motion'&&physicalControl.snapshot().armed){if(!observed.accepted){physicalControl.stop(observed.reason);hapticDryRun.stop('MOTION_FRAME_REJECTED');return;}const result=physicalCalibration.ingest(line,now);if(!result.accepted){physicalControl.stop(result.reason);hapticDryRun.stop(result.reason);}}},
+    onState:s=>{if(s.state==='DISCONNECTED'){if(physicalControl.snapshot().armed)physicalControl.stop('SERIAL_DISCONNECTED');hapticDryRun.stop('SERIAL_DISCONNECTED');sensorObserver.reset();}inputStatusRefresh();}
    });
   }
   instrumentSetup.querySelector('input').addEventListener('change',async e=>{
-    try{physicalControl?.stop('CALIBRATION_REPLACED');calibrationLoaded=false;
+    try{physicalControl?.stop('CALIBRATION_REPLACED');hapticDryRun.stop('CALIBRATION_REPLACED');calibrationLoaded=false;
      const file=e.target.files?.[0];if(!file||file.size>100000)throw Error('INVALID_CALIBRATION_FILE');
      physicalCalibration.configure(JSON.parse(await file.text()));calibrationLoaded=true;
      inputStatusRefresh();
@@ -2215,7 +2229,7 @@ function install(ctx){
   instrumentSetup.querySelector('[data-op="connect"]').addEventListener('click',async()=>{
     if(serialConnecting)return;
     serialConnecting=true;
-    try{if(!serialInput)throw Error('LOCAL_SERIAL_UNAVAILABLE');await serialInput.connect()}
+    try{if(!serialInput)throw Error('LOCAL_SERIAL_UNAVAILABLE');sensorObserver.reset();await serialInput.connect()}
     catch(err){inputStatus.textContent=String(err.message).slice(0,120)}
     finally{serialConnecting=false}
   });
@@ -2226,9 +2240,9 @@ function install(ctx){
     }catch(err){inputStatus.textContent=String(err.message).slice(0,120)}
   });
   instrumentSetup.querySelector('[data-op="stop"]').addEventListener('click',()=>{
-    physicalControl?.stop('OPERATOR_STOP');void serialInput?.disconnect();inputStatusRefresh();
+    physicalControl?.stop('OPERATOR_STOP');hapticDryRun.stop('OPERATOR_STOP');void serialInput?.disconnect();inputStatusRefresh();
   });
-  addEventListener('pagehide',()=>{physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
+  addEventListener('pagehide',()=>{hapticDryRun.stop('PAGE_EXIT');physicalControl?.stop('PAGE_EXIT');void serialInput?.disconnect()});
   const syncTraceButton=()=>{
     const splash=document.getElementById('splash');
     traceButton.style.display=!rBro.xr.isPresenting&&splash?.style.display==='none'
@@ -2346,7 +2360,7 @@ function install(ctx){
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
-    registrationObserver.reset();registrationEvidence=registrationObserver.snapshot();contactEvidence=global.PulmoXRContactInterface.evaluate();
+    registrationObserver.reset();registrationEvidence=registrationObserver.snapshot();contactEvidence=global.PulmoXRContactInterface.evaluate();resetHapticContext();hapticFinal=null;
     motionEnabled=true;motionEvidence=respiratoryMotion.reset();motionReport=null;ctx.setReferenceMotion?.(1);
     ebusProbe.reset();probeGrip.reset();ebusVisual.hide();radialEnabled=false;radialCoupling='air';radialLast=-Infinity;radialRange=20;radialEvidence=null;bodyEnabled=true;handProcedure=false;resetEmbodiedGrip();
     toolProxy.reset();toolProxyOverlay.visible=false;
@@ -2402,7 +2416,7 @@ function install(ctx){
       health.startFrame(time);
       if(!headPose(frame)){
         // Tracking loss: never continue the last object or instrument command.
-        registrationEvidence=registrationObserver.step({tracked:false});contactEvidence=global.PulmoXRContactInterface.evaluate();
+        registrationEvidence=registrationObserver.step({tracked:false});contactEvidence=global.PulmoXRContactInterface.evaluate();hapticDryRun.stop('TRACKING_LOST');hapticEvidence=hapticLab.estimate();lastShaftAt=-Infinity;lastShaftSample=null;
         ctx.setReferenceMotion?.(1);procedureMetrics.suspend();health.event('viewerPoseLost');health.endFrame({poseAvailable:false});
         nativeQuad?.update({visible:false});
         if(physicalControl?.snapshot().armed)physicalControl.stop('TRACKING_LOST');
@@ -2468,8 +2482,7 @@ function install(ctx){
       if(physicalControl?.snapshot().armed&&panelEdit)physicalControl.stop('WINDOW_EDIT');
       if(physicalControl?.snapshot().armed){
         scope.velocity=0;scopeSteering=null;
-        const deadman=Array.from(rBro.xr.getSession()?.inputSources||[]).some(s=>
-          s.handedness==='left'&&s.gamepad?.buttons?.[1]?.pressed===true);
+        const deadman=trackedLeftGrip(frame);
         const length=pathCurves[scope.segId]?.getLength()*getMmPerSceneUnit();
         const command=physicalControl.step({now:performance.now(),deadman,
           reference:getMeshMode()==='reference',procedure:mode==='procedure',
@@ -2504,6 +2517,7 @@ function install(ctx){
       registrationEvidence=registrationObserver.step({tracked:viewerValid&&mode==='procedure'&&getMeshMode()==='reference',timeMs:time,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit())});
       contactEvidence=global.PulmoXRContactInterface.evaluate({shaft:shaftEvidence,reference:getMeshMode()==='reference',tracking:viewerValid,procedure:mode==='procedure'});
       contactProxy=mode==='procedure'&&getMeshMode()==='reference'?upgrade.contactEstimate(shaftEvidence.minMarginMm,getScopeDiameterMm()):upgrade.contactEstimate(null,null);
+      updateHapticLab(frame,time);
       procedureMetrics.observe({timeMs:time,procedure:mode==='procedure',reference:getMeshMode()==='reference',tracking:viewerValid,segmentId:scope.segId,t:scope.t,positionMm:scope.pos.toArray().map(v=>v*getMmPerSceneUnit()),shaftState:shaftEvidence.state});
       if(time-lastPanelUpdate>440){lastPanelUpdate=time;paint()}
       let monitorCpuMs=0;
@@ -2547,6 +2561,7 @@ function install(ctx){
     });
   });
   rBro.xr.addEventListener('sessionend',()=>{
+    hapticDryRun.stop('SESSION_ENDED');hapticFinal={contact:hapticEvidence,cues:cueEngine.snapshot(),sensor:sensorObserver.snapshot(performance.now()),dryRun:hapticDryRun.snapshot()};resetHapticContext();
     spatialFinal={...spatialCal.snapshot(),benchAligned,occlusion:planeMask.snapshot()};clearSpatialCalibration();planeMaskEnabled=false;
     // Snapshot before restoring the original desktop scene scale.
     endedXRGeometry={
