@@ -903,6 +903,29 @@ try {
      assert.equal(deviceIntegration.branch,'BRANCH');assert.equal(deviceIntegration.native,false);
      console.log('PASS XR32 optical shader actual offscreen pixels and integrated routing');
    }else console.log('XR32 optical pixel test unavailable in non-WebGL2 browser; source fallback only');
+   const integratedEvidence=await legacy.evaluate(()=>{
+     const U=window.PulmoXRIntegratedUpgrade,T=window.THREE;
+     const head=[1,1.4,-.8],spec=U.workspaceTransform({head,forward:[0,0,-1],right:[1,0,0],room:[0,0,0],command:'turn-left'});
+     const q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),spec.yaw);
+     const pivot=new T.Vector3(...head).applyQuaternion(q).add(new T.Vector3(...spec.translation)).distanceTo(new T.Vector3(...head));
+     const mesh=window.ensureUnifiedLumen();
+     if(!mesh)throw Error('Original reference lumen unavailable');
+     const original=scope.t;scope.t=.25;setReferenceMotion(1.03);updateScope();
+     const camera=camScope;camera.updateMatrixWorld(true);
+     const worldPerMm=motionGrp.getWorldScale(new T.Vector3()).x/mmPerUnit;
+     const toSource=p=>motionGrp.worldToLocal(new T.Vector3(...p).applyMatrix4(camera.matrixWorld)).toArray();
+     const center=toSource([0,0,0]);
+     const field=p=>window.PulmoXRUnifiedLumen.fieldAt(lumenPieces,p);
+     const distance=center.reduce((v,x,i)=>v+(x-scope.pos.toArray()[i])**2,0);
+     const measured=U.accessoryClearance({lengthMm:2,diameterMm:1.8,worldPerMm,sourceMmPerUnit:mmPerUnit,toSource,field});
+     setReferenceMotion(1);scope.t=original;updateScope();
+     return {pivot,centerError:Math.sqrt(distance),fieldFinite:Number.isFinite(field(center)),margin:measured.marginMm,decision:measured.state,missing:U.accessoryClearance({}).state};
+   });
+   assert.ok(integratedEvidence.pivot<1e-8);
+   assert.ok(integratedEvidence.centerError<1e-5,JSON.stringify(integratedEvidence));
+   assert.ok(integratedEvidence.fieldFinite&&Number.isFinite(integratedEvidence.margin));
+   assert.equal(integratedEvidence.missing,'UNAVAILABLE');
+   console.log('PASS AG01 workspace rotation pivot and source/deformed-frame accessory field');
    console.log('PASS original surgical application: expected canvases and page preserved');
  } finally {await legacy.close();}
 

@@ -509,7 +509,7 @@ function install(ctx){
     }catch{return null}
   }
   function moveWorkspace(command){
-    if(!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean))return false;
+    if(!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean)||workspaceRelayout)return false;
     const ref=rBro.xr.getReferenceSpace(),Ctor=global.XRRigidTransform;
     if(!Ctor||!ref?.getOffsetReferenceSpace||!rBro.xr.setReferenceSpace)return false;
     const spec=upgrade.workspaceTransform({head:head.toArray(),forward:forward.toArray(),right:right.toArray(),room:room.position.toArray(),command});
@@ -889,7 +889,7 @@ function install(ctx){
   }
   const modes=['nav','biopsy','measure','annotate'];
   function checkAccessory(length,open){
-    const state=channel.snapshot(),factor=ctx.getReferenceMotionFactor?.()||1;
+    const state=channel.snapshot();
     const frame=ctx.getReferenceMotionFrame?.()||mGrp;
     frame.updateWorldMatrix(true,false);camScope.updateMatrixWorld(true);
     const worldPerMm=frame.getWorldScale(new THREE.Vector3()).x/getMmPerSceneUnit();
@@ -944,7 +944,7 @@ function install(ctx){
     if(action==='channel-open'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
     if(action==='channel-back'){menuPage='station';actionHitbox=panelLayouts.station;paint();return;}
     if(action==='optics-toggle'){if(depthOpticsAvailable){opticsEnabled=!opticsEnabled;lastFeed=0;}else grabFeedback='DEPTH OPTICS UNAVAILABLE / RAW SOURCE';paint();return;}
-    if(action==='channel-cycle'){if(mode==='procedure'&&getMeshMode()==='reference')channel.cycle();paint();return;}
+    if(action==='channel-cycle'){if(mode==='procedure'&&getMeshMode()==='reference'){channel.cycle();accessoryEvidence={state:'NOT_CHECKED'};}paint();return;}
     if(action==='channel-extend'||action==='channel-retract'){if(mode==='procedure'&&getMeshMode()==='reference'){if(action==='channel-retract')channel.extend(-2);else{const state=channel.snapshot();accessoryEvidence=checkAccessory(Math.min(12,state.extensionMm+2),state.jawsOpen);if(accessoryEvidence.allowed)channel.extend(2);else grabFeedback='ACCESSORY CLEARANCE / '+accessoryEvidence.state;}}paint();return;}
     if(action==='channel-action'){if(mode==='procedure'&&getMeshMode()==='reference')actuateAccessory();paint();return;}
     if(action==='device-visible'){deviceVisible=!deviceVisible;paint();return;}
