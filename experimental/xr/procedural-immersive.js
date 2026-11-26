@@ -123,39 +123,42 @@ function install(ctx){
   const handProxies=[new THREE.Group(),new THREE.Group()];
   const handSeen=[false,false],handPinched=[false,false],grabSource=[null,null];
   // Render only actually tracked WebXR joints. No avatar or fabricated poses.
-  const fingerChains=[
-    ['wrist','thumb-metacarpal','thumb-phalanx-proximal','thumb-phalanx-distal','thumb-tip'],
-    ...['index','middle','ring','pinky'].map(f=>['wrist',f+'-finger-metacarpal',f+'-finger-phalanx-proximal',f+'-finger-phalanx-intermediate',f+'-finger-phalanx-distal',f+'-finger-tip'])
-  ];
-  const jointNames=[...new Set(fingerChains.flat())];
-  const handVisuals=[0,1].map(()=>{
-    const group=new THREE.Group();group.visible=false;scene.add(group);
-    const pts=new THREE.BufferGeometry();
-    const bones=new THREE.BufferGeometry();
-    pts.setAttribute('position',new THREE.BufferAttribute(new Float32Array(jointNames.length*3),3));
-    bones.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fingerChains.reduce((n,a)=>n+a.length-1,0)*6),3));
-    const joints=new THREE.Points(pts,new THREE.PointsMaterial({color:0xc0e8e5,size:.012,transparent:true,opacity:.9,depthTest:true}));
-    const links=new THREE.LineSegments(bones,new THREE.LineBasicMaterial({color:0x8fbac2,transparent:true,opacity:.72}));
-    joints.frustumCulled=false;links.frustumCulled=false;group.add(joints,links);
-    return {group,pts,bones,joints};
-  });
+  const embodiment=global.PulmoXREmbodiment.createVisual(THREE,scene);
+  let bodyEnabled=true,handProcedure=false,handSamples={},handMenuBlocked={left:false,right:false},parkedHandle=null,rightOrigin=null,rightDeflection=null,handHeld=false;
+  const rightGrip=global.PulmoXREmbodiment.createGrip(),leftGrip=global.PulmoXREmbodiment.createGrip();
+  function resetEmbodiedGrip(){rightGrip.reset();leftGrip.reset();rightOrigin=null;rightDeflection=null;handHeld=false;parkedHandle=null;}
   function updateHandVisual(i,source,frame,space){
-    const v=handVisuals[i],poses=new Map();
-    for(const name of jointNames){
-      const joint=source.hand.get(name);
-      const p=joint&&frame.getJointPose(joint,space)?.transform?.position;
-      if(p&&[p.x,p.y,p.z].every(Number.isFinite))poses.set(name,p);
-    }
-    let n=0;for(const p of poses.values())v.pts.attributes.position.setXYZ(n++,p.x,p.y,p.z);
-    v.pts.setDrawRange(0,n);v.pts.attributes.position.needsUpdate=true;
-    let k=0;for(const chain of fingerChains)for(let j=1;j<chain.length;j++){
-      const a=poses.get(chain[j-1]),b=poses.get(chain[j]);if(!a||!b)continue;
-      v.bones.attributes.position.setXYZ(k++,a.x,a.y,a.z);
-      v.bones.attributes.position.setXYZ(k++,b.x,b.y,b.z);
-    }
-    v.bones.setDrawRange(0,k);v.bones.attributes.position.needsUpdate=true;
-    v.joints.material.color.setHex(grabSource[i]==='hand'?0x86edd4:0xc0e8e5);
-    v.group.visible=n>0;
+    const points={},radii={};let orientation=null;
+    for(const n of global.PulmoXREmbodiment.names){const joint=source.hand.get(n),p=joint&&frame.getJointPose(joint,space),t=p?.transform;if(t?.position&&[t.position.x,t.position.y,t.position.z].every(Number.isFinite)){points[n]=[t.position.x,t.position.y,t.position.z];if(Number.isFinite(p.radius))radii[n]=p.radius;if(n==='wrist'&&t.orientation)orientation=[t.orientation.x,t.orientation.y,t.orientation.z,t.orientation.w];}}
+    if(['left','right'].includes(source.handedness))handSamples[source.handedness]={points,radii,orientation};
+  }
+  function updateEmbodiedBody(frame){
+    const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace(),controllers={};
+    for(const s of session?.inputSources||[]){if(!s.hand&&s.gripSpace){const p=frame?.getPose(s.gripSpace,space)?.transform?.position;if(p)controllers[s.handedness]=[p.x,p.y,p.z];}}
+    embodiment.update({head:head.toArray(),right:right.toArray(),forward:forward.toArray(),floor:room.position.y,showBody:bodyEnabled&&xrPresentation==='vr',showHands:xrPresentation==='vr',samples:handSamples,controllers});
+  }
+  function updateBareHandScope(dt){
+    const r=handSamples.right,l=handSamples.left,session=rBro.xr.getSession(),hasController=Array.from(session?.inputSources||[]).some(s=>!s.hand&&s.gamepad);
+    const valid=handProcedure&&mode==='procedure'&&xrPresentation==='vr'&&viewerValid&&getMeshMode()==='reference'&&!hasController&&!physicalControl?.snapshot().armed&&!accessoryDeployed()&&!panelEdit;
+    if(!valid){resetEmbodiedGrip();return false;}
+    const pinch=s=>{const a=s?.points['index-finger-tip'],b=s?.points['thumb-tip'];return a&&b?Math.hypot(...a.map((x,i)=>x-b[i])):Infinity;};
+    const center=s=>{const a=s?.points['index-finger-tip'],b=s?.points['thumb-tip'];return a&&b?a.map((x,i)=>(x+b[i])/2):null;};
+    const rp=center(r),lp=center(l),ori=r?.orientation,oldHeld=handHeld;
+    if(!parkedHandle){parkedHandle=head.clone().addScaledVector(forward,.45).addScaledVector(right,.20).add(new THREE.Vector3(0,-.38,0));videoScope.group.position.copy(parkedHandle);videoScope.group.quaternion.identity();}
+    const rClosed=pinch(r)<(handHeld?.045:.027);
+    const rg=rightGrip.step({valid:Boolean(rp&&ori?.every(Number.isFinite)&&!handMenuBlocked.right),closed:rClosed,near:Boolean(rp&&new THREE.Vector3(...rp).distanceTo(videoScope.group.position)<.095),point:rp,dt});
+    handHeld=rg.held;scope.velocity=0;
+    if(handHeld){
+     const q=new THREE.Quaternion(...ori).normalize();
+     if(!oldHeld){rightOrigin=q.clone();rightDeflection={h:scope.deflH,v:scope.deflV,roll:scope.roll};}
+     videoScope.group.position.set(...rp);videoScope.group.quaternion.copy(q);
+     if(rightOrigin&&rightDeflection){const e=new THREE.Euler().setFromQuaternion(rightOrigin.clone().invert().multiply(q),'YXZ');scope.deflH=instrument.rateLimit(scope.deflH,safe(-1,1,rightDeflection.h+e.y/.65),dt);scope.deflV=instrument.rateLimit(scope.deflV,safe(-1,1,rightDeflection.v-e.x/.65),dt);}
+     const guide=new THREE.Vector3(0,-.20,0).applyQuaternion(q).add(videoScope.group.position),axis=new THREE.Vector3(0,-1,0).applyQuaternion(q);
+     const relative=lp?new THREE.Vector3(...lp).sub(videoScope.group.position).applyQuaternion(q.clone().invert()).toArray():null;
+     const lg=leftGrip.step({valid:Boolean(lp&&!handMenuBlocked.left),closed:pinch(l)<.035,near:Boolean(lp&&new THREE.Vector3(...lp).distanceTo(guide)<.075),point:relative,axis:[0,-1,0],dt});
+     const length=pathCurves[scope.segId]?.getLength()*getMmPerSceneUnit();if(lg.held&&Number.isFinite(length)&&length>0){if(lg.deltaMm>0)advance(lg.deltaMm/length);else if(lg.deltaMm<0)retract(-lg.deltaMm/length);}
+    }else{leftGrip.reset();rightOrigin=null;rightDeflection=null;}
+    videoScope.group.visible=deviceVisible;videoScope.update({h:scope.deflH,v:scope.deflV,roll:scope.roll,diameterMm:getScopeDiameterMm()});return true;
   }
   // A slender, opt-in reference marker attached to the *actual* right
   // WebXR controller grip. It is not a physical bronchoscope model,
@@ -174,6 +177,7 @@ function install(ctx){
   referenceTip.position.z=-.15;toolProxyOverlay.add(referenceTip);
   toolProxyOverlay.visible=false;scene.add(toolProxyOverlay);
   function updateVideoScope(frame,dt){
+    if(updateBareHandScope(dt))return;
     const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
     const rightSource=Array.from(session?.inputSources||[]).find(s=>s.handedness==='right'&&s.gripSpace&&!s.hand);
     const leftSource=Array.from(session?.inputSources||[]).find(s=>s.handedness==='left'&&s.gripSpace&&!s.hand);
@@ -390,7 +394,7 @@ function install(ctx){
     }
     if(mode==='anatomy'&&next!=='anatomy'){finishViewChange();if(inspectMode)setInspection(false);}
     summonGeneration++;
-    const previousMode=mode;
+    const previousMode=mode;resetEmbodiedGrip();
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
@@ -742,6 +746,7 @@ function install(ctx){
       attempts.movedFrames++;
   }
   function updateTrackedHands(frame){
+    handSamples={};
     const session=rBro.xr.getSession(),space=rBro.xr.getReferenceSpace();
     const found=[false,false],valid=[false,false];
     if(session&&space&&frame?.getJointPose){
@@ -788,15 +793,15 @@ function install(ctx){
         const pressed=!handGrasped[i]&&(handPinched[i]?pinchDistance<.055:pinchDistance<=.026);
         if(pressed&&!handPinched[i]){
           const hit=panelIntersection(rayFrom(i));
-          if(hit?.action){attempts.menuActions++;activate(hit.action);}
+          if(hit?.action){handMenuBlocked[source.handedness]=true;attempts.menuActions++;activate(hit.action);}
           else if(mode==='anatomy'){
             if(xrPresentation==='ar'&&!placed){confirmOrManualMR();}
             else startGrab(i,'hand');
-          }else if(mode==='procedure'&&scope.atBranch&&!accessoryDeployed()){
+          }else if(mode==='procedure'&&!handProcedure&&scope.atBranch&&!accessoryDeployed()){
             enterBranch(source.handedness==='right'?Math.min(1,(SEG_MAP[scope.segId]?.children.length||1)-1):0);
           }
         }else if(!pressed&&handPinched[i]&&grabSource[i]==='hand')release(i,'hand');
-        handPinched[i]=pressed;
+        handPinched[i]=pressed;if(!pressed)handMenuBlocked[source.handedness]=false;
         // A closed-hand grasp is separate from pinch/menu input and only acquires near anatomy.
         const joint=name=>{const j=source.hand.get(name),p=j&&frame.getJointPose(j,space)?.transform?.position;return p?[p.x,p.y,p.z]:null;};
         const palm=joint('middle-finger-phalanx-proximal'),wristPos=joint('wrist');
@@ -807,7 +812,7 @@ function install(ctx){
     }
     for(let i=0;i<2;i++)if(!found[i]||!valid[i]){
       if(handSeen[i])health.event('handTrackingLost');
-      handSeen[i]=false;handPinched[i]=false;handGrasped[i]=false;handVisuals[i].group.visible=false;
+      handSeen[i]=false;handPinched[i]=false;handGrasped[i]=false;
       if(contactMarkers[i])contactMarkers[i].visible=false;
       if(grabSource[i]==='hand')release(i,'hand');
     }
@@ -1073,6 +1078,8 @@ function install(ctx){
       grabFeedback='LOCAL MEASUREMENT TRACE CLEARED';
       paint();return;
     }
+    if(action==='body-toggle'){bodyEnabled=!bodyEnabled;paint();return;}
+    if(action==='hand-procedure'){handProcedure=!handProcedure;resetEmbodiedGrip();scope.velocity=0;grabFeedback=handProcedure?'BARE-HAND MODE / OPEN HANDS THEN PINCH HANDLE':'CONTROLLER MODE';paint();return;}
     if(action==='research-open'){
       menuPage='research';actionHitbox=panelLayouts.research;hoverPanels.fill(null);grabFeedback='READ-ONLY LOCAL SNAPSHOT / REFERENCE SCOPE UNCHANGED';paint();return;
     }
@@ -1415,7 +1422,7 @@ function install(ctx){
     ],
     'workspace-options':[
       {id:'workspace-viewpoint',label:'JUMP TO VIEWPOINT',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
-      {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},
+      {id:'panel-edit-open',label:'WINDOW POSITION',u:.05,v:.65,w:.43,h:.095},{id:'research-open',label:'RESEARCH EVIDENCE',u:.52,v:.65,w:.43,h:.095},{id:'body-toggle',label:'BODY',u:.05,v:.76,w:.43,h:.095},{id:'hand-procedure',label:'HAND PROCEDURE',u:.52,v:.76,w:.43,h:.095},
       {id:'workspace-open',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}
     ],
     research:[{id:'research-clear',label:'CLEAR SNAPSHOT',u:.05,v:.69,w:.43,h:.12},{id:'workspace-options',label:'BACK',u:.05,v:.87,w:.43,h:.095},{id:'exit',label:'EXIT XR',u:.52,v:.87,w:.43,h:.095}],
@@ -1595,6 +1602,7 @@ function install(ctx){
       a.disabled=!available;
       const settings=station.snapshot();
       const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+        a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
         a.id==='radial-toggle'?(radialEnabled?'RADIAL ON':'RADIAL OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
         a.id==='radial-range'?'RANGE '+radialRange+' MM':
@@ -1797,7 +1805,7 @@ function install(ctx){
     const guideWasVisible=guidePlane?.visible||false;
     const monitorWasVisible=scopeScreen.visible;
     const originalBg=scene.background;
-    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,compactDock,...handVisuals.map(v=>v.group),...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
+    const hidden=[...(ctx.getEndoscopeHiddenObjects?.()||[]),routeOverlay,regionalOverlay,toolProxyOverlay,videoScope.group,insertedShaft.mesh,compactDock,embodiment.group,...contactMarkers,...laserTips,...laserLines].filter(Boolean).map(o=>[o,o.visible]);
     try{
       for(const [o] of hidden)o.visible=false;
       // The endoscopic feed needs an opaque background even over passthrough.
@@ -1998,6 +2006,7 @@ function install(ctx){
     calibratedSimulatorInput:physicalControl?.snapshot()||null,
     XR17CInstrumentTrace:traceSummary(),
     XR17CTrackedControllerProxy:toolProxy.snapshot(),
+    embodiment:{...embodiment.snapshot(),handProcedure,handHeld,bodyEnabled,clinicalNavigation:false},
     virtualVideoScope:{visible:videoScope.group.visible,clutchHeld,referenceDimensions:videoScope.reference,calibrated:false},
     deviceLab:{depthOpticsAvailable,opticsEnabled,opticsApplied:Boolean(depthOpticsAvailable&&opticsEnabled),shaft:shaftEvidence,channel:channel.snapshot()},
     instrumentInputs:{tipH:scope.deflH,tipV:scope.deflV,shaftRollRad:scope.roll},
@@ -2244,7 +2253,7 @@ function install(ctx){
     station.reset();channel.reset();insertedShaft.hide();opticsEnabled=true;procedureMetrics.reset(SEGS);
     registrationObserver.reset();registrationEvidence=registrationObserver.snapshot();contactEvidence=global.PulmoXRContactInterface.evaluate();
     motionEnabled=true;motionEvidence=respiratoryMotion.reset();motionReport=null;ctx.setReferenceMotion?.(1);
-    radialEnabled=false;radialCoupling='air';radialLast=-Infinity;radialRange=20;radialEvidence=null;
+    radialEnabled=false;radialCoupling='air';radialLast=-Infinity;radialRange=20;radialEvidence=null;bodyEnabled=true;handProcedure=false;resetEmbodiedGrip();
     toolProxy.reset();toolProxyOverlay.visible=false;
     physicalBench?.reset();
     scopeTarget.setSize(station.snapshot().capture.width,station.snapshot().capture.height);
@@ -2305,7 +2314,7 @@ function install(ctx){
         viewerValid=false;compactDock.visible=false;scope.velocity=0;stopPanelEdit();regionalEvidence.suspend();release(0);release(1);
         toolProxyOverlay.visible=false;videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
         if(mrReticle)mrReticle.visible=false;
-        handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);handVisuals.forEach(v=>v.group.visible=false);
+        handSeen.fill(false);handPinched.fill(false);handGrasped.fill(false);mrQuality.observe(null);embodiment.reset();resetEmbodiedGrip();handSamples={};handMenuBlocked={left:false,right:false};
         contactMarkers.forEach(marker=>marker.visible=false);
         laserLines.forEach(line=>{if(line)line.visible=false});
         laserTips.forEach(tip=>{if(tip)tip.visible=false});
@@ -2348,7 +2357,7 @@ function install(ctx){
       poll(dt);
       if(analogChangedAt&&!grab.some(Boolean)&&performance.now()-analogChangedAt>380)
         finishViewChange();
-      updateTrackedHands(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
+      updateTrackedHands(frame);updateEmbodiedBody(frame);updateSummon();updateGrab();updatePanelEdit(dt);updateSteering();
       compactDock.visible=active&&viewerValid&&!worldMenu.visible;
       updateToolProxy();updateVideoScope(frame,dt);updatePointerAim(time);
       for(const surface of [mainSpatialSurface,railSurface,guideSpatialSurface,monitorControlSurface])surface.update(hoverPanels,time);sampleVisualGeometry(time);
@@ -2484,7 +2493,7 @@ function install(ctx){
     // Restore the exact pre-session desktop scene and renderer blend state.
     scene.background=backgroundBeforeXR;scene.fog=fogBeforeXR;
     for(const [o,visible] of mrHidden)o.visible=visible;mrHidden=[];
-    handVisuals.forEach(v=>v.group.visible=false);
+    embodiment.reset();resetEmbodiedGrip();handSamples={};handMenuBlocked={left:false,right:false};
     if(clearBeforeXR)rBro.setClearColor(clearBeforeXR,clearAlphaBeforeXR);
     xrPresentation='vr';
     if(saved){

@@ -152,3 +152,7 @@ Deterministic source-linked route evidence review, bounded optical gradient-simi
 ## O01–O03 — integrated source research release candidate
 
 Local read-only source evidence transfer into existing XR console, separate external bench status, H–O regression runner and release gates. No multi-user network, live patient-specific XR or clinical/device acceptance. See [O release candidate](experimental/O01_O03_RELEASE_CANDIDATE.md).
+
+## P01–P03 — embodied reference XR
+
+Articulated tracked glove surfaces, estimated VR operator posture and experimental deliberate two-hand reference scope control. See [P foundation](experimental/P01_P03_EMBODIMENT.md).
