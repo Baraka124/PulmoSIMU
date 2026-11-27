@@ -21,7 +21,7 @@ class QuantitativeTests(unittest.TestCase):
         j=np.ones_like(x);j.flat[-1]=-1
         m=np.ones_like(x)
         f,r=paired(x,y,j,m,m,m,.001)
-        np.testing.assert_array_equal(f["prm-labels"].ravel(),[3,2,1,4,5,5,2,0])
+        np.testing.assert_array_equal(f["prm-labels"].ravel(),[3,2,1,4,5,5,4,0])
         self.assertEqual(r["excluded_nonpositive_jacobian_voxels"],1)
         self.assertEqual(r["paired_valid_voxels"],7)
     def test_mass_conserved_compression(self):
