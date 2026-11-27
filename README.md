@@ -200,3 +200,7 @@ See [final acceptance gates](experimental/UI11_ACCEPTANCE.md). Run `node experim
 ## V01–V03 — source airway anatomy fidelity
 
 Offline exact-mask reconstruction, upper-airway landmark connectivity and physical geometry observations. See [V foundation](experimental/V01_V03_ANATOMY_FIDELITY.md).
+
+## W01–W03 — nonlinear instrument mechanics
+
+Finite-angle rod response, scalar torsion, sampled contact and lagged incremental friction, independent proximal boundary displacement research. See [W foundation](experimental/W01_W03_NONLINEAR_MECHANICS.md).

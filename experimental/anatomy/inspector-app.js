@@ -10,6 +10,7 @@ const state={volume:null,qa:null,structureQA:null,qaSha:null,gltf:null,model:nul
 let seg=null,segManifest=null,segBytes=null,segDigest=null,segEpoch=0;
 let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
+let rodResult=null,rodEpoch=0;
 let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
 let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
 let intelEpoch=0,intelBusy=false,intelResult=null,intelReference=null,intelVideoURL=null,intelVideoSha=null,intelVideoEpoch=0;
@@ -776,7 +777,7 @@ function drawShaft(){
  ctx.fillStyle='#e4b785';for(const q of p){ctx.beginPath();ctx.arc(40+(q[axes[0]]-lo[0])*scale,cv.height-25-(q[axes[1]]-lo[1])*scale,2,0,Math.PI*2);ctx.fill();}
 }
 function invalidateShaft(){
- shaftResult=null;$('shaft-export').disabled=true;$('shaft-run').disabled=!route||($('shaft-phase').value==='1'&&(!motion||!shaftMovingSeg));
+ invalidateRod();shaftResult=null;$('shaft-export').disabled=true;$('shaft-run').disabled=!route||($('shaft-phase').value==='1'&&(!motion||!shaftMovingSeg));
  $('shaft-status').textContent=route?'Awaiting mechanics calculation':'Awaiting J route';$('shaft-detail').textContent='No mechanics result. Original procedure remains independent.';drawShaft();
 }
 function resetShaftMoving(){shaftEpoch++;shaftMovingSeg=null;shaftManifest=null;shaftBytes=null;shaftDigest=null;invalidateShaft();}
@@ -796,6 +797,30 @@ $('shaft-run').addEventListener('click',()=>{
  }catch(e){$('shaft-status').textContent='Calculation rejected: '+e.message;}
 });
 $('shaft-export').addEventListener('click',()=>{if(!shaftResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(shaftResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Shaft_'+shaftResult.active_mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
+
+function drawRod(){
+ const cv=$('rod-plot'),c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.font='12px system-ui';c.fillStyle='#9ab0bc';
+ if(!rodResult){c.fillText('No nonlinear response',20,28);return;}
+ const r=rodResult,p=r.points_ras_mm,b=r.baseline_points_ras_mm,all=[...p,...b],span=i=>Math.max(...all.map(q=>q[i]))-Math.min(...all.map(q=>q[i])),axes=[0,1,2].sort((a,b)=>span(b)-span(a)).slice(0,2),lo=axes.map(i=>Math.min(...all.map(q=>q[i]))),scale=Math.min((cv.width-80)/Math.max(1,span(axes[0])),(cv.height-75)/Math.max(1,span(axes[1])));
+ c.fillText('RAS '+axes.map(i=>'XYZ'[i]).join('/')+' · mm · baseline / response',20,22);
+ function line(points,color,dash){c.strokeStyle=color;c.lineWidth=2;c.setLineDash(dash);c.beginPath();points.forEach((q,i)=>{const x=40+(q[axes[0]]-lo[0])*scale,y=cv.height-28-(q[axes[1]]-lo[1])*scale;i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();c.setLineDash([]);}
+ line(b,'#8398a4',[5,4]);line(p,'#e6c28a',[]);c.fillStyle='#e6c28a';c.fillText('Response · free distal end',20,cv.height-8);
+}
+function invalidateRod(){
+ rodEpoch++;rodResult=null;$('rod-run').disabled=!route||$('shaft-phase').value!=='0';$('rod-export').disabled=true;$('rod-status').textContent=route?'Original source · ready for calculation':'Awaiting J route';$('rod-detail').textContent='No nonlinear solution.';drawRod();
+}
+for(const id of ['rod-gj','rod-ea','rod-advance','rod-roll'])$(id).addEventListener('input',invalidateRod);
+$('rod-run').addEventListener('click',async()=>{
+ invalidateRod();if(!route||$('shaft-phase').value!=='0')return;const epoch=rodEpoch,source=route;
+ $('rod-run').disabled=true;$('rod-status').textContent='Calculating bounded nonlinear response…';
+ try{const digest=await sha256(new TextEncoder().encode(JSON.stringify(source)).buffer);if(epoch!==rodEpoch||source!==route)return;
+ const r=window.PulmoNonlinearShaft.solve({route:source,study:currentStudy(),seg,EI:Number($('shaft-ei').value),GJ:Number($('rod-gj').value),EA:Number($('rod-ea').value),wall:Number($('shaft-wall').value),mu:Number($('shaft-friction').value),advanceMm:Number($('rod-advance').value),rollDeg:Number($('rod-roll').value)});
+ rodResult={...r,route_sha256:digest};$('rod-status').textContent='Research response · '+r.termination.replaceAll('_',' ');
+ $('rod-detail').textContent=['Distal displacement '+r.distal_displacement_magnitude_mm.toFixed(3)+' mm · distal spin '+r.distal_spin_deg.toFixed(2)+'°','Incremental energy '+r.initial_energy_Nmm.toFixed(4)+' → '+r.final_energy_Nmm.toFixed(4)+' N·mm','Free-node residual '+r.maximum_free_node_residual_N.toFixed(4)+' N · twist residual '+r.maximum_free_twist_residual_Nmm.toFixed(4)+' N·mm','Max curvature '+r.maximum_curvature_per_mm.toFixed(4)+' /mm','Node / midpoint overlap '+r.maximum_nodal_overlap_mm.toFixed(3)+' / '+r.maximum_midpoint_overlap_mm.toFixed(3)+' mm · unresolved '+r.unresolved_contact_samples,'Assumed proximal reaction magnitude '+Math.hypot(...r.assumed_proximal_reaction_N).toFixed(4)+' N · torque '+r.assumed_proximal_torque_Nmm.toFixed(4)+' N·mm','No measured force, material feed, full director mechanics or tissue deformation.'].join('\n');
+ $('rod-export').disabled=false;drawRod();
+ }catch(e){if(epoch===rodEpoch)$('rod-status').textContent='Calculation rejected: '+e.message;}finally{if(epoch===rodEpoch)$('rod-run').disabled=!route||$('shaft-phase').value!=='0';}
+});
+$('rod-export').addEventListener('click',()=>{if(!rodResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(rodResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Nonlinear_'+rodResult.route_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function invalidateOptics(){
  cancelIntelSearch();
