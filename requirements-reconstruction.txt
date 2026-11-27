@@ -1,0 +1,6 @@
+# Isolated core reconstruction environment (no web server, VTK or inference weights).
+numpy==2.2.6
+scipy==1.15.3
+scikit-image==0.25.2
+pydicom==3.0.1
+nibabel==5.3.2

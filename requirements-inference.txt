@@ -1,0 +1,2 @@
+-r requirements-reconstruction.txt
+TotalSegmentator==2.13.0

@@ -1,0 +1,19 @@
+name: PulmoSIMU worker regression
+on:
+  push:
+    branches: [main]
+    paths: ['experimental/anatomy/**', 'requirements-reconstruction.txt', '.github/workflows/pulmo-worker.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: python3 --version
+      - run: python3 -m venv .worker-venv && .worker-venv/bin/python -m pip install -r requirements-reconstruction.txt
+      - run: .worker-venv/bin/python -m unittest discover -s experimental/anatomy -p 'test_inf04_worker.py'
