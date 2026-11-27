@@ -16,7 +16,9 @@ def save(path,values,affine):
     im.header.set_xyzt_units("mm");im.set_sform(affine,code=1);im.set_qform(None,code=0)
     nib.save(im,str(path))
 
-def register(fixed_path,moving_path,out,*,iterations=(25,15,10),factors=(4,2,1),same_patient_attested=False):
+def register(fixed_path,moving_path,out,*,iterations=(25,15,10),factors=(4,2,1),same_patient_attested=False,fixed_phase="inspiration"):
+    if fixed_phase not in ("inspiration","expiration"):raise ValueError("Explicit respiratory phase required")
+    moving_phase="expiration" if fixed_phase=="inspiration" else "inspiration"
     if same_patient_attested is not True:raise ValueError("Explicit operator same-patient attestation required")
     if not isinstance(iterations,(tuple,list)) or not isinstance(factors,(tuple,list)) or len(iterations)!=len(factors) or not 1<=len(factors)<=4 or any(type(v) is not int or not 1<=v<=100 for v in iterations) or any(type(v) is not int or not 1<=v<=8 for v in factors) or list(factors)!=sorted(set(factors),reverse=True) or factors[-1]!=1:
         raise ValueError("Descending pyramid factors ending at 1 and bounded iterations required")
@@ -85,7 +87,7 @@ def register(fixed_path,moving_path,out,*,iterations=(25,15,10),factors=(4,2,1),
             "residual-clipped-HU.nii":residual,"moving-support.nii":support}
         for name,value in arrays.items():save(stage/name,value,fa)
         manifest={"schema":"pulmo.dense-respiratory-registration/1","fixed_ct_sha256":fs,"moving_ct_sha256":ms,
-          "fixed_phase":"inspiration","moving_phase":"expiration","same_patient_operator_attested":True,"same_patient_independently_verified":False,
+          "fixed_phase":fixed_phase,"moving_phase":moving_phase,"same_patient_operator_attested":True,"same_patient_independently_verified":False,
           "direction":"fixed_RAS_to_moving_RAS_mm","fixed_voxel_to_ras_mm":fa.tolist(),"moving_voxel_to_ras_mm":ma.tolist(),
           "shape":list(fixed.shape),"method":"multiresolution_diffeomorphic_demons","levels":levels,
           "intensity_clip_HU":[-1000,400],"quality":quality,
@@ -101,8 +103,9 @@ def register(fixed_path,moving_path,out,*,iterations=(25,15,10),factors=(4,2,1),
 
 if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("inspiration");p.add_argument("expiration");p.add_argument("output")
+    p.add_argument("fixed");p.add_argument("moving");p.add_argument("output")
     p.add_argument("--same-patient-attested",action="store_true")
+    p.add_argument("--fixed-phase",choices=("inspiration","expiration"),default="inspiration")
     p.add_argument("--factors",nargs="+",type=int,default=[4,2,1]);p.add_argument("--iterations",nargs="+",type=int,default=[25,15,10])
     a=p.parse_args()
-    print(json.dumps(register(a.inspiration,a.expiration,a.output,factors=a.factors,iterations=a.iterations,same_patient_attested=a.same_patient_attested),indent=2))
+    print(json.dumps(register(a.fixed,a.moving,a.output,factors=a.factors,iterations=a.iterations,same_patient_attested=a.same_patient_attested,fixed_phase=a.fixed_phase),indent=2))
