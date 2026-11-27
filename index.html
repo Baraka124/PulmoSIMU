@@ -10,7 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="./experimental/anatomy/research-view.js?v=CT-SOURCE-ISOLATION"></script>
+<script src="./experimental/anatomy/research-view.js?v=INF05C"></script>
+<script src="./experimental/anatomy/reference-package.js?v=inf05c"></script>
 <script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
 <script src="./experimental/anatomy/nifti-source.js?v=E2-LOCAL-CT"></script>
 <script src="./experimental/xr/ct-spatial-mpr.js?v=E2-SOURCE-MPR"></script>
@@ -2280,6 +2281,7 @@ let ctResearchHidden=null,ctResearchReturn=null,ctLobeAtlas=null;
 let mmPerUnit=100;  // default: procedural tree (2.4 units ≈ 240mm airway span)
 
 function setViewMode(mode){
+  if(referenceXRMode()&&mode!=='research'){showToast('Selected reference study is anatomy-only. Return to Study Library to change studies.','warn');return;}
   if(mode!=='reference')setReferenceMotion(1);
   // The NIfTI-derived lung shell is not the procedural bronchial tree.
   if(mode==='patient'&&patientData.sourceKind==='ct-airspace-research')mode='research';
@@ -4205,6 +4207,7 @@ if(!xrProcedural)console.warn('Procedural XR bridge missing; original desktop pr
 // Browser blocks programmatic .click() on a second picker, so we use
 // one <input multiple> and sort files by extension client-side.
 async function loadResearchCTVolume(input){
+  if(referenceXRMode())return;
   const file=input.files?.[0];input.value='';
   if(!file)return;
   try{
@@ -4234,6 +4237,7 @@ async function loadResearchCTVolume(input){
 }
 window.loadResearchCTVolume=loadResearchCTVolume;
 function triggerPatientLoad() {
+  if(referenceXRMode())return;
   const picker = document.getElementById('patient-picker');
   picker.onchange = (e) => {
     const files = Array.from(e.target.files);
@@ -4298,9 +4302,10 @@ function triggerPatientLoad() {
 window.triggerPatientLoad = triggerPatientLoad;
 
 // ── Load GLTF from ArrayBuffer ────────────────────────────────────
-function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={}) {
+function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false,onError=null}={}) {
   const loader = new THREE.GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
+    if(onError&&!gltf.scene){onError(Error('Source scene missing'));return;}
 
     // Only pipeline-imported airway models supersede reference geometry.
     // For research studies the dedicated view takes a full visibility
@@ -4370,6 +4375,7 @@ function _loadGLTFFromArrayBuffer(buffer, filename, onDone, {deferFocus=false}={
 
     if (onDone) onDone();
   }, (err) => {
+    if(onError)onError(err);
     showToast('GLTF load error · ' + err.message, 'error');
   });
 }
@@ -4579,6 +4585,7 @@ function _serverStatus(msg,cls=''){
 }
 
 async function serverSynthetic(){
+  if(referenceXRMode())return;
   const base=_serverUrl();
   _serverStatus('Requesting synthetic patient…');
   try{
@@ -4592,6 +4599,7 @@ async function serverSynthetic(){
 }
 
 function serverUploadDicom(){
+  if(referenceXRMode())return;
   const picker=document.getElementById('sl-zip-picker');
   picker.onchange=null;
   picker.onchange=async(e)=>{
@@ -4694,6 +4702,67 @@ console.log('PNEUMO·VR Phase 3 — Patient mesh loader ready · Press L or clic
 // ================================================================
 // END PHASE 3
 // ================================================================
+
+
+// INF05C — selected approved reference anatomy only; no session credentials.
+function referenceXRMode(){return window.parent!==window&&new URLSearchParams(location.search).get('referenceXR')==='1';}
+function receiveImmersiveReference(){
+ if(!referenceXRMode())return;
+ const nonce=location.hash.slice(1),origin=location.origin,protocol='pulmo.reference/1';
+ if(!/^[0-9a-f-]{36}$/.test(nonce))return;
+ const reply=type=>window.parent.postMessage({protocol,nonce,type},origin);
+ let received=false,closing=false;
+ const guard=()=>{if(closing)throw Error('Viewer closed');};
+ window.addEventListener('message',async e=>{
+  if(e.origin!==origin||e.source!==window.parent||e.data?.protocol!==protocol||e.data?.nonce!==nonce)return;
+  if(e.data.type==='close'){closing=true;try{await rBro.xr.getSession()?.end();}catch{}return;}
+  if(received||e.data.type!=='package')return;
+  received=true;
+  try{
+   const d=e.data,U=window.PulmoReferencePackage,inventory=U.plan(d.study,d.assets);
+   U.manifest(d.study,inventory,d.manifest);
+   if(Object.keys(d.files||{}).length!==U.immersivePaths.length||patientData.loaded||rBro.xr.isPresenting||!xrProcedural)throw Error('Fresh immersive viewer required');
+   const bytes={};
+   for(const path of U.immersivePaths){
+    guard();const blob=d.files[path],a=inventory[path];
+    if(!(blob instanceof Blob)||blob.size!==a.bytes)throw Error('Source asset mismatch');
+    const b=await blob.arrayBuffer(),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('');
+    if(hash!==a.sha256)throw Error('Source asset hash mismatch');bytes[path]=b;
+   }
+   const meta=JSON.parse(new TextDecoder().decode(bytes['airway-surface/reconstruction.json'])),research=window.PulmoCTResearchBridge;
+   if(!research.isWorkerAirway(meta)||meta.mask_sha256!==inventory['airway-mask/mask.raw'].sha256||meta.source_sha256!==inventory['source.nii'].sha256)throw Error('Airway reconstruction identity mismatch');
+   const glb=bytes['airway-surface/airway.glb'],integrity=await research.verifyGLB(glb,meta);
+   // Worker GLB is self-contained. Reject external URI requests and extension payloads.
+   const header=new DataView(glb);
+   if(glb.byteLength<20||header.getUint32(0,true)!==0x46546c67||header.getUint32(4,true)!==2||header.getUint32(8,true)!==glb.byteLength||header.getUint32(16,true)!==0x4e4f534a||header.getUint32(12,true)>glb.byteLength-20)throw Error('Invalid binary GLB');
+   const doc=JSON.parse(new TextDecoder().decode(new Uint8Array(glb,20,header.getUint32(12,true))));
+   if(doc.images?.length||doc.extensionsUsed?.length||doc.extensionsRequired?.length||!Array.isArray(doc.buffers)||doc.buffers.length!==1||doc.buffers.some(b=>b.uri!==undefined)||!doc.meshes?.length)throw Error('Unexpected external or non-worker GLB');
+   const volume=window.PulmoNiftiSource.readNifti(bytes['source.nii']),match=window.PulmoNiftiSource.matchQA(volume,meta);
+   if(!match.valid)throw Error(match.reason);
+   guard();
+   await new Promise((resolve,reject)=>_loadGLTFFromArrayBuffer(glb,'reference-airway.glb',()=>{
+    try{
+     guard();_xr08MeshBoundsLocal(patientData.gltf);
+     patientData.sourceKind='ct-airspace-research';patientData.sourceManifest=meta;patientData.sourceIntegrity=integrity;
+     patientData.meta=null;patientData.xrAudit=null;patientData.ctVolume=volume;patientData.ctVolumeSha=meta.source_sha256;
+     mmPerUnit=1000; // worker GLB uses metres, not original procedural scale
+     setViewMode('research');_focusCameraOnGLB(patientData.gltf);_updateLoaderBanner(true);
+     const desk=document.getElementById('ct-source-desk');desk.querySelector('strong').textContent='CT-derived airway lumen · Reference study';
+     for(const node of desk.querySelectorAll('.source-actions button,.source-actions a'))if(node.id!=='research-material-toggle'&&!node.getAttribute('onclick')?.includes('resetCTResearchView'))node.hidden=true;
+     desk.querySelector('button[onclick="resetCTResearchView()"]').textContent='Fit airway';
+     document.getElementById('ct-source-warning').textContent='Source CT and airway GLB verified · anatomical review pending · no procedural registration';
+     for(const a of document.querySelectorAll('a[href]')){a.target='_blank';a.rel='noopener noreferrer';}
+     if(meshMode!=='research')throw Error('Research view not activated');
+     resolve();
+    }catch(err){reject(err);}
+   },{deferFocus:true,onError:reject}));
+   guard();reply('loaded');
+  }catch(err){showToast('Reference source rejected · '+String(err.message||err),'error');reply('rejected');}
+ });
+ // Let the original desktop initialization complete before source injection.
+ setTimeout(()=>{if(!closing)reply('ready');},300);
+}
+receiveImmersiveReference();
 
 console.log('PNEUMO·VR v20 — Surgical Planning Edition loaded');
 </script>

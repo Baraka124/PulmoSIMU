@@ -15,6 +15,7 @@ const spec=Object.freeze({
 });
 const required=Object.keys(spec).filter(p=>p!=="source.ingest.json");
 const viewerPaths=Object.freeze(["source.nii","airway-surface/airway.glb","airway-surface/reconstruction.json","airway-mask/mask.json","airway-mask/mask.raw","airway-mask/airway-skeleton.json","airway-surface/fidelity.json"]);
+const immersivePaths=Object.freeze(["source.nii","airway-surface/airway.glb","airway-surface/reconstruction.json"]);
 const uuid=x=>typeof x==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(x);
 const hash=x=>typeof x==="string"&&/^[0-9a-f]{64}$/.test(x);
 const need=(ok,msg)=>{if(!ok)throw Error(msg);};
@@ -43,5 +44,5 @@ function manifest(study,inventory,m){
  }
  return true;
 }
-root.PulmoReferencePackage=Object.freeze({plan,manifest,viewerPaths});
+root.PulmoReferencePackage=Object.freeze({plan,manifest,viewerPaths,immersivePaths});
 })(typeof window!=="undefined"?window:globalThis);
