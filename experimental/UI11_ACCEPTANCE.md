@@ -14,3 +14,7 @@ Status: software candidate, not physical acceptance. Clinical navigation, accura
 ## Release hardening after X03
 
 J planning now uses a per-search cache and a cumulative maximum of 5,000,000 voxel-neighborhood iterations, alongside the existing per-node and visited-node limits. Budget exhaustion is not a proof of route infeasibility. Source inspector literal control bindings are checked for missing or duplicate IDs in the release suite. Still synchronous; workstation profiling and an asynchronous worker remain future optimization if needed.
+
+## Acceptance evidence — 2026-11-27
+
+At source commit `039b8049b4cf7706511f2703e4ef16835345bb95`, 67 checked-in focused test bodies passed in an adapted JavaScript harness using exact fetched sources (H–X, UI07–UI11, excluding the full local dependency audit). All four nonempty classic inline entry scripts compiled; all literal inspector control IDs resolved uniquely. Two additional integrated numerical fixtures exercise H/I/J/L/M/N/O handoff, source consistency, and edited-mask rejection. No clinical data is used in test fixtures. Native Node run, all entrypoint dependency checks, browser rendering, authorized CT dataset, actual Quest and hardware tests remain pending. The native release workflow uses the existing release runner, with read-only repository permissions and no deployment credentials. Do not infer acceptance from this record alone.
