@@ -79,8 +79,8 @@ function install(ctx){
   let compositionEvidence=null,compositionCount=0;
   const upgrade=global.PulmoXRIntegratedUpgrade;
   const mrQuality=upgrade.createTrackingQuality(),couplingEvidence=upgrade.createCouplingEvidence();
-  let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,accessoryEvidence={state:'UNAVAILABLE'};
-  const handGrasped=[false,false];
+  let inspectionFilter='all',inspectionVisibilitySaved=null,workspaceMoves=0,workspaceRelayout=false,travelMode=false,travelSteps=0,travelBlocked=0,accessoryEvidence={state:'UNAVAILABLE'};
+  const handGrasped=[false,false],travelGates=[global.PulmoXRRecovery.createTravel(),global.PulmoXRRecovery.createTravel()];
   let panelEdit=null,panelMoves=0,panelTarget='monitor',environmentEvidence=upgrade.observeEnvironment(null),environmentLast=-Infinity,regionalDisplay=false,regionalOverlay=null,regionalLast=-Infinity,regionalEvidenceFinal=null,contactProxy={state:'UNAVAILABLE'};
   const panelPinned=new Set();
   const regionalEvidence=upgrade.createRegionalEvidence();
@@ -431,7 +431,7 @@ function install(ctx){
     }
     if(mode==='anatomy'&&next!=='anatomy'){finishViewChange();if(inspectMode)setInspection(false);}
     summonGeneration++;
-    const previousMode=mode;if(next!==previousMode){resetControllerRecovery();handNeutral.fill(false);scope.velocity=0;}if(next!=='procedure')leavePatientStation();resetEmbodiedGrip();
+    const previousMode=mode;if(next!==previousMode){travelMode=false;resetTravelGates();resetControllerRecovery();handNeutral.fill(false);scope.velocity=0;}if(next!=='procedure')leavePatientStation();resetEmbodiedGrip();
     stopPanelEdit();panelPinned.clear();mode=next;grab[0]=grab[1]=null;grabSource.fill(null);
     gesture=null;scopeSteering=null;summonTween=null;
     grabFeedback='AIM AT LUNG / HOLD TRIGGER OR GRIP';
@@ -566,8 +566,15 @@ function install(ctx){
       });
     }catch{return null}
   }
+  function workspaceCanMove(){return !benchAligned&&!spatialCal.snapshot().armed&&active&&viewerValid&&placed&&xrPresentation==='vr'&&mode==='anatomy'&&!grab.some(Boolean)&&!handGrasped.some(Boolean)&&!workspaceRelayout&&!panelEdit&&!physicalControl?.snapshot().armed&&!summonTween;}
+  function resetTravelGates(){travelGates.forEach(g=>g.reset());}
+  function toggleTravel(){
+    if(travelMode){travelMode=false;resetTravelGates();resetControllerRecovery();handNeutral.fill(false);grabFeedback='ANATOMY CONTROLS / STICKS TRANSFORM ORGAN';paint();return true;}
+    if(!workspaceCanMove()){grabFeedback='TRAVEL REQUIRES FREE VR ANATOMY WORKSPACE';paint();return false;}
+    finishViewChange();travelMode=true;resetTravelGates();resetControllerRecovery();handNeutral.fill(false);grabFeedback='TRAVEL / LEFT STICK STEP · RIGHT STICK TURN';paint();return true;
+  }
   function moveWorkspace(command){
-    if(benchAligned||spatialCal.snapshot().armed||!active||!viewerValid||!placed||xrPresentation!=='vr'||mode!=='anatomy'||grab.some(Boolean)||handGrasped.some(Boolean)||workspaceRelayout||panelEdit)return false;
+    if(!workspaceCanMove())return false;
     const ref=rBro.xr.getReferenceSpace(),Ctor=global.XRRigidTransform;
     if(!Ctor||!ref?.getOffsetReferenceSpace||!rBro.xr.setReferenceSpace)return false;
     const start=head.toArray(),origin=room.position.toArray(),obstacles=[{center:plinth.getWorldPosition(new THREE.Vector3()).toArray(),radius:.78}];
@@ -1091,6 +1098,7 @@ function install(ctx){
     if(action==='regional-toggle'){regionalDisplay=!regionalDisplay;regionalLast=-Infinity;paint();return;}
     if(action==='workspace-open'){menuPage='workspace';actionHitbox=panelLayouts.workspace;paint();return;}
     if(action==='workspace-options'){menuPage='workspace-options';actionHitbox=panelLayouts['workspace-options'];paint();return;}
+    if(action==='travel-toggle'){toggleTravel();return;}
     if(action.startsWith('workspace-')){moveWorkspace(action.slice(10));paint();return;}
     if(action==='imaging-open'){menuPage='imaging';actionHitbox=panelLayouts.imaging;paint();return;}
     if(action==='imaging-back'){menuPage='channel';actionHitbox=panelLayouts.channel;paint();return;}
@@ -1300,8 +1308,8 @@ function install(ctx){
   }
   const mapButtons=[[],[]],inputRecovery=[global.PulmoXRRecovery.create(),global.PulmoXRRecovery.create()];
   const currentControllerPose=[false,false],currentControllerRay=[false,false];let trackedFloor=false;
-  function resetControllerRecovery(){for(const gate of inputRecovery)gate.reset();currentControllerPose.fill(false);currentControllerRay.fill(false);scope.velocity=0;}
-  function updateControllerRecovery(frame){const space=rBro.xr.getReferenceSpace(),session=rBro.xr.getSession();for(let i=0;i<2;i++){const src=controllerSources[i],present=!!src&&Array.from(session?.inputSources||[]).includes(src);if(!present||src.hand){if(grabSource[i]==='controller'||scopeSteering?.i===i||panelEdit?.i===i)release(i,'controller');inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;continue;}let pose=null,rayPose=null;try{pose=frame?.getPose(src.gripSpace||src.targetRaySpace,space);rayPose=frame?.getPose(src.targetRaySpace,space);}catch{}const valid=p=>!!p?.transform&&[p.transform.position.x,p.transform.position.y,p.transform.position.z,p.transform.orientation.x,p.transform.orientation.y,p.transform.orientation.z,p.transform.orientation.w].every(Number.isFinite);const ok=inputRecovery[i].step({id:src,pose:valid(pose)&&valid(rayPose),buttons:Array.from(src.gamepad?.buttons||[]),axes:Array.from(src.gamepad?.axes||[])});currentControllerPose[i]=ok;currentControllerRay[i]=ok;if(!ok){if(grabSource[i]==='controller'||scopeSteering?.i===i||panelEdit?.i===i)release(i,'controller');if(src.handedness==='left'){scope.velocity=0;shaftClutch.reset();clutchAxis=null;clutchHeld=false;probeGrip.reset();}mapButtons[i]=Array.from(src.gamepad?.buttons||[],b=>!!b.pressed);squeezeHeld[i]=!!src.gamepad?.buttons?.[1]?.pressed;}}}
+  function resetControllerRecovery(){resetTravelGates();for(const gate of inputRecovery)gate.reset();currentControllerPose.fill(false);currentControllerRay.fill(false);scope.velocity=0;}
+  function updateControllerRecovery(frame){const space=rBro.xr.getReferenceSpace(),session=rBro.xr.getSession();for(let i=0;i<2;i++){const src=controllerSources[i],present=!!src&&Array.from(session?.inputSources||[]).includes(src);if(!present||src.hand){travelGates[i].reset();if(grabSource[i]==='controller'||scopeSteering?.i===i||panelEdit?.i===i)release(i,'controller');inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;continue;}let pose=null,rayPose=null;try{pose=frame?.getPose(src.gripSpace||src.targetRaySpace,space);rayPose=frame?.getPose(src.targetRaySpace,space);}catch{}const valid=p=>!!p?.transform&&[p.transform.position.x,p.transform.position.y,p.transform.position.z,p.transform.orientation.x,p.transform.orientation.y,p.transform.orientation.z,p.transform.orientation.w].every(Number.isFinite);const ok=inputRecovery[i].step({id:src,pose:valid(pose)&&valid(rayPose),buttons:Array.from(src.gamepad?.buttons||[]),axes:Array.from(src.gamepad?.axes||[])});currentControllerPose[i]=ok;currentControllerRay[i]=ok;if(!ok){travelGates[i].reset();if(grabSource[i]==='controller'||scopeSteering?.i===i||panelEdit?.i===i)release(i,'controller');if(src.handedness==='left'){scope.velocity=0;shaftClutch.reset();clutchAxis=null;clutchHeld=false;probeGrip.reset();}mapButtons[i]=Array.from(src.gamepad?.buttons||[],b=>!!b.pressed);squeezeHeld[i]=!!src.gamepad?.buttons?.[1]?.pressed;}}}
 
   function toggleSpatialPanel(i){
     if(!active||!viewerValid)return false;
@@ -1372,7 +1380,7 @@ function install(ctx){
         if(edge(0)&&!grab[i]){if(side==='right'&&spatialCal.snapshot().armed){calibrationCaptureAt=performance.now();if(calibrationPose){spatialCal.capture(calibrationPose);grabFeedback=spatialCal.snapshot().state.replaceAll('_',' ');}else grabFeedback='RIGHT CONTROLLER NOT TRACKED / RETRY';paint();}else onTrigger(i);}
         if(!buttons[0].pressed&&grab[i]?.input==='trigger')release(i,'controller','trigger');
       }
-      if(spatialCal.snapshot().armed)continue;
+      if(spatialCal.snapshot().armed){travelGates[i].reset();continue;}
       if(buttons[1]){
         const pressed=!!buttons[1].pressed;
         if(pressed&&!squeezeHeld[i]&&!grab[i]&&!scopeSteering)
@@ -1390,7 +1398,14 @@ function install(ctx){
       // Quest left-controller Y: restore/hide the spatial menu. This avoids
       // a permanent HUD and works from either anatomy or bronchoscopy.
       if(side==='left'&&edge(5))toggleSpatialPanel(i);
+      if(!currentControllerPose[i])continue;
       if(mode==='anatomy'){
+        if(side==='right'&&edge(3)&&xrPresentation==='vr'){toggleTravel();continue;}
+        if(travelMode){
+          const command=travelGates[i].step({side,x:axes[n],y:axes[n+1],allowed:workspaceCanMove()&&!buttons[0]?.pressed&&!buttons[1]?.pressed});
+          if(command){if(moveWorkspace(command)){travelSteps++;grabFeedback='TRAVEL / '+command.toUpperCase()+' · RELEASE STICK';}else travelBlocked++;paint();}
+          continue;
+        }
         if(!panelEdit)applyAnalogAnatomy(side,x,y,dt);
         continue;
       }
@@ -1536,14 +1551,15 @@ function install(ctx){
       {id:'workspace-open',label:'VIRTUAL WORKSPACE',u:.52,v:.87,w:.43,h:.095}
     ],
     workspace:[
-      {id:'workspace-forward',label:'STEP FORWARD',u:.05,v:.54,w:.43,h:.095},
-      {id:'workspace-back',label:'STEP BACK',u:.52,v:.54,w:.43,h:.095},
-      {id:'workspace-left',label:'STEP LEFT',u:.05,v:.65,w:.43,h:.095},
-      {id:'workspace-right',label:'STEP RIGHT',u:.52,v:.65,w:.43,h:.095},
-      {id:'workspace-turn-left',label:'TURN LEFT 30°',u:.05,v:.76,w:.43,h:.095},
-      {id:'workspace-turn-right',label:'TURN RIGHT 30°',u:.52,v:.76,w:.43,h:.095},
-      {id:'back-expert',label:'BACK',u:.05,v:.87,w:.43,h:.095},
-      {id:'workspace-options',label:'WORKSPACE OPTIONS',u:.52,v:.87,w:.43,h:.095}
+      {id:'workspace-left',label:'STEP LEFT',u:.05,v:.54,w:.28,h:.12},
+      {id:'workspace-forward',label:'STEP FORWARD',u:.36,v:.54,w:.28,h:.12},
+      {id:'workspace-right',label:'STEP RIGHT',u:.67,v:.54,w:.28,h:.12},
+      {id:'workspace-turn-left',label:'TURN LEFT 30°',u:.05,v:.69,w:.28,h:.12},
+      {id:'workspace-back',label:'STEP BACK',u:.36,v:.69,w:.28,h:.12},
+      {id:'workspace-turn-right',label:'TURN RIGHT 30°',u:.67,v:.69,w:.28,h:.12},
+      {id:'back-expert',label:'BACK',u:.05,v:.84,w:.28,h:.12},
+      {id:'travel-toggle',label:'STICK TRAVEL',u:.36,v:.84,w:.28,h:.12},
+      {id:'workspace-options',label:'OPTIONS',u:.67,v:.84,w:.28,h:.12}
     ],
     'workspace-options':[
       {id:'spatial-open',label:'SPATIAL CALIBRATION',u:.05,v:.54,w:.43,h:.095},{id:'panel-shift',label:'SWITCH MENU SIDE',u:.52,v:.54,w:.43,h:.095},
@@ -1681,7 +1697,7 @@ function install(ctx){
        ?(menuPage==='channel'?'AT JUNCTION: TRIGGERS SELECT BRANCH · USE ACTUATE FOR TOOL':'L GRIP: FEED SHAFT · L STICK: INSERT/ROLL · R GRIP: STEER')
        :xrPresentation==='ar'&&!placed
          ?'MR: SCAN SURFACE · TRIGGER TO PLACE · MENU: OPTIONS'
-         :'GRAB TO MOVE · R STICK: ROTATE / DEPTH · LEFT Y: MENU'),42,200,w-84,{size:25,min:22,color:spatialUI.C.muted});
+         :travelMode?'TRAVEL · L STICK STEP / R STICK TURN · R CLICK TO EXIT':'GRAB / STICKS: ANATOMY · R CLICK: TRAVEL · L Y: MENU'),42,200,w-84,{size:25,min:22,color:spatialUI.C.muted});
     spatialUI.text(c,spatialUI.label(menuPage==='trace'
       ?('TRACE QA '+replay.snapshot().engineeringStatus+' / '+
         (replay.snapshot().observation?.tracking?'TRACKING OK':'TRACKING NOT VERIFIED'))
@@ -1727,16 +1743,16 @@ function install(ctx){
     spatialUI.line(c,42,318,w-84);
     for(const a of actionHitbox){
       const x=a.u*w,y=a.v*h,width=a.w*w,height=a.h*h;
-      const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived');
+      const selected=a.id===mode||(a.id==='scale'&&scaleMode==='source-derived')||(a.id==='travel-toggle'&&travelMode);
       const hovered=hoverPanels.includes(a.id);
       const available=(a.id!=='scale'||Boolean((audit?.sourceScaleEligible||getCTStudy?.())&&role==='patient')) &&
         (a.id!=='undo'||viewHistory.status().undo>0) &&
         (a.id!=='redo'||viewHistory.status().redo>0) &&
         (!a.id.startsWith('trace-')||a.id==='trace-open'||a.id==='trace-back'||replay.snapshot().loaded) &&
-        (a.id!=='procedure'||role==='reference');
+        (a.id!=='procedure'||role==='reference') && (a.id!=='travel-toggle'||travelMode||workspaceCanMove());
       a.disabled=!available;
       const settings=station.snapshot();
-      const label=a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
+      const label=a.id==='travel-toggle'?(travelMode?'TRAVEL ON':'TRAVEL OFF'):a.id==='console-reading'?(readingMode?'Normal':'Enlarge'):a.id==='console-collapse'?'Minimize':a.id==='trace-play'&&(replay.snapshot().playing)?'PLAYING TRACE':
         a.id==='record-share'?(localShare?'STOP LOCAL OBSERVER':'LOCAL OBSERVER'):a.id==='review-play'?(reviewPlaying?'PAUSE REVIEW':'PLAY REVIEW'):a.id==='haptic-cue'?(cueEngine.snapshot().enabled?'CONTACT CUES ON':'CONTACT CUES OFF'):a.id==='spatial-proxy'?(showPassiveProxy?'POINTER ON':'POINTER OFF'):a.id==='spatial-planes'?(planeMaskEnabled?'PLANE MASK ON':'PLANE MASK OFF'):a.id==='patient-toggle'?(patientReturn?'LEAVE PATIENT':'ENTER PATIENT STATION'):a.id==='patient-view'?'VIEW '+patientView.toUpperCase():a.id==='body-toggle'?(bodyEnabled?'BODY ON':'BODY OFF'):a.id==='hand-procedure'?(handProcedure?'HAND PROCEDURE ON':'HAND PROCEDURE OFF'):
         a.id==='ebus-mode'?'TYPE '+ebusProbe.snapshot().mode.toUpperCase():a.id==='radial-toggle'?(radialEnabled?'EBUS ON':'EBUS OFF'):
         a.id==='radial-coupling'?(radialCoupling==='air'?'AIR':'IDEAL FLUID'):
@@ -2110,7 +2126,7 @@ function install(ctx){
     });
     controller.addEventListener('disconnected',()=>{
       health.event('controllerDisconnected');
-      release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;
+      release(i,'controller');controllerSide[i]=null;controllerSources[i]=null;travelGates[i].reset();inputRecovery[i].reset();currentControllerPose[i]=false;currentControllerRay[i]=false;
       toolProxyOverlay.visible=false;
       mapButtons[i].length=0;squeezeHeld[i]=false;
       if(laserLines[i])laserLines[i].visible=false;
@@ -2146,13 +2162,13 @@ function install(ctx){
     geometryValidated:false,airwayReviewed:false,motionStudy:null
   })||null;
   const localSessionReport=()=>({
-    release:'AG03 / UI06 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
+    release:'UI13 · Integrated PulmoSIMU Research XR (UNVALIDATED)',
     spatialErgonomics:{observations:visualEvidence,contextActions,composition:compositionEvidence,physicalReadabilityVerified:false},
     session:health.snapshot(),
     interactionAttempts:{...attempts},
     quantitativeProcedure:procedureMetrics.snapshot(),
     localMotionReview:{...localRecording.snapshot(),rawTrajectoryIncluded:false,localObserverActive:!!localShare,remoteCollaboration:false},
-    integratedUpgrade:{workspaceMoves,mrQuality:mrQuality.snapshot(),mrAnchorFault,coupling:couplingEvidence.snapshot(),regional:regionalEvidenceFinal||regionalEvidence.snapshot(),regionalDisplay:'REGIONAL_FLOW_DERIVED_MARKERS_ONLY',accessory:accessoryEvidence,contactProxy,environment:environmentEvidence,panelMoves,handGrasped:handGrasped.slice()},
+    integratedUpgrade:{workspaceMoves,travel:{enabled:travelMode,acceptedStickCommands:travelSteps,blockedStickCommands:travelBlocked,stepM:.35,turnDeg:30,physicalRoomCollisionVerified:false},mrQuality:mrQuality.snapshot(),mrAnchorFault,coupling:couplingEvidence.snapshot(),regional:regionalEvidenceFinal||regionalEvidence.snapshot(),regionalDisplay:'REGIONAL_FLOW_DERIVED_MARKERS_ONLY',accessory:accessoryEvidence,contactProxy,environment:environmentEvidence,panelMoves,handGrasped:handGrasped.slice()},
     spatialRegistration:registrationEvidence,
     passiveContactInterface:contactEvidence,
     hapticLab:hapticFinal||{contact:hapticEvidence,cues:cueEngine.snapshot(),sensor:sensorObserver.snapshot(performance.now()),dryRun:hapticDryRun.snapshot()},
@@ -2410,7 +2426,7 @@ function install(ctx){
     traceButton.style.display='none';instrumentSetup.style.display='none';
     qualityStatus=configureComfortRendering();
     reportButton.style.display='none';
-    rBro.xr.setReferenceSpace?.(null);clearSpatialCalibration();planeMaskEnabled=false;spatialFinal=null;workspaceMoves=0;workspaceRelayout=false;panelOffset=0;panelMoves=0;panelTarget='monitor';panelPinned.clear();panelEdit=null;environmentEvidence=upgrade.observeEnvironment(null);environmentLast=-Infinity;regionalDisplay=false;regionalLast=-Infinity;regionalEvidenceFinal=null;contactProxy={state:'UNAVAILABLE'};sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
+    rBro.xr.setReferenceSpace?.(null);clearSpatialCalibration();planeMaskEnabled=false;spatialFinal=null;workspaceMoves=0;workspaceRelayout=false;travelMode=false;travelSteps=0;travelBlocked=0;resetTravelGates();panelOffset=0;panelMoves=0;panelTarget='monitor';panelPinned.clear();panelEdit=null;environmentEvidence=upgrade.observeEnvironment(null);environmentLast=-Infinity;regionalDisplay=false;regionalLast=-Infinity;regionalEvidenceFinal=null;contactProxy={state:'UNAVAILABLE'};sectionAxis='x';sectionFraction=.5;mrAnchorFault=false;accessoryLast=-Infinity;regionalEvidence.reset();mrQuality.reset();couplingEvidence.reset();handGrasped.fill(false);accessoryEvidence={state:'UNAVAILABLE'};
     active=true;placed=false;viewerValid=false;lastFrame=0;lastFeed=0;resetControllerRecovery();handNeutral.fill(false);
     lastPanelUpdate=0;scaleMode='comfort';endedXRGeometry=null;
     guideVisible=true;guideStep=0;guideActions=0;
@@ -2652,7 +2668,7 @@ function install(ctx){
     toolProxyOverlay.visible=false;toolProxy.reset();videoScope.group.visible=false;shaftClutch.reset();clutchAxis=null;clutchHeld=false;
     xrCapabilities.end();
     procedureMetrics.suspend();health.end();reportButton.style.display='block';
-    active=false;launchDock.hidden=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;handGrasped.fill(false);scope.velocity=0;
+    active=false;launchDock.hidden=false;rBro.setAnimationLoop(null);rBro.xr.setReferenceSpace?.(null);workspaceRelayout=false;travelMode=false;resetTravelGates();handGrasped.fill(false);scope.velocity=0;
     camScope.fov=originalScopeFov;camScope.updateProjectionMatrix();
     if(ctSpatial){ctSpatial.dispose();ctSpatial=null;}
     leavePatientStation();worldMenu.visible=false;compactDock.visible=false;scopeScreen.visible=false;room.visible=false;routeOverlay.visible=false;
