@@ -18,5 +18,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python3 --version
-      - run: python3 -m venv .worker-venv && .worker-venv/bin/python -m pip install --only-binary=:all: -r requirements-reconstruction.txt
+      - run: |
+          python3 -m venv .worker-venv
+          .worker-venv/bin/python -m pip install --only-binary=:all: -r requirements-reconstruction.txt
       - run: .worker-venv/bin/python -m unittest discover -s experimental/anatomy -p 'test_inf*_*.py'
