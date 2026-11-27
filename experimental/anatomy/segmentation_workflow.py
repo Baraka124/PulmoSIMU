@@ -61,7 +61,7 @@ def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="reg
         "outside_roi":"not_evaluated","source_sha256":source_record["sha256"],"input_asset_ids":parents})
     params={"structure_claim":structure,"foreground_roi_ijk":foreground,"background_roi_ijk":background,
         "lower_hu":lower_hu,"upper_hu":upper_hu,"min_feature":min_feature,
-        "refinement":refinement,"refinement_sha256":file_hash(Path(__file__).with_name("geodesic_refinement.py")),
+        "refinement":refinement,"levelset_sha256":file_hash(Path(__file__).with_name("levelset_refinement.py")),"refinement_sha256":file_hash(Path(__file__).with_name("geodesic_refinement.py")),
         "algorithm_sha256":file_hash(Path(__file__).with_name("deterministic_segmentation.py")),
         "versions":{k:importlib.metadata.version(k) for k in ("numpy","scipy","scikit-image","nibabel")}}
     out.parent.mkdir(parents=True,exist_ok=True)
@@ -84,12 +84,12 @@ def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="reg
             nib.save(nii,str(path))
         write_mask(stage/"candidate-roi.nii.gz",mask,a)
         if intermediates:
-            definitions={"geodesic-cost.nii":("weighted geodesic path length","mm"),"edge-stopping.nii":("edge stopping coefficient","1"),"initial-contour.nii":("initial contour occupancy","1")}
+            definitions={"geodesic-cost.nii":("weighted geodesic path length","mm"),"edge-stopping.nii":("edge stopping coefficient","1"),"initial-contour.nii":("initial contour occupancy","1"),"levelset-initial.nii":("initial level-set field","mm"),"levelset-final.nii":("evolved level-set field","mm"),"region-force.nii":("bounded regional model force","1")}
             field_ids=[]
             for name,data in intermediates.items():
                 save_volume(stage/name,data,a)
                 q,u=definitions[name]
-                field_ids.append(add(name,"scalar_field",q,u,"geodesic_initialization",parents,params))
+                field_ids.append(add(name,"scalar_field",q,u,method+"_intermediate",parents,params))
             parents=parents+field_ids
         mid=add("candidate-roi.nii.gz","label_mask",structure+" candidate","1",method,parents,params)
         save_volume(stage/"signed-distance.nii",distance,a)
