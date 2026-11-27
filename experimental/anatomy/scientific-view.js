@@ -27,7 +27,17 @@ function sampleField({project,w,h,volume,inverse,field,phase,grid=7}){
  }return out;
 }
 function scaleBar(spacing,w){if(!finite(spacing)||spacing<=0||!finite(w)||w<20)return null;const max=w*.23*spacing,exponent=Math.pow(10,Math.floor(Math.log10(max))),mm=[5,2,1].map(x=>x*exponent).find(x=>x<=max)||exponent;return {mm,pixels:mm/spacing};}
-function draw(canvas,{plane,volume,cross,route=null,shaft=null,field=null,phase=0,inverse=null,mode='off',scale=true,routeVisible=true,shaftVisible=true}){
+function routePosition(route,index,cross){
+ if(!Array.isArray(route?.points_ras_mm)||!Array.isArray(route?.points_voxel)||route.points_ras_mm.length!==route.points_voxel.length||route.points_voxel.length<2||route.points_voxel.length>12000||!Number.isInteger(index)||index<0||index>=route.points_voxel.length||!v3(cross))return null;
+ const point=route.points_voxel[index];if(!v3(point))return null;
+ let distance=0;for(let i=1;i<=index;i++){const a=route.points_ras_mm[i-1],b=route.points_ras_mm[i];if(!v3(a)||!v3(b))return null;distance+=Math.hypot(...a.map((x,j)=>x-b[j]));}
+ return {index,count:route.points_voxel.length,point:point.slice(),distanceMm:distance,atCrosshair:point.every((x,i)=>x===cross[i])};
+}
+function markerPixel(p,point,dims){
+ if(!v3(point)||!v3(dims)||point.some((v,i)=>v<-.5||v>dims[i]-.5)||Math.abs(point[p.axis]-p.center)>.5)return null;
+ return p.pixel(point);
+}
+function draw(canvas,{plane,volume,cross,route=null,routePoint=null,shaft=null,rod=null,field=null,phase=0,inverse=null,mode='off',scale=true,routeVisible=true,shaftVisible=true,rodVisible=true}){
  const c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;c.clearRect(0,0,w,h);if(!volume)return {samples:0};
  const p=projection(plane,volume.dims,w,h,cross),lw=Math.max(1,w/420),radius=Math.max(2,w/180);
  function lines(points,color,dashed){c.save();c.strokeStyle=color;c.fillStyle=color;c.lineWidth=lw*1.8;c.setLineDash(dashed?[lw*4,lw*2]:[]);for(const [a,b] of path(p,points)){if(Math.hypot(a[0]-b[0],a[1]-b[1])<.8){c.beginPath();c.arc(...a,radius,0,2*Math.PI);c.fill();}else{c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();}}c.restore();}
@@ -42,8 +52,11 @@ function draw(canvas,{plane,volume,cross,route=null,shaft=null,field=null,phase=
  }c.restore();
  if(routeVisible&&route)lines(route,'#77d1e3',false);
  if(shaftVisible&&shaft)lines(shaft,'#f0d29a',true);
+ if(rodVisible&&rod)lines(rod,'#b6b0ef',false);
+ const marker=routeVisible?markerPixel(p,routePoint,volume.dims):null;
+ if(marker){c.save();c.strokeStyle='#e3f7ff';c.lineWidth=lw*1.5;c.beginPath();c.arc(...marker,radius*2.2,0,2*Math.PI);c.stroke();c.restore();}
  if(scale){const b=scaleBar(volume.spacing[p.horizontalAxis],w);if(b){const x=w*.06,y=h-Math.max(10,h*.07);c.save();c.fillStyle='rgba(5,9,12,.82)';c.fillRect(x-4,y-17,b.pixels+15,25);c.strokeStyle='#e7edf0';c.lineWidth=lw*1.5;c.beginPath();c.moveTo(x,y-3);c.lineTo(x,y+3);c.moveTo(x,y);c.lineTo(x+b.pixels,y);c.lineTo(x+b.pixels,y-3);c.lineTo(x+b.pixels,y+3);c.stroke();c.fillStyle='#e7edf0';c.font=Math.max(9,w/48)+'px system-ui';c.fillText(String(Number(b.mm.toPrecision(3)))+' mm',x,y-5);c.restore();}}
  return {samples:samples.length};
 }
-root.PulmoScientificView=Object.freeze({projection,affine,path,sampleField,scaleBar,draw});
+root.PulmoScientificView=Object.freeze({projection,affine,path,sampleField,scaleBar,routePosition,markerPixel,draw});
 })(typeof window!=='undefined'?window:globalThis);

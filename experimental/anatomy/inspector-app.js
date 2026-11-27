@@ -26,23 +26,26 @@ function renderFidelity(){
 }
 $('fidelity-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;const epoch=++fidelityEpoch;try{if(file.size>256*1024)throw Error('Report exceeds 256 KiB');const report=JSON.parse(await file.text());if(epoch!==fidelityEpoch)return;window.PulmoAnatomyFidelity.inspect(report,currentStudy(),seg);fidelityReport=report;renderFidelity();}catch(err){if(epoch===fidelityEpoch){fidelityReport=null;$('fidelity-status').textContent='Rejected';$('fidelity-detail').textContent=err.message;}}});
 
-let scientificQueued=false,scientificFrame=null,scientificVolume=null,scientificShaft=null,scientificShaftVox=null;
+let displayedRouteIndex=null,scientificQueued=false,scientificFrame=null,scientificVolume=null,scientificShaft=null,scientificShaftVox=null,scientificRod=null,scientificRodVox=null;
 function scheduleScientific(){if(scientificQueued)return;scientificQueued=true;requestAnimationFrame(()=>{scientificQueued=false;renderScientific();});}
 function renderScientific(){
  const status=$('ui-layer-status');if(!state.volume){status.textContent='No source loaded';return;}
- if(scientificVolume!==state.volume){scientificVolume=state.volume;scientificFrame=null;scientificShaft=null;scientificShaftVox=null;try{if(state.volume.spatialUnit===2)scientificFrame=window.PulmoStudy.frame(state.volume.affine,state.volume.dims);}catch{}}
+ if(scientificVolume!==state.volume){scientificVolume=state.volume;scientificFrame=null;scientificShaft=null;scientificShaftVox=null;scientificRod=null;scientificRodVox=null;try{if(state.volume.spatialUnit===2)scientificFrame=window.PulmoStudy.frame(state.volume.affine,state.volume.dims);}catch{}}
  const inv=scientificFrame?.ras_mm_to_voxel;
  const maskMetrics=seg?.metrics();
  const validRoute=route&&route.ct_sha256===state.ctSha&&route.mask_sha256===segDigest&&maskMetrics?.added===0&&maskMetrics?.removed===0?route:null;
  const validShaft=shaftResult&&validRoute&&shaftResult.phase===0&&shaftResult.active_ct_sha256===state.ctSha&&shaftResult.active_mask_sha256===segDigest?shaftResult:null;
  if(scientificShaft!==validShaft){scientificShaft=validShaft;scientificShaftVox=validShaft&&inv?validShaft.points_ras_mm.map(p=>scientificView.affine(inv,p)):null;}
+ const validRod=rodResult&&validRoute&&rodResult.ct_sha256===state.ctSha&&rodResult.mask_sha256===segDigest&&rodResult.route_root_node===validRoute.root_node&&rodResult.route_target_node===validRoute.target_node&&rodResult.assumptions?.diameter_mm===validRoute.diameter_mm?rodResult:null;
+ if(scientificRod!==validRod){scientificRod=validRod;scientificRodVox=validRod&&inv?validRod.points_ras_mm.map(p=>scientificView.affine(inv,p)):null;}
+ const routePoint=scientificView.routePosition(validRoute,Number($('route-step').value),state.cross);
  const mode=$('ui-layer-field').value,phase=Number($('motion-phase').value);
  let count=0;
  for(const plane of ['axial','coronal','sagittal']){const base=$('mpr-'+plane),cv=$('layer-'+plane);if(cv.width!==base.width)cv.width=base.width;if(cv.height!==base.height)cv.height=base.height;
- const result=scientificView.draw(cv,{plane,volume:state.volume,cross:state.cross,route:validRoute?.points_voxel,shaft:scientificShaftVox,field:motion,phase,inverse:inv,mode,scale:$('ui-layer-scale').checked&&!!inv,routeVisible:$('ui-layer-route').checked,shaftVisible:$('ui-layer-shaft').checked});count+=result.samples;}
- const parts=['Source voxel slabs'];if(validRoute&&$('ui-layer-route').checked)parts.push('Route');if(validShaft&&$('ui-layer-shaft').checked)parts.push('Inspiration shaft');else if(shaftResult?.phase===1&&$('ui-layer-shaft').checked)parts.push('Expiration shaft excluded');if(mode!=='off')parts.push(motion?count+' valid field samples · '+Math.round(phase*100)+'% · '+(mode==='vectors'?'projected, length capped':'J <1 blue / >1 amber'):'No bound field');status.textContent=parts.join(' · ');
+ const result=scientificView.draw(cv,{plane,volume:state.volume,cross:state.cross,route:validRoute?.points_voxel,routePoint:routePoint?.point,shaft:scientificShaftVox,rod:scientificRodVox,field:motion,phase,inverse:inv,mode,scale:$('ui-layer-scale').checked&&!!inv,routeVisible:$('ui-layer-route').checked,shaftVisible:$('ui-layer-shaft').checked,rodVisible:$('ui-layer-rod').checked});count+=result.samples;}
+ const parts=['Source voxel slabs'];if(validRoute&&$('ui-layer-route').checked)parts.push('Route');if(validShaft&&$('ui-layer-shaft').checked)parts.push('Inspiration shaft');else if(shaftResult?.phase===1&&$('ui-layer-shaft').checked)parts.push('Expiration shaft excluded');if(validRod&&$('ui-layer-rod').checked)parts.push('Nonlinear response · inspiration');if(mode!=='off')parts.push(motion?count+' valid field samples · '+Math.round(phase*100)+'% · '+(mode==='vectors'?'projected, length capped':'J <1 blue / >1 amber'):'No bound field');status.textContent=parts.join(' · ');
 }
-for(const id of ['ui-layer-route','ui-layer-shaft','ui-layer-field','ui-layer-scale'])$(id).addEventListener('change',scheduleScientific);
+for(const id of ['ui-layer-route','ui-layer-shaft','ui-layer-rod','ui-layer-field','ui-layer-scale'])$(id).addEventListener('change',scheduleScientific);
 $('ui-layer-mask').checked=$('seg-overlay').checked;
 $('ui-layer-mask').addEventListener('change',()=>{$('seg-overlay').checked=$('ui-layer-mask').checked;renderSlices();});
 $('seg-overlay').addEventListener('change',()=>{$('ui-layer-mask').checked=$('seg-overlay').checked;});
@@ -433,7 +436,7 @@ function renderSlices(){
   $('slice-readout').textContent='i '+state.cross[0]+' · j '+state.cross[1]+' · k '+state.cross[2];
   const [i,j,k]=state.cross;
   $('ras-readout').textContent='RAS '+state.volume.ras(i,j,k).map(x=>x.toFixed(1)).join(' / ')+' mm';
-  updateMarker();applyClipping();renderMetricStatus();renderMotion();scheduleScientific();
+  updateMarker();applyClipping();renderMetricStatus();renderMotion();refreshRouteContext();scheduleScientific();
 }
 function updateMarker(){
   if(!marker)return;
@@ -683,8 +686,9 @@ $('seg-export').addEventListener('click',()=>{if(!seg)return;const url=URL.creat
 
 function clearCandidate(){
  scheduleScientific();
- route=null;resetIntelligence();resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
+ route=null;displayedRouteIndex=null;resetIntelligence();resetOptics();invalidateShaft();renderMotion();$('route-step').value=0;$('route-step').max=0;
  for(const id of ['route-prev','route-next','route-step','route-export'])$(id).disabled=true;
+ refreshRouteContext();
 }
 function resetRoute(){
  routeEpoch++;routeGraph=null;routeStart=null;routeTarget=null;clearCandidate();
@@ -716,14 +720,22 @@ $('route-plan').addEventListener('click',()=>{
  $('route-status').textContent='Geometric candidate · review pending';showRouteFrame(0);
  }catch(e){$('route-status').textContent=e.message;}
 });
+function refreshRouteContext(){
+ const p=scientificView.routePosition(route,Number($('route-step').value),state.cross);
+ $('route-prev').disabled=!p||p.index===0;$('route-next').disabled=!p||p.index===p.count-1;
+ $('ui-route-center').disabled=!p||p.atCrosshair;
+ $('ui-route-position').textContent=p?'Frame '+(p.index+1)+' / '+p.count+' · '+p.distanceMm.toFixed(1)+' mm from entry · '+(p.atCrosshair?'CT centered':'CT off frame'):'No route planned';
+}
 function showRouteFrame(k){
- if(!route)return;k=Math.max(0,Math.min(route.nodes.length-1,k));$('route-step').value=k;invalidateOptics();
+ if(!route)return;k=Math.max(0,Math.min(route.nodes.length-1,Math.round(k)));if(!Number.isInteger(k))return;
+ $('route-step').value=k;if(k!==displayedRouteIndex){displayedRouteIndex=k;invalidateOptics();}
  const p=routeGraph.pose(route,k);state.cross=p.voxel.slice();renderSlices();
  $('route-detail').textContent='Route length '+route.length_mm.toFixed(2)+' mm · conservative radius lower bound '+route.minimum_clearance_lower_bound_mm.toFixed(2)+' mm\nFrame '+(k+1)+' / '+route.nodes.length+' · RAS '+p.position_ras_mm.map(x=>x.toFixed(2)).join(' / ')+' mm\nForward RAS '+p.forward_ras.map(x=>x.toFixed(3)).join(' / ')+'\nCT route rehearsal; explicit source-mask optical preview below. No instrument control.';
 }
 $('route-prev').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)-1));
 $('route-next').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)+1));
 $('route-step').addEventListener('input',()=>showRouteFrame(Number($('route-step').value)));
+$('ui-route-center').addEventListener('click',()=>showRouteFrame(Number($('route-step').value)));
 $('route-export').addEventListener('click',()=>{if(!route)return;const url=URL.createObjectURL(new Blob([JSON.stringify(route,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Route_'+route.mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function resetMotion(){
@@ -800,6 +812,7 @@ $('shaft-run').addEventListener('click',()=>{
 $('shaft-export').addEventListener('click',()=>{if(!shaftResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(shaftResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Shaft_'+shaftResult.active_mask_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
 function drawRod(){
+ scheduleScientific();
  const cv=$('rod-plot'),c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.font='12px system-ui';c.fillStyle='#9ab0bc';
  if(!rodResult){c.fillText('No nonlinear response',20,28);return;}
  const r=rodResult,p=r.points_ras_mm,b=r.baseline_points_ras_mm,all=[...p,...b],span=i=>Math.max(...all.map(q=>q[i]))-Math.min(...all.map(q=>q[i])),axes=[0,1,2].sort((a,b)=>span(b)-span(a)).slice(0,2),lo=axes.map(i=>Math.min(...all.map(q=>q[i]))),scale=Math.min((cv.width-80)/Math.max(1,span(axes[0])),(cv.height-75)/Math.max(1,span(axes[1])));
