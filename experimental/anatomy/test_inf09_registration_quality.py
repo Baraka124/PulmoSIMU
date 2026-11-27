@@ -44,3 +44,32 @@ class ConservationTests(unittest.TestCase):
         x,y,mi,me,a,b,u=self.fixture()
         u[...,0]=-2*np.indices(x.shape)[0]
         with self.assertRaisesRegex(ValueError,"folding"):refine(x,y,mi,me,a,b,u)
+
+class QualityWorkflowTests(unittest.TestCase):
+    def test_manifest_direction_and_output(self):
+        import tempfile,json
+        from pathlib import Path
+        import nibabel as nib
+        from computational_assets import file_hash
+        from registration_quality_workflow import run
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);shape=(6,6,6);a=np.eye(4)
+            def write(path,value):
+                im=nib.Nifti1Image(value,a);im.header.set_xyzt_units("mm");im.set_sform(a,code=1);nib.save(im,str(path))
+            x=root/"insp.nii";y=root/"exp.nii"
+            write(x,np.full(shape,-800,dtype=np.float32));write(y,np.full(shape,-780,dtype=np.float32))
+            for name,first,second,phase,other in (("f",x,y,"inspiration","expiration"),("r",y,x,"expiration","inspiration")):
+                folder=root/name;folder.mkdir()
+                p=folder/"displacement-ras-mm.nii";write(p,np.zeros(shape+(3,),dtype=np.float32))
+                m={"schema":"pulmo.dense-respiratory-registration/1","direction":"fixed_RAS_to_moving_RAS_mm",
+                   "fixed_phase":phase,"moving_phase":other,"same_patient_operator_attested":True,
+                   "fixed_ct_sha256":file_hash(first),"moving_ct_sha256":file_hash(second),"shape":list(shape),
+                   "fixed_voxel_to_ras_mm":a.tolist(),"moving_voxel_to_ras_mm":a.tolist(),
+                   "assets":{p.name:{"sha256":file_hash(p),"bytes":p.stat().st_size}}}
+                (folder/"registration.json").write_text(json.dumps(m))
+            r=run(x,y,root/"f",root/"r",root/"out")
+            self.assertEqual(len(r["assets"]),4)
+            self.assertEqual(r["baseline_consistency"]["fixed_to_moving_to_fixed"]["roundtrip"]["max_mm"],0)
+            self.assertFalse(r["clinical_navigation_allowed"])
+            with self.assertRaisesRegex(ValueError,"phase mismatch"):
+                run(x,y,root/"r",root/"f",root/"wrong")
