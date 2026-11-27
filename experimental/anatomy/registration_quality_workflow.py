@@ -13,7 +13,7 @@ from deformation_mechanics import kinematics
 from inverse_consistency import evaluate
 from mass_conservation_refinement import refine
 
-def load_package(root,first,second,first_hash,second_hash,a,b,shape,phase):
+def load_package(root,first_hash,second_hash,a,b,shape,phase):
     root=Path(root).resolve(strict=True)
     index=checked_file(root,"registration.json")
     if index.stat().st_size>262144:raise ValueError("Registration index too large")
@@ -42,8 +42,8 @@ def run(inspiration,expiration,forward,reverse,output,*,landmarks=None,inspirati
     hashes={p:file_hash(p) for p in paths}
     if len(set(hashes.values()))!=2:raise ValueError("Distinct phase images required")
     x,a=grid(paths[0]);y,b=grid(paths[1])
-    u,h=load_package(forward,*paths,*hashes.values(),a,b,x.shape,"inspiration");hashes.update(h)
-    v,h=load_package(reverse,paths[1],paths[0],hashes[paths[1]],hashes[paths[0]],b,a,y.shape,"expiration");hashes.update(h)
+    u,h=load_package(forward,hashes[paths[0]],hashes[paths[1]],a,b,x.shape,"inspiration");hashes.update(h)
+    v,h=load_package(reverse,hashes[paths[1]],hashes[paths[0]],b,a,y.shape,"expiration");hashes.update(h)
     fields,report=evaluate(u,a,v,b,landmarks=landmarks)
     arrays={name:(value,b if name.startswith("moving-") else a) for name,value in fields.items()}
     refinement=None
@@ -73,6 +73,7 @@ def run(inspiration,expiration,forward,reverse,output,*,landmarks=None,inspirati
             inventory[p.name]={"sha256":file_hash(p),"bytes":p.stat().st_size}
         manifest={"schema":"pulmo.registration-quality/1","inspiration_sha256":hashes[paths[0]],"expiration_sha256":hashes[paths[1]],
           "forward_manifest_sha256":hashes[Path(forward).resolve()/"registration.json"],"reverse_manifest_sha256":hashes[Path(reverse).resolve()/"registration.json"],
+          "forward_displacement_sha256":hashes[Path(forward).resolve()/"displacement-ras-mm.nii"],"reverse_displacement_sha256":hashes[Path(reverse).resolve()/"displacement-ras-mm.nii"],
           "landmarks_RAS_mm":landmarks,"baseline_consistency":report,"conservation_refinement":refinement,
           "assets":inventory,"review":"PENDING","clinical_navigation_allowed":False}
         if refinement is not None:
