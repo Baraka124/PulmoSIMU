@@ -1,0 +1,3 @@
+# Optional offline registration environment.
+-r requirements-reconstruction.txt
+SimpleITK==2.5.0
