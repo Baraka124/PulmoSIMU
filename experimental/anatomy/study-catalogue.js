@@ -31,7 +31,22 @@ function create(fetcher=globalThis.fetch.bind(globalThis),now=()=>Date.now()){
  async function signOut(){const token=session?.token;clear();if(token)await request("/auth/v1/logout?scope=local",{method:"POST",token});}
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  function studyPath(table,fields,id){if(typeof id!=="string"||!uuid.test(id))throw Error("Invalid study ID");return "/rest/v1/"+table+"?select="+fields+"&study_id=eq."+id+"&order=created_at.desc&limit=100";}
- return Object.freeze({signIn,signOut,clear,valid,list:()=>read("/rest/v1/studies?select=id,title,source_kind,modality,status,created_at&order=created_at.desc&limit=100"),assets:id=>read(studyPath("study_assets","id,kind,structure,version,bytes,created_at",id)),jobs:id=>read(studyPath("processing_jobs","id,kind,status,stage,progress,created_at",id))});
+ async function download(id,asset){
+  if(!valid())throw Error("Sign in required");
+  if(!uuid.test(id)||asset?.version!==1||typeof asset.object_key!=="string"||!asset.object_key.startsWith(id+"/v1/")||!/^([0-9a-f-]{36})\/v1\/[a-z0-9_./-]+$/i.test(asset.object_key)||asset.object_key.includes("..")||!Number.isSafeInteger(asset.bytes)||asset.bytes<=0||asset.bytes>50000000||!(/^[0-9a-f]{64}$/).test(asset.sha256))throw Error("Invalid asset metadata");
+  const epoch=generation,token=session.token;
+  const res=await fetcher(origin+"/storage/v1/object/authenticated/pulmo-study-assets/"+asset.object_key,{headers:{apikey:key,Authorization:"Bearer "+token},cache:"no-store",credentials:"omit",redirect:"error",referrerPolicy:"no-referrer",signal:typeof AbortSignal!=="undefined"&&AbortSignal.timeout?AbortSignal.timeout(120000):undefined});
+  if(!res.ok){if(epoch===generation&&(res.status===401||res.status===403))clear();throw Error("Asset unavailable");}
+  if(!res.body)throw Error("Streaming response required");
+  const reader=res.body.getReader(),parts=[];let length=0;
+  try{while(true){const {done,value}=await reader.read();if(done)break;length+=value.byteLength;if(length>asset.bytes||epoch!==generation||!valid())throw Error("Asset transfer rejected");parts.push(value);}}
+  finally{await reader.cancel().catch(()=>{});}
+  if(length!==asset.bytes||epoch!==generation||!valid())throw Error("Asset length or session mismatch");
+  const blob=new Blob(parts),bytes=await blob.arrayBuffer(),digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)),x=>x.toString(16).padStart(2,"0")).join("");
+  if(digest!==asset.sha256||epoch!==generation||!valid())throw Error("Asset integrity verification failed");
+  return blob;
+ }
+ return Object.freeze({signIn,signOut,clear,valid,download,list:()=>read("/rest/v1/studies?select=id,title,source_kind,modality,status,created_at&order=created_at.desc&limit=100"),assets:id=>read(studyPath("study_assets","id,kind,structure,version,bytes,sha256,object_key,created_at",id)),jobs:id=>read(studyPath("processing_jobs","id,kind,status,stage,progress,created_at",id))});
 }
 root.PulmoStudyCatalogue=Object.freeze({create});
 })(globalThis);
