@@ -16,4 +16,4 @@ jobs:
           persist-credentials: false
       - run: python3 --version
       - run: python3 -m venv .worker-venv && .worker-venv/bin/python -m pip install -r requirements-reconstruction.txt
-      - run: .worker-venv/bin/python -m unittest discover -s experimental/anatomy -p 'test_inf04_worker.py'
+      - run: .worker-venv/bin/python -m unittest discover -s experimental/anatomy -p 'test_inf*_*.py'

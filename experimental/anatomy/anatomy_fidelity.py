@@ -24,12 +24,12 @@ def require(ok, message):
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
-def load_bound(ct_path, mask_dir):
+def load_bound(ct_path, mask_dir, *, structure='airway_lumen', max_foreground=5_000_000, max_crop=MAX_CROP):
     ct = nib.load(str(ct_path))
     manifest = json.loads((Path(mask_dir)/"mask.json").read_text())
     raw_path = Path(mask_dir)/"mask.raw"
     ct_sha = sha(ct_path)
-    require(manifest.get("schema")=="pulmosimu.mask/1" and manifest.get("structure")=="airway_lumen"
+    require(manifest.get("schema")=="pulmosimu.mask/1" and manifest.get("structure")==structure
             and manifest.get("encoding")=="uint8-x-fast-binary" and manifest.get("review")=="PENDING"
             and manifest.get("ct_sha256")==ct_sha, "Source mask identity mismatch")
     dims = tuple(ct.shape)
@@ -46,20 +46,20 @@ def load_bound(ct_path, mask_dir):
     data = np.memmap(raw_path,dtype=np.uint8,mode="r",shape=dims,order="F")
     require(int(data.max())<=1, "Nonbinary mask")
     count = int(np.count_nonzero(data))
-    require(0<count<=5_000_000, "Empty or oversized foreground; prepare a reviewed ROI")
+    require(0<count<=max_foreground, "Empty or oversized foreground; prepare a reviewed ROI")
     # Axis-wise projections avoid allocating three full foreground coordinate arrays.
     bounds=[]
     for axis in range(3):
         occupied=np.flatnonzero(np.any(data,axis=tuple(i for i in range(3) if i!=axis)))
         bounds.append((int(occupied[0]),int(occupied[-1])+1))
     crop_shape=tuple(hi-lo+2 for lo,hi in bounds)
-    require(int(np.prod(crop_shape))<=MAX_CROP, "Cropped mask exceeds local reconstruction budget")
+    require(int(np.prod(crop_shape))<=max_crop, "Cropped mask exceeds local reconstruction budget")
     crop=np.pad(np.asarray(data[tuple(slice(lo,hi) for lo,hi in bounds)]),1)
     origin=np.array([lo-1 for lo,_ in bounds])
     touches=[name for i,(lo,hi) in enumerate(bounds) for name,yes in [(f"axis{i}_min",lo==0),(f"axis{i}_max",hi==dims[i])] if yes]
     return ct,manifest,data,a,spacing,crop,origin,count,touches
 
-def reconstruct(crop, origin, affine):
+def reconstruct(crop, origin, affine, *, common_transform=None):
     v,f,_,_=marching_cubes(crop,level=.5,allow_degenerate=False,method="lewiner",gradient_direction="descent")
     require(0<len(f)<=MAX_FACES, "Surface exceeds face budget; use a smaller verified ROI")
     ras=nib.affines.apply_affine(affine,v+origin)
@@ -67,6 +67,9 @@ def reconstruct(crop, origin, affine):
     center=(ras.min(axis=0)+ras.max(axis=0))/2
     rotation=np.array([[1,0,0],[0,0,1],[0,-1,0]],dtype=float)
     transform=np.eye(4); transform[:3,:3]=rotation/1000;transform[:3,3]=-rotation@center/1000
+    if common_transform is not None:
+        transform=np.asarray(common_transform,dtype=float)
+        require(transform.shape==(4,4) and np.isfinite(transform).all() and np.allclose(transform[:3,:3],rotation/1000,atol=1e-12,rtol=0) and np.array_equal(transform[3],[0,0,0,1]),'Invalid common metric frame')
     pos=nib.affines.apply_affine(transform,ras).astype("<f4")
     f=f.astype("<u4")
     # Orient the entire closed boundary consistently. Negative determinant affines
