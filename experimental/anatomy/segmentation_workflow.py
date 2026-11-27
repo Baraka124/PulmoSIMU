@@ -13,7 +13,7 @@ from ct_feature_workflow import save_volume
 from study_worker import validate_ct
 from segmentation_pipeline import KINDS
 
-def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="region_growing",background=None,min_feature=None):
+def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="region_growing",background=None,min_feature=None,refinement=None):
     if structure not in KINDS: raise ValueError("Explicit supported candidate structure required")
     root=Path(features).resolve(strict=True);out=Path(output).resolve()
     if out.exists() or root==out or root in out.parents: raise ValueError("New separate output required")
@@ -54,12 +54,14 @@ def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="reg
         if vr["parents"]!=[enhanced_id] or vr["units"]!="1" or vi.shape!=im.shape or not np.allclose(vi.affine,a,rtol=0,atol=1e-4):
             raise ValueError("Vesselness alignment mismatch")
         feature=vi.get_fdata(dtype=np.float32);parents.append(vid)
+    intermediates={}
     mask,distance,report=segment(im.get_fdata(dtype=np.float32),np.linalg.norm(a[:3,:3],axis=0),foreground=foreground,
-        background=background,lower_hu=lower_hu,upper_hu=upper_hu,method=method,feature=feature,min_feature=min_feature)
+        background=background,lower_hu=lower_hu,upper_hu=upper_hu,method=method,feature=feature,min_feature=min_feature,refinement=refinement,intermediates=intermediates)
     report.update({"schema":"pulmo.candidate-segmentation/1","structure_claim":structure,"roi":bounds,
         "outside_roi":"not_evaluated","source_sha256":source_record["sha256"],"input_asset_ids":parents})
     params={"structure_claim":structure,"foreground_roi_ijk":foreground,"background_roi_ijk":background,
         "lower_hu":lower_hu,"upper_hu":upper_hu,"min_feature":min_feature,
+        "refinement":refinement,"refinement_sha256":file_hash(Path(__file__).with_name("geodesic_refinement.py")),
         "algorithm_sha256":file_hash(Path(__file__).with_name("deterministic_segmentation.py")),
         "versions":{k:importlib.metadata.version(k) for k in ("numpy","scipy","scikit-image","nibabel")}}
     out.parent.mkdir(parents=True,exist_ok=True)
@@ -81,6 +83,14 @@ def execute(features,output,*,structure,foreground,lower_hu,upper_hu,method="reg
             nii.header.set_xyzt_units("mm");nii.set_sform(affine,code=1);nii.set_qform(None,code=0)
             nib.save(nii,str(path))
         write_mask(stage/"candidate-roi.nii.gz",mask,a)
+        if intermediates:
+            definitions={"geodesic-cost.nii":("weighted geodesic path length","mm"),"edge-stopping.nii":("edge stopping coefficient","1"),"initial-contour.nii":("initial contour occupancy","1")}
+            field_ids=[]
+            for name,data in intermediates.items():
+                save_volume(stage/name,data,a)
+                q,u=definitions[name]
+                field_ids.append(add(name,"scalar_field",q,u,"geodesic_initialization",parents,params))
+            parents=parents+field_ids
         mid=add("candidate-roi.nii.gz","label_mask",structure+" candidate","1",method,parents,params)
         save_volume(stage/"signed-distance.nii",distance,a)
         add("signed-distance.nii","scalar_field","signed voxel-center distance","mm","edt",[mid],{"negative_inside":True})
