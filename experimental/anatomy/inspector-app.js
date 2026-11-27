@@ -948,5 +948,50 @@ $('xr-snapshot-export').addEventListener('click',async()=>{
  $('intel-status').textContent='Local XR snapshot exported · includes optical preview only if rendered. Handle as study-derived data.';
  }catch(e){$('intel-status').textContent=e.message;}
 });
-applyQa();renderReviewStatus();start3d();
+
+// INF05B: only a freshly embedded Source Laboratory can receive a reference package.
+// Existing manual import remains unchanged.
+function receiveReference(){
+ if(new URLSearchParams(location.search).get("referenceEmbed")!=="1"||window.parent===window)return;
+ const nonce=location.hash.slice(1),protocol="pulmo.reference/1",origin=location.origin;
+ if(!/^[0-9a-f-]{36}$/.test(nonce))return;
+ const reply=type=>window.parent.postMessage({protocol,nonce,type},origin);
+ const main=document.querySelector("main");main.inert=true;
+ const receive=async e=>{
+  if(e.origin!==origin||e.source!==window.parent||e.data?.protocol!==protocol||e.data?.nonce!==nonce||e.data?.type!=="package")return;
+  window.removeEventListener("message",receive);
+  try{
+   if(state.volume||state.model||state.qa)throw Error("Fresh viewer required");
+   const d=e.data,U=window.PulmoReferencePackage,inventory=U.plan(d.study,d.assets);U.manifest(d.study,inventory,d.manifest);
+   if(Object.keys(d.files||{}).length!==U.viewerPaths.length)throw Error("Incomplete source payload");
+   for(const path of U.viewerPaths){const blob=d.files[path];if(!(blob instanceof Blob)||blob.size!==inventory[path].bytes||await sha256(await blob.arrayBuffer())!==inventory[path].sha256)throw Error("Viewer asset integrity mismatch");}
+   const file=path=>new File([d.files[path]],path.split("/").pop());
+   await loadNifti(file("source.nii"));
+   await loadModel(file("airway-surface/airway.glb"));
+   await loadManifest(file("airway-surface/reconstruction.json"));
+   const study=currentStudy();
+   if(!study.surface||study.source.sha256!==inventory["source.nii"].sha256||study.surface.sha256!==inventory["airway-surface/airway.glb"].sha256)throw Error("Source geometry mismatch");
+   segManifest=JSON.parse(await d.files["airway-mask/mask.json"].text());
+   segBytes=new Uint8Array(await d.files["airway-mask/mask.raw"].arrayBuffer());segDigest=inventory["airway-mask/mask.raw"].sha256;
+   seg=window.PulmoSegmentation.bind(study,segManifest,segBytes,segDigest);
+   updateSegUI("Exact reference airway mask · unreviewed");renderSlices();
+   routeGraph=window.PulmoAirwayRoute.open(study,seg,JSON.parse(await d.files["airway-mask/airway-skeleton.json"].text()));
+   $("route-root").disabled=false;$("route-target").disabled=false;$("route-status").textContent="Skeleton bound · unreviewed";describeRoute();
+   const report=JSON.parse(await d.files["airway-surface/fidelity.json"].text());
+   if(!window.PulmoAnatomyFidelity.inspect(report,study,seg).meshLinked)throw Error("Fidelity evidence is not linked to surface");
+   fidelityReport=report;renderFidelity();
+   $("ct-file-name").textContent="source.nii · reference";
+   $("mesh-file-name").textContent="airway.glb · reference";
+   $("manifest-file-name").textContent="reconstruction.json · reference";
+   document.querySelector(".work-local").textContent="REFERENCE · MEMORY ONLY";
+   setMessage("Reference package verified and opened. Anatomical review pending.","ok");
+   // Prevent legacy navigation from replacing the embedded laboratory.
+   for(const a of document.querySelectorAll("a[href]")){a.target="_blank";a.rel="noopener noreferrer";}
+   main.inert=false;reply("loaded");
+  }catch(err){setMessage("Reference study rejected: "+String(err.message||err),"error");reply("rejected");}
+ };
+ window.addEventListener("message",receive);reply("ready");
+}
+
+applyQa();renderReviewStatus();start3d();receiveReference();
 })();
