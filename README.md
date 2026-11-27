@@ -196,3 +196,7 @@ Independent slice-local route, shaft and sampled deformation overlays, synchroni
 ## UI11 — interaction recovery and software freeze
 
 See [final acceptance gates](experimental/UI11_ACCEPTANCE.md). Run `node experimental/tests/run-release-checks.mjs`. Software candidate; headset and physical acceptance remain pending.
+
+## V01–V03 — source airway anatomy fidelity
+
+Offline exact-mask reconstruction, upper-airway landmark connectivity and physical geometry observations. See [V foundation](experimental/V01_V03_ANATOMY_FIDELITY.md).

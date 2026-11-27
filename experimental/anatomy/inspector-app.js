@@ -14,6 +14,16 @@ let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaf
 let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
 let intelEpoch=0,intelBusy=false,intelResult=null,intelReference=null,intelVideoURL=null,intelVideoSha=null,intelVideoEpoch=0;
 const scientificView=window.PulmoScientificView;
+let fidelityReport=null,fidelityEpoch=0;
+function renderFidelity(){
+ const status=$('fidelity-status'),detail=$('fidelity-detail');if(!status)return;
+ if(!fidelityReport){status.textContent='No fidelity report';detail.textContent='Load the exact CT and mask before importing offline evidence.';return;}
+ try{const q=window.PulmoAnatomyFidelity.inspect(fidelityReport,currentStudy(),seg);status.textContent='Source-linked report · '+(q.meshLinked?'GLB linked':'GLB not linked')+' · unreviewed';
+ detail.textContent=['6-connected components: '+q.componentCount+' · largest '+(q.largestFraction*100).toFixed(2)+'%','Mask volume '+q.volumeMl.toFixed(2)+' mL','Surface '+q.triangles.toLocaleString()+' triangles · '+q.surfaceAreaMm2.toFixed(1)+' mm²','Boundary / nonmanifold edges '+q.boundaryEdges+' / '+q.nonmanifoldEdges,'Source FOV contact: '+(q.fovBoundary.join(', ')||'none reported'),'Upper airway: '+q.upperState.replaceAll('_',' '),...q.sections.map((s,i)=>'Section '+(i+1)+' @ '+s.center.join(',')+': '+(s.truncated?'truncated / no diameter':s.area.toFixed(2)+' mm² · area-equivalent Ø '+s.diameter.toFixed(2)+' mm')),'Reported values not independently recomputed; anatomical labels and clinical navigation remain unverified.'].join('\n');
+ }catch(e){status.textContent='Report not bound';detail.textContent=e.message;}
+}
+$('fidelity-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;const epoch=++fidelityEpoch;try{if(file.size>256*1024)throw Error('Report exceeds 256 KiB');const report=JSON.parse(await file.text());if(epoch!==fidelityEpoch)return;window.PulmoAnatomyFidelity.inspect(report,currentStudy(),seg);fidelityReport=report;renderFidelity();}catch(err){if(epoch===fidelityEpoch){fidelityReport=null;$('fidelity-status').textContent='Rejected';$('fidelity-detail').textContent=err.message;}}});
+
 let scientificQueued=false,scientificFrame=null,scientificVolume=null,scientificShaft=null,scientificShaftVox=null;
 function scheduleScientific(){if(scientificQueued)return;scientificQueued=true;requestAnimationFrame(()=>{scientificQueued=false;renderScientific();});}
 function renderScientific(){
@@ -111,7 +121,7 @@ function validate(){
   $('cross-3d').disabled=!enabled;
   $('section-plane').disabled=!enabled;
   if(!enabled){state.clip=false;$('clip-toggle').checked=false;}
-  updateMarker();applyClipping();updateResearchGates();renderReviewStatus();renderStudy();
+  updateMarker();applyClipping();updateResearchGates();renderReviewStatus();renderStudy();renderFidelity();
 }
 let scene=null,renderer=null,camera=null,orbit=null,modelGroup=null,marker=null,
   sourceSection=null,sourceSectionKey=null,workLight=null,originalMaterials=[];
@@ -640,7 +650,7 @@ $('study-import').addEventListener('change',async ev=>{
 
 
 function updateSegUI(message){
- resetRoute();
+ resetRoute();renderFidelity();
  $('seg-status').textContent=message;
  for(const id of ['seg-add','seg-remove','seg-clear','seg-export'])$(id).disabled=!seg;
  const m=seg?.metrics();

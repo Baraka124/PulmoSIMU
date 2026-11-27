@@ -17,3 +17,10 @@ jobs:
           node-version: '22'
       - name: Run scientific and interface regression checks
         run: node experimental/tests/run-release-checks.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline anatomy test dependencies
+        run: python -m pip install numpy nibabel scipy scikit-image
+      - name: Run geometry fixtures
+        run: python experimental/anatomy/test_v03_anatomy_fidelity.py

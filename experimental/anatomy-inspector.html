@@ -64,7 +64,7 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
       <div><div class="minor">Source status</div><div class="nameval" id="source-state">No manifest loaded</div><div class="muted" id="mesh-count">No surface</div><div class="muted" id="mesh-faces">—</div></div>
       <div><div class="minor">CT volume</div><div class="nameval" id="source-shape">—</div><div class="muted" id="source-spacing">—</div><div class="muted" id="ct-state">No volume loaded</div></div>
       <div><div class="minor">Source alignment</div><div class="nameval" id="registration" data-state="pending">Awaiting NIfTI + manifest</div><div class="muted">Header matching does not establish segmentation accuracy.</div></div>
-      <div class="control division"><label class="minor" for="structure-select">Source surfaces</label>
+      <details class="division" open><summary>Source airway reconstruction · V01–V03</summary><p>Import offline fidelity.json after loading the matching CT and unchanged airway mask. GLB and reconstruction.json load through Study &amp; sources.</p><label class="review-import" for="fidelity-file">Load fidelity report<input id="fidelity-file" type="file" accept=".json,application/json"></label><div class="review-status" id="fidelity-status" role="status">No fidelity report</div><pre id="fidelity-detail" class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">No source geometry evidence.</pre></details><div class="control division"><label class="minor" for="structure-select">Source surfaces</label>
       <select id="structure-select" disabled><option value="both">All source surfaces</option><option value="right">Patient-right mesh (unreviewed)</option><option value="left">Patient-left mesh (unreviewed)</option></select>
       <label class="minor" for="surface-opacity">Surface transparency <span id="opacity-readout">100%</span></label>
       <input id="surface-opacity" type="range" min="15" max="100" value="100" disabled aria-label="Source surface opacity">
@@ -151,6 +151,7 @@ dialog{max-width:530px;width:calc(100% - 30px);background:#14232d;border:1px sol
 <script src="./anatomy/research-intelligence.js?v=N03"></script>
 <script src="./xr/research-snapshot.js?v=O03"></script>
 <script src="./anatomy/scientific-view.js?v=UI10"></script>
-<script src="./anatomy/inspector-app.js?v=UI10"></script>
+<script src="./anatomy/anatomy-fidelity.js?v=V03"></script>
+<script src="./anatomy/inspector-app.js?v=V03"></script>
 <script src="./anatomy/workstation-shell.js?v=UI07"></script>
 </body></html>
