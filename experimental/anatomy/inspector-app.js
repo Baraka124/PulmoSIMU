@@ -12,6 +12,7 @@ let routeGraph=null,routeStart=null,routeTarget=null,route=null,routeEpoch=0;
 let movingVolume=null,movingStudy=null,motionManifest=null,motionBytes=null,motionDigest=null,motion=null,motionEpoch=0;
 let rodResult=null,rodEpoch=0;
 let shaftResult=null,shaftMovingSeg=null,shaftManifest=null,shaftBytes=null,shaftDigest=null,shaftEpoch=0;
+let physicalOptical=null,acousticFrame=null;
 let opticFrame=null,opticPoints=null,opticReference=null,opticEpoch=0,opticRefEpoch=0;
 let intelEpoch=0,intelBusy=false,intelResult=null,intelReference=null,intelVideoURL=null,intelVideoSha=null,intelVideoEpoch=0;
 const scientificView=window.PulmoScientificView;
@@ -822,8 +823,18 @@ $('rod-run').addEventListener('click',async()=>{
 });
 $('rod-export').addEventListener('click',()=>{if(!rodResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(rodResult,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Nonlinear_'+rodResult.route_sha256.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);});
 
+function invalidateImagingPhysics(){
+ physicalOptical=null;acousticFrame=null;$('physics-export').disabled=true;
+ for(const [id,status,canvas] of [['phys-render','phys-optical-status','phys-optical'],['ac-render','ac-status','ac-canvas']]){$(id).disabled=!route;$(status).textContent=route?'Ready for source-route calculation':'Awaiting J route';const c=$(canvas);c.getContext('2d').clearRect(0,0,c.width,c.height);}
+}
+for(const id of ['phys-power','phys-reflect','phys-rough','ac-mode','ac-coupling','ac-freq','ac-range','ac-alpha','ac-z','ac-speed','ac-db','ac-tgc'])$(id).addEventListener('input',invalidateImagingPhysics);
+function physicsArgs(){return {study:currentStudy(),seg,route,index:Number($('route-step').value),roll:Number($('optic-roll').value)};}
+$('phys-render').addEventListener('click',()=>{if(!route)return;physicalOptical=null;$('physics-export').disabled=!acousticFrame;const c=$('phys-optical');c.getContext('2d').clearRect(0,0,c.width,c.height);try{const r=window.PulmoImagingPhysics.optical({...physicsArgs(),fov:Number($('optic-fov').value),exposure:Number($('optic-exp').value),power:Number($('phys-power').value),reflectance:Number($('phys-reflect').value),roughness:Number($('phys-rough').value)});physicalOptical=r.report;c.getContext('2d').putImageData(new ImageData(r.rgba,r.width,r.height),0,0);$('phys-optical-status').textContent=r.report.counts.WALL+' wall rays · relative optical response · assumed material';$('physics-export').disabled=false;}catch(e){$('phys-optical-status').textContent='Rejected: '+e.message;}});
+$('ac-render').addEventListener('click',()=>{if(!route)return;acousticFrame=null;$('physics-export').disabled=!physicalOptical;const c=$('ac-canvas');c.getContext('2d').clearRect(0,0,c.width,c.height);try{const r=window.PulmoImagingPhysics.acoustic({...physicsArgs(),mode:$('ac-mode').value,coupling:$('ac-coupling').value,frequency:Number($('ac-freq').value),rangeMm:Number($('ac-range').value),alpha:Number($('ac-alpha').value),tissueZ:Number($('ac-z').value),tissueSpeed:Number($('ac-speed').value),dynamicDb:Number($('ac-db').value),tgcDb:Number($('ac-tgc').value)});acousticFrame=r.report;c.getContext('2d').putImageData(new ImageData(r.rgba,r.width,r.height),0,0);$('ac-status').textContent=r.report.ray_count+' rays · '+r.report.echo_count+' interface echoes · '+r.report.range_mm+' mm displayed range\n'+r.report.assumptions.coupling+' · 1540 m/s display scale · max relative amplitude '+r.report.max_relative_echo_amplitude.toFixed(4)+'\nNo measured tissue map, refraction or calibrated transducer.';$('physics-export').disabled=false;}catch(e){$('ac-status').textContent='Rejected: '+e.message;}});
+$('physics-export').addEventListener('click',async()=>{if(!route||(!physicalOptical&&!acousticFrame))return;const source=route,opt=physicalOptical,ac=acousticFrame;try{const digest=await sha256(new TextEncoder().encode(JSON.stringify(source)).buffer);if(source!==route||opt!==physicalOptical||ac!==acousticFrame)return;const doc={schema:'pulmosimu.imaging-evidence/1',route_sha256:digest,optical:opt,acoustic:ac,review:'PENDING',clinical_navigation_allowed:false};const url=URL.createObjectURL(new Blob([JSON.stringify(doc,null,2)+'\n'],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='PulmoSIMU_Imaging_'+digest.slice(0,12)+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);}catch(e){$('ac-status').textContent=e.message;}});
+
 function invalidateOptics(){
- cancelIntelSearch();
+ invalidateImagingPhysics();cancelIntelSearch();
  opticFrame=null;$('optic-render').disabled=!route;$('optic-compare').disabled=true;
  $('optic-status').textContent=route?'Route frame ready to render':'Awaiting J route';
  $('optic-detail').textContent='No optical frame. Render explicitly after changing route position.';

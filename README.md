@@ -204,3 +204,7 @@ Offline exact-mask reconstruction, upper-airway landmark connectivity and physic
 ## W01–W03 — nonlinear instrument mechanics
 
 Finite-angle rod response, scalar torsion, sampled contact and lagged incremental friction, independent proximal boundary displacement research. See [W foundation](experimental/W01_W03_NONLINEAR_MECHANICS.md).
+
+## X01–X03 — source-linked imaging physics
+
+Relative optical response and acoustic interface echo formation in the source laboratory. See [X foundation](experimental/X01_X03_IMAGING_PHYSICS.md).
