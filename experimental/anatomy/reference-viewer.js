@@ -23,14 +23,14 @@ function open({client,study,assets,container,status,active,mode='source'}){
   const U=root.PulmoReferencePackage,inventory=U.plan(study,assets);
   guard();status("Verifying study package…");
   const m=JSON.parse(await (await client.download(study.id,inventory["study-package.json"])).text());guard();U.manifest(study,inventory,m);
-  const files={},paths=mode==='immersive'?U.immersivePaths:U.viewerPaths;let n=0;
+  const files={},paths=U.pathsFor(inventory,mode);let n=0;
   for(const path of paths){guard();status("Verifying source assets · "+(++n)+" / "+paths.length);files[path]=await client.download(study.id,inventory[path]);}
   guard();
   frame=document.createElement("iframe");frame.title=mode==="immersive"?"Immersive reference anatomy":"Source Anatomy Laboratory";frame.className="reference-frame";frame.referrerPolicy="no-referrer";
   if(mode==="immersive"){frame.allow="xr-spatial-tracking 'self'";frame.src="../index.html?entry=desktop&referenceXR=1#"+id;}
   else frame.src="./anatomy-inspector.html?referenceEmbed=1#"+id;
   await wait("ready",()=>container.append(frame));guard();
-  status(mode==="immersive"?"Binding source geometry and CT sections…":"Binding CT, surface and airway topology…");
+  status(mode==="immersive"?"Binding source geometry and CT sections…":U.isMulti(inventory)?"Binding CT and common-frame pulmonary surfaces…":"Binding CT, surface and airway topology…");
   await wait("loaded",()=>frame.contentWindow.postMessage({protocol,nonce:id,type:"package",study:{id:study.id,source_kind:study.source_kind,status:study.status},assets,manifest:m,files},origin));
   guard();frame.classList.add("reference-ready");status(mode==="immersive"?"Reference anatomy ready · use Enter VR or Enter mixed reality":"Source-linked reference study · review pending");
  }

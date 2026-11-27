@@ -963,14 +963,17 @@ function receiveReference(){
   try{
    if(state.volume||state.model||state.qa)throw Error("Fresh viewer required");
    const d=e.data,U=window.PulmoReferencePackage,inventory=U.plan(d.study,d.assets);U.manifest(d.study,inventory,d.manifest);
-   if(Object.keys(d.files||{}).length!==U.viewerPaths.length)throw Error("Incomplete source payload");
-   for(const path of U.viewerPaths){const blob=d.files[path];if(!(blob instanceof Blob)||blob.size!==inventory[path].bytes||await sha256(await blob.arrayBuffer())!==inventory[path].sha256)throw Error("Viewer asset integrity mismatch");}
+   const paths=U.pathsFor(inventory,"source"),multi=U.isMulti(inventory),meshPath=multi?"pulmonary.glb":"airway-surface/airway.glb",metaPath=multi?"reconstruction.json":"airway-surface/reconstruction.json";
+   if(Object.keys(d.files||{}).length!==paths.length)throw Error("Incomplete source payload");
+   for(const path of paths){const blob=d.files[path];if(!(blob instanceof Blob)||blob.size!==inventory[path].bytes||await sha256(await blob.arrayBuffer())!==inventory[path].sha256)throw Error("Viewer asset integrity mismatch");}
    const file=path=>new File([d.files[path]],path.split("/").pop());
    await loadNifti(file("source.nii"));
-   await loadModel(file("airway-surface/airway.glb"));
-   await loadManifest(file("airway-surface/reconstruction.json"));
+   if(multi)U.checkSurface(inventory,JSON.parse(await d.files[metaPath].text()));
+   await loadModel(file(meshPath));
+   await loadManifest(file(metaPath));
    const study=currentStudy();
-   if(!study.surface||study.source.sha256!==inventory["source.nii"].sha256||study.surface.sha256!==inventory["airway-surface/airway.glb"].sha256)throw Error("Source geometry mismatch");
+   if(!study.surface||study.source.sha256!==inventory["source.nii"].sha256||study.surface.sha256!==inventory[meshPath].sha256)throw Error("Source geometry mismatch");
+   if(!multi){
    segManifest=JSON.parse(await d.files["airway-mask/mask.json"].text());
    segBytes=new Uint8Array(await d.files["airway-mask/mask.raw"].arrayBuffer());segDigest=inventory["airway-mask/mask.raw"].sha256;
    seg=window.PulmoSegmentation.bind(study,segManifest,segBytes,segDigest);
@@ -980,8 +983,9 @@ function receiveReference(){
    const report=JSON.parse(await d.files["airway-surface/fidelity.json"].text());
    if(!window.PulmoAnatomyFidelity.inspect(report,study,seg).meshLinked)throw Error("Fidelity evidence is not linked to surface");
    fidelityReport=report;renderFidelity();
+   }else{const names=state.meshNames;const expected=state.qa.combined_structure_names;if(names.length!==expected.length||new Set(names).size!==expected.length||expected.some(k=>!names.includes(k)))throw Error("Combined scene structure mismatch");}
    $("ct-file-name").textContent="source.nii · reference";
-   $("mesh-file-name").textContent="airway.glb · reference";
+   $("mesh-file-name").textContent=meshPath.split("/").pop()+" · reference";
    $("manifest-file-name").textContent="reconstruction.json · reference";
    document.querySelector(".work-local").textContent="REFERENCE · MEMORY ONLY";
    setMessage("Reference package verified and opened. Anatomical review pending.","ok");

@@ -10,8 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="./experimental/anatomy/research-view.js?v=INF05C"></script>
-<script src="./experimental/anatomy/reference-package.js?v=inf05c"></script>
+<script src="./experimental/anatomy/research-view.js?v=INF06"></script>
+<script src="./experimental/anatomy/reference-package.js?v=inf06"></script>
 <script src="./experimental/anatomy/lobe-territories.js?v=A22-FISSURE-ATLAS"></script>
 <script src="./experimental/anatomy/nifti-source.js?v=E2-LOCAL-CT"></script>
 <script src="./experimental/xr/ct-spatial-mpr.js?v=E2-SOURCE-MPR"></script>
@@ -4721,36 +4721,39 @@ function receiveImmersiveReference(){
   try{
    const d=e.data,U=window.PulmoReferencePackage,inventory=U.plan(d.study,d.assets);
    U.manifest(d.study,inventory,d.manifest);
-   if(Object.keys(d.files||{}).length!==U.immersivePaths.length||patientData.loaded||rBro.xr.isPresenting||!xrProcedural)throw Error('Fresh immersive viewer required');
+   const paths=U.pathsFor(inventory,"immersive"),multi=U.isMulti(inventory),meshPath=multi?"pulmonary.glb":"airway-surface/airway.glb",metaPath=multi?"reconstruction.json":"airway-surface/reconstruction.json";
+   if(Object.keys(d.files||{}).length!==paths.length||patientData.loaded||rBro.xr.isPresenting||!xrProcedural)throw Error('Fresh immersive viewer required');
    const bytes={};
-   for(const path of U.immersivePaths){
+   for(const path of paths){
     guard();const blob=d.files[path],a=inventory[path];
     if(!(blob instanceof Blob)||blob.size!==a.bytes)throw Error('Source asset mismatch');
     const b=await blob.arrayBuffer(),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('');
     if(hash!==a.sha256)throw Error('Source asset hash mismatch');bytes[path]=b;
    }
-   const meta=JSON.parse(new TextDecoder().decode(bytes['airway-surface/reconstruction.json'])),research=window.PulmoCTResearchBridge;
-   if(!research.isWorkerAirway(meta)||meta.mask_sha256!==inventory['airway-mask/mask.raw'].sha256||meta.source_sha256!==inventory['source.nii'].sha256)throw Error('Airway reconstruction identity mismatch');
-   const glb=bytes['airway-surface/airway.glb'],integrity=await research.verifyGLB(glb,meta);
+   const meta=JSON.parse(new TextDecoder().decode(bytes[metaPath])),research=window.PulmoCTResearchBridge;
+   if(multi){U.checkSurface(inventory,meta);if(!research.isWorkerMulti(meta))throw Error('Invalid multi-structure frame');}else if(!research.isWorkerAirway(meta)||meta.mask_sha256!==inventory['airway-mask/mask.raw'].sha256||meta.source_sha256!==inventory['source.nii'].sha256)throw Error('Airway reconstruction identity mismatch');
+   const glb=bytes[meshPath],integrity=await research.verifyGLB(glb,meta);
    // Worker GLB is self-contained. Reject external URI requests and extension payloads.
    const header=new DataView(glb);
    if(glb.byteLength<20||header.getUint32(0,true)!==0x46546c67||header.getUint32(4,true)!==2||header.getUint32(8,true)!==glb.byteLength||header.getUint32(16,true)!==0x4e4f534a||header.getUint32(12,true)>glb.byteLength-20)throw Error('Invalid binary GLB');
    const doc=JSON.parse(new TextDecoder().decode(new Uint8Array(glb,20,header.getUint32(12,true))));
    if(doc.images?.length||doc.extensionsUsed?.length||doc.extensionsRequired?.length||!Array.isArray(doc.buffers)||doc.buffers.length!==1||doc.buffers.some(b=>b.uri!==undefined)||!doc.meshes?.length)throw Error('Unexpected external or non-worker GLB');
+   if(multi){const names=doc.meshes.map(m=>m.name),expected=meta.combined_structure_names;if(names.length!==expected.length||new Set(names).size!==expected.length||expected.some(k=>!names.includes(k)))throw Error('Combined scene structure mismatch');}
    const volume=window.PulmoNiftiSource.readNifti(bytes['source.nii']),match=window.PulmoNiftiSource.matchQA(volume,meta);
    if(!match.valid)throw Error(match.reason);
    guard();
-   await new Promise((resolve,reject)=>_loadGLTFFromArrayBuffer(glb,'reference-airway.glb',()=>{
+   await new Promise((resolve,reject)=>_loadGLTFFromArrayBuffer(glb,multi?'reference-pulmonary.glb':'reference-airway.glb',()=>{
     try{
      guard();_xr08MeshBoundsLocal(patientData.gltf);
      patientData.sourceKind='ct-airspace-research';patientData.sourceManifest=meta;patientData.sourceIntegrity=integrity;
      patientData.meta=null;patientData.xrAudit=null;patientData.ctVolume=volume;patientData.ctVolumeSha=meta.source_sha256;
      mmPerUnit=1000; // worker GLB uses metres, not original procedural scale
      setViewMode('research');_focusCameraOnGLB(patientData.gltf);_updateLoaderBanner(true);
-     const desk=document.getElementById('ct-source-desk');desk.querySelector('strong').textContent='CT-derived airway lumen · Reference study';
+     const desk=document.getElementById('ct-source-desk');desk.querySelector('strong').textContent=multi?'CT-derived pulmonary structures · Reference study':'CT-derived airway lumen · Reference study';
      for(const node of desk.querySelectorAll('.source-actions button,.source-actions a'))if(node.id!=='research-material-toggle'&&!node.getAttribute('onclick')?.includes('resetCTResearchView'))node.hidden=true;
-     desk.querySelector('button[onclick="resetCTResearchView()"]').textContent='Fit airway';
-     document.getElementById('ct-source-warning').textContent='Source CT and airway GLB verified · anatomical review pending · no procedural registration';
+     desk.querySelector('button[onclick="resetCTResearchView()"]').textContent=multi?'Fit anatomy':'Fit airway';
+     document.getElementById('ct-source-warning').textContent='Source CT and geometry verified · anatomical review pending · no procedural registration';
+     if(multi){const select=document.createElement('select');select.setAttribute('aria-label','Isolate pulmonary structure');select.add(new Option('All structures','all'));for(const k of meta.combined_structure_names)select.add(new Option(k,k));select.addEventListener('change',()=>patientData.gltf.traverse(o=>{if(o.isMesh)o.visible=select.value==='all'||o.name===select.value;}));desk.querySelector('.source-actions').append(select);}
      for(const a of document.querySelectorAll('a[href]')){a.target='_blank';a.rel='noopener noreferrer';}
      if(meshMode!=='research')throw Error('Research view not activated');
      resolve();

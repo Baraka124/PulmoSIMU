@@ -24,11 +24,57 @@ REQUIRED={
 "airway-surface/fidelity.json":("quality_report","airway_lumen")}
 OPTIONAL={"source.ingest.json":("manifest",None)}
 def sha(data): return hashlib.sha256(data).hexdigest()
+MULTI = {k:tuple(v) for k,v in {"source.nii":["ct_nifti",None],"pulmonary.glb":["glb",None],"reconstruction.json":["manifest",None],"study-package.json":["manifest",None],"structures/airway_lumen/mask/mask.raw":["mask","airway_lumen"],"structures/airway_lumen/mask/mask.json":["manifest","airway_lumen"],"structures/airway_lumen/mask/topology.json":["quality_report","airway_lumen"],"structures/airway_lumen/surface.glb":["glb","airway_lumen"],"structures/airway_lumen/surface.json":["manifest","airway_lumen"],"structures/pulmonary_artery/mask/mask.raw":["mask","pulmonary_artery"],"structures/pulmonary_artery/mask/mask.json":["manifest","pulmonary_artery"],"structures/pulmonary_artery/mask/topology.json":["quality_report","pulmonary_artery"],"structures/pulmonary_artery/surface.glb":["glb","pulmonary_artery"],"structures/pulmonary_artery/surface.json":["manifest","pulmonary_artery"],"structures/pulmonary_vein/mask/mask.raw":["mask","pulmonary_vein"],"structures/pulmonary_vein/mask/mask.json":["manifest","pulmonary_vein"],"structures/pulmonary_vein/mask/topology.json":["quality_report","pulmonary_vein"],"structures/pulmonary_vein/surface.glb":["glb","pulmonary_vein"],"structures/pulmonary_vein/surface.json":["manifest","pulmonary_vein"],"structures/RUL/mask/mask.raw":["mask","RUL"],"structures/RUL/mask/mask.json":["manifest","RUL"],"structures/RUL/mask/topology.json":["quality_report","RUL"],"structures/RUL/surface.glb":["glb","RUL"],"structures/RUL/surface.json":["manifest","RUL"],"structures/RML/mask/mask.raw":["mask","RML"],"structures/RML/mask/mask.json":["manifest","RML"],"structures/RML/mask/topology.json":["quality_report","RML"],"structures/RML/surface.glb":["glb","RML"],"structures/RML/surface.json":["manifest","RML"],"structures/RLL/mask/mask.raw":["mask","RLL"],"structures/RLL/mask/mask.json":["manifest","RLL"],"structures/RLL/mask/topology.json":["quality_report","RLL"],"structures/RLL/surface.glb":["glb","RLL"],"structures/RLL/surface.json":["manifest","RLL"],"structures/LUL/mask/mask.raw":["mask","LUL"],"structures/LUL/mask/mask.json":["manifest","LUL"],"structures/LUL/mask/topology.json":["quality_report","LUL"],"structures/LUL/surface.glb":["glb","LUL"],"structures/LUL/surface.json":["manifest","LUL"],"structures/LLL/mask/mask.raw":["mask","LLL"],"structures/LLL/mask/mask.json":["manifest","LLL"],"structures/LLL/mask/topology.json":["quality_report","LLL"],"structures/LLL/surface.glb":["glb","LLL"],"structures/LLL/surface.json":["manifest","LLL"],"structures/lung/mask/mask.raw":["mask","lung"],"structures/lung/mask/mask.json":["manifest","lung"],"structures/lung/mask/topology.json":["quality_report","lung"],"structures/lung/surface.glb":["glb","lung"],"structures/lung/surface.json":["manifest","lung"],"structures/airway_lumen/mask/airway-skeleton.json":["airway_graph","airway_lumen"]}.items()}
+STRUCTURES = ["airway_lumen","pulmonary_artery","pulmonary_vein","RUL","RML","RLL","LUL","LLL","lung"]
+LOBES = ["RUL","RML","RLL","LUL","LLL"]
+PARTS = ["mask/mask.raw","mask/mask.json","mask/topology.json","surface.glb","surface.json"]
+
+def check_multi(directory):
+    root=Path(directory).resolve(strict=True);p=root/"study-package.json"
+    if p.is_symlink() or p.stat().st_size>262144:raise ValueError("Invalid package manifest")
+    raw=p.read_bytes();m=json.loads(raw);sid=str(uuid.UUID(m["study_id"]))
+    if m.get("schema")!="pulmo.multi-structure-package/1" or m.get("status")!="review_pending" or m.get("clinical_navigation_allowed") is not False:raise ValueError("Invalid package review gate")
+    assets=m["assets"];files={};total=0
+    if not isinstance(assets,list) or not 8<=len(assets)<=49:raise ValueError("Invalid multi inventory")
+    for a in assets:
+        path=a["path"];expected=MULTI.get(path)
+        if path=="study-package.json" or not expected or path in files or (a["kind"],a.get("structure"))!=expected or a.get("version")!=1 or a["object_key"]!=sid+"/v1/"+path:raise ValueError("Invalid asset record")
+        f=root/path
+        if f.resolve()!=f or not f.is_file() or not 0<f.stat().st_size<=LIMIT:raise ValueError("Invalid or oversized asset")
+        total+=f.stat().st_size
+        if total>200_000_000:raise ValueError("Package exceeds transfer budget")
+        data=f.read_bytes()
+        if len(data)!=a["bytes"] or sha(data)!=a["sha256"]:raise ValueError("Asset digest mismatch")
+        files[path]=data
+    if not {"source.nii","pulmonary.glb","reconstruction.json"}<=files.keys():raise ValueError("Missing common source")
+    ct=sha(files["source.nii"]);meta=json.loads(files["reconstruction.json"])
+    if m["source_sha256"]!=ct or meta["source_sha256"]!=ct or meta["mesh_sha256"]!=sha(files["pulmonary.glb"]) or meta.get("validation")!="UNREVIEWED_MULTI_STRUCTURE_SURFACES" or meta["model_from_ras_mm"]!=m["model_from_ras_mm"]:raise ValueError("Combined source identity mismatch")
+    seen=[]
+    for k in STRUCTURES:
+        prefix="structures/"+k+"/";count=sum(prefix+x in files for x in PARTS)
+        if not count:continue
+        if count!=len(PARTS):raise ValueError("Incomplete structure "+k)
+        seen.append(k);mask=json.loads(files[prefix+"mask/mask.json"]);report=json.loads(files[prefix+"surface.json"]);topology=json.loads(files[prefix+"mask/topology.json"])
+        masksha=sha(files[prefix+"mask/mask.raw"]);meshsha=sha(files[prefix+"surface.glb"])
+        if mask.get("ct_sha256")!=ct or mask.get("structure")!=k or mask.get("mask_sha256")!=masksha or mask.get("review")!="PENDING" or report.get("structure")!=k or report.get("source_sha256")!=ct or report.get("mask_sha256")!=masksha or report.get("mesh_sha256")!=meshsha or report.get("review")!="PENDING" or report.get("clinical_navigation_allowed") is not False or report.get("model_from_ras_mm")!=meta["model_from_ras_mm"] or meta["structure_inventory"].get(k)!=meshsha or topology.get("ct_sha256")!=ct or topology.get("mask_sha256")!=masksha or topology.get("structure")!=k:raise ValueError("Structure source chain mismatch")
+    if not seen or set(seen)!=set(m["available_structures"]) or len(seen)!=len(m["available_structures"]) or set(seen)!=set(meta["structure_inventory"]):raise ValueError("Structure inventory mismatch")
+    expected=[k for k in seen if k!="lung" or not all(l in seen for l in LOBES)]
+    if set(meta["combined_structure_names"])!=set(expected) or len(meta["combined_structure_names"])!=len(expected):raise ValueError("Combined labels mismatch")
+    graph="structures/airway_lumen/mask/airway-skeleton.json"
+    if graph in files:
+        if "airway_lumen" not in seen:raise ValueError("Orphan graph")
+        q=json.loads(files[graph]);mask=json.loads(files["structures/airway_lumen/mask/mask.json"])
+        if q.get("ct_sha256")!=ct or q.get("mask_sha256")!=mask["mask_sha256"] or q.get("navigation_allowed") is not False:raise ValueError("Graph identity mismatch")
+    files["study-package.json"]=raw
+    records=assets+[{"path":"study-package.json","kind":"manifest","structure":None,"version":1,"object_key":sid+"/v1/study-package.json","sha256":sha(raw),"bytes":len(raw)}]
+    return sid,records,files
+
 def check_package(directory):
     root=Path(directory).resolve(strict=True)
     manifest=root/"study-package.json"
     if manifest.is_symlink() or manifest.stat().st_size>262144: raise ValueError("Invalid package manifest")
     raw=manifest.read_bytes();m=json.loads(raw)
+    if m.get("schema")=="pulmo.multi-structure-package/1":return check_multi(directory)
     sid=str(uuid.UUID(m["study_id"]))
     if m.get("schema")!="pulmo.study-package/1" or m.get("status")!="review_pending" or m.get("clinical_navigation_allowed") is not False: raise ValueError("Invalid review gate")
     assets=m["assets"]
@@ -77,7 +123,8 @@ def publish(api,sid,records,files,provenance):
         code,stored=api.call("GET","/storage/v1/object/authenticated/"+BUCKET+"/"+key,max_bytes=len(data))
         if code!=200 or len(stored)!=len(data) or sha(stored)!=a["sha256"]: raise RuntimeError("Stored bytes failed integrity verification")
     body=json.dumps({"p_study":sid,"p_assets":records,"p_provenance":provenance}).encode()
-    code,_=api.call("POST","/rest/v1/rpc/publish_reference_package",body,"application/json")
+    rpc="publish_multi_reference_package" if "pulmonary.glb" in files else "publish_reference_package"
+    code,_=api.call("POST","/rest/v1/rpc/"+rpc,body,"application/json")
     if code not in (200,204): raise RuntimeError("Catalogue commit failed: "+str(code))
 if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__);p.add_argument("package");p.add_argument("--source-url",required=True);p.add_argument("--license",required=True);p.add_argument("--confirm-redistribution",action="store_true");p.add_argument("--publish",action="store_true")

@@ -14,9 +14,12 @@ function isWorkerAirway(m){
   a[3].every((x,i)=>x===(i===3?1:0))&&
   [[.001,0,0],[0,0,.001],[0,-.001,0]].every((row,i)=>row.every((x,j)=>Math.abs(x-a[i][j])<1e-10)));
 }
+function isWorkerMulti(m){
+ return m?.validation==="UNREVIEWED_MULTI_STRUCTURE_SURFACES"&&isWorkerAirway({...m,validation:"UNREVIEWED_SOURCE_MASK_SURFACE",mask_sha256:"0".repeat(64)})&&Array.isArray(m.combined_structure_names)&&m.combined_structure_names.length>0;
+}
 function isResearchManifest(m){
  return Boolean(m&&typeof m==='object'&&!Array.isArray(m)
-  &&(isWorkerAirway(m)||/^(?:PRELIMINARY_CT_DERIVED_AIRSPACE_MASK|A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW)$/.test(m.geometry_class||''))
+  &&(isWorkerAirway(m)||isWorkerMulti(m)||/^(?:PRELIMINARY_CT_DERIVED_AIRSPACE_MASK|A2_1_CONSERVATIVE_BILATERAL_CT_AIRSPACE_REVIEW)$/.test(m.geometry_class||''))
   &&typeof m.mesh_sha256==='string'&&SHA256.test(m.mesh_sha256)
   &&typeof m.source_sha256==='string'&&SHA256.test(m.source_sha256)
   &&Array.isArray(m.model_from_ras_mm)&&m.model_from_ras_mm.length===4
@@ -37,12 +40,12 @@ async function verifyGLB(buffer,manifest,cryptoProvider=global.crypto){
 function describe(manifest){
  if(!isResearchManifest(manifest))return null;
  const flags=manifest.quality_gates||{};
- return Object.freeze({kind:'ct-airspace-research',study:isWorkerAirway(manifest)?'CT-DERIVED AIRWAY LUMEN · RESEARCH ONLY':'CT-DERIVED AIRSPACE · RESEARCH ONLY',
+ return Object.freeze({kind:'ct-airspace-research',study:isWorkerMulti(manifest)?'CT-DERIVED PULMONARY STRUCTURES · RESEARCH ONLY':isWorkerAirway(manifest)?'CT-DERIVED AIRWAY LUMEN · RESEARCH ONLY':'CT-DERIVED AIRSPACE · RESEARCH ONLY',
   anatomyValidated:false,bronchoscopyAllowed:false,
   sourceVolumeVerified:false,
   warning:flags.right_lung_mask_leakage==='FLAGGED_FOR_REVIEW'
    ?'RIGHT-SURFACE QA FLAGGED · SOURCE SEGMENTATION UNREVIEWED'
    :'SOURCE SEGMENTATION NOT CLINICALLY VALIDATED'});
 }
-global.PulmoCTResearchBridge=Object.freeze({isResearchManifest,isWorkerAirway,verifyGLB,describe});
+global.PulmoCTResearchBridge=Object.freeze({isResearchManifest,isWorkerAirway,isWorkerMulti,verifyGLB,describe});
 })(typeof window!=='undefined'?window:globalThis);
