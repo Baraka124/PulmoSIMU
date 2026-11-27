@@ -3,6 +3,7 @@ import numpy as np
 from scipy import ndimage as ndi
 from skimage.segmentation import watershed
 from geodesic_refinement import refine
+from levelset_refinement import evolve
 
 MAX_VOXELS=8_000_000
 CONNECTIVITY=ndi.generate_binary_structure(3,1)
@@ -37,9 +38,14 @@ def segment(data,spacing,*,foreground,lower_hu,upper_hu,method="region_growing",
     fg=seed_mask(x.shape,foreground)
     if np.any(fg&~allowed): raise ValueError("Foreground seed violates admissible region")
     details=None
-    if method!="geodesic_discrete_contour" and refinement is not None:
-        raise ValueError("Refinement parameters require geodesic contour method")
-    if method=="geodesic_discrete_contour":
+    if method not in ("geodesic_discrete_contour","region_levelset") and refinement is not None:
+        raise ValueError("Refinement parameters require a contour method")
+    if method=="region_levelset":
+        if not isinstance(refinement,dict): raise ValueError("Explicit level-set parameters required")
+        bg=seed_mask(x.shape,background) if background is not None else np.zeros_like(fg)
+        mask,fields,details=evolve(x,s,allowed,fg,bg,**refinement)
+        if intermediates is not None: intermediates.update(fields)
+    elif method=="geodesic_discrete_contour":
         if not isinstance(refinement,dict): raise ValueError("Explicit refinement parameters required")
         bg=seed_mask(x.shape,background) if background is not None else np.zeros_like(fg)
         mask,fields,details=refine(x,s,allowed,fg,bg,**refinement)
