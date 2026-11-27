@@ -37,18 +37,22 @@ function open(study,seg,source){
   check(bestD<=maxMm,'No skeleton node within '+maxMm+' mm');
   return {node:best,offset_mm:bestD};
  }
- const cache=new Map();
- function clearance(i,limit){
+ function clearance(i,limit,work){
+  const cache=work.cache;
   const key=i+':'+limit;if(cache.has(key))return cache.get(key);
   const p=vox[i],radius=sp.map(s=>Math.ceil(limit/s+.5));let best=limit;
-  check(radius.reduce((n,x)=>n*(2*x+1),1)<=100000,'Clearance sampling budget exceeded for this spacing');
+  const samples=radius.reduce((n,x)=>n*(2*x+1),1);
+  check(samples<=100000,'Clearance sampling budget exceeded for this spacing');
+  check(work.remaining>=samples,'Total clearance computation budget exceeded; use a smaller ROI or lower instrument radius');work.remaining-=samples;
   for(let x=-radius[0];x<=radius[0];x++)for(let y=-radius[1];y<=radius[1];y++)for(let z=-radius[2];z<=radius[2];z++){
-   const delta=[x,y,z],dd=Math.hypot(...delta.map((v,k)=>Math.max(0,Math.abs(v)-.5)*sp[k]));if(dd>=best)continue;
-   const q=p.map((v,k)=>v+delta[k]);if(!inside(q)||seg.at(q)===0)best=dd;
+   const dd=Math.hypot(Math.max(0,Math.abs(x)-.5)*sp[0],Math.max(0,Math.abs(y)-.5)*sp[1],Math.max(0,Math.abs(z)-.5)*sp[2]);if(dd>=best)continue;
+   const q=[p[0]+x,p[1]+y,p[2]+z];if(!inside(q)||seg.at(q)===0)best=dd;
   }
   cache.set(key,best);return best;
  }
- function plan(start,end,diameter,margin=.5){
+ function plan(start,end,diameter,margin=.5,{maxClearanceSamples=5000000}={}){
+  check(Number.isInteger(maxClearanceSamples)&&maxClearanceSamples>=1&&maxClearanceSamples<=5000000,'Invalid total clearance budget');
+  const work={cache:new Map(),remaining:maxClearanceSamples};
   check(seg.patch().edits.length===0,'Mask edited; rebuild skeleton');
   check([start,end].every(i=>Number.isInteger(i)&&i>=0&&i<raw.length)&&start!==end,'Choose distinct graph endpoints');
   check(Number.isFinite(diameter)&&diameter>=1&&diameter<=12&&Number.isFinite(margin)&&margin>=0&&margin<=2,'Invalid instrument dimensions');
@@ -57,7 +61,7 @@ function open(study,seg,source){
   function push(i,v){let k=heap.length;heap.push([i,v]);while(k>0){const p=(k-1)>>1;if(heap[p][1]<=v)break;heap[k]=heap[p];k=p;heap[k]=[i,v];}}
   function pop(){const top=heap[0],last=heap.pop();if(heap.length){let k=0;while(2*k+1<heap.length){let c=2*k+1;if(c+1<heap.length&&heap[c+1][1]<heap[c][1])c++;if(heap[c][1]>=last[1])break;heap[k]=heap[c];k=c;}heap[k]=last;}return top;}
   let visits=0;const budget=12000;
-  function bound(i,j,l){return Math.min(clearance(i,limit),clearance(j,limit))-l/2;}
+  function bound(i,j,l){return Math.min(clearance(i,limit,work),clearance(j,limit,work))-l/2;}
   costs[start]=0;push(start,0);
   while(heap.length){const [i,v]=pop();if(v!==costs[i])continue;if(++visits>budget)throw Error('Route computation budget exceeded; use smaller ROI');if(i===end)break;
    for(const [j,l] of adj[i]){if(v+l>=costs[j])continue;if(bound(i,j,l)<needed)continue;costs[j]=v+l;prev[j]=i;push(j,v+l);}

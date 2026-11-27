@@ -3,3 +3,11 @@ const A=[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],ct='a'.repeat(64),mask='b'.rep
 test('rooted route, physical length, terminal orientation and no clinical grant',()=>{const g=U.open(study,seg,s),p=g.plan(0,2,2,.5);assert.equal(p.length_mm,2);assert.equal(g.pose(p,2).forward_ras.join(),'1,0,0');assert.equal(p.clinical_navigation_allowed,false);assert.throws(()=>g.plan(0,2,12,.5));});
 test('reject identity, false coordinates, nonlocal edges and edited mask',()=>{assert.throws(()=>U.open(study,seg,{...s,ct_sha256:mask}));assert.throws(()=>U.open(study,seg,{...s,nodes_ras_mm:[[0,0,0],...s.nodes_ras_mm.slice(1)]}));assert.throws(()=>U.open(study,seg,{...s,edges_index_length_mm:[[0,2,2]]}));assert.throws(()=>U.open(study,{...seg,patch:()=>({edits:[1]})},s));});
 test('reject diagonal through missing voxel and disconnected route',()=>{const ss={...s,nodes_ras_mm:[[3,3,4],[4,4,4]],edges_index_length_mm:[[0,1,Math.SQRT2]]},m={...seg,at:p=>p.join() === '3,4,4'?0:seg.at(p)};const g=U.open(study,m,ss);assert.equal(g.rejectedEdges,1);assert.throws(()=>g.plan(0,1,1,0));});
+
+
+test('cumulative clearance budget rejects work even after a successful search',()=>{
+ const ct='a'.repeat(64),mask='b'.repeat(64),a=[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],study={schema:'pulmosimu.study/1',source:{sha256:ct,dimensions:[15,15,15]},spatial:{voxel_to_ras_mm:a,ras_mm_to_voxel:a,spacing_mm:[1,1,1]}},seg={structure:'airway_lumen',digest:mask,patch:()=>({edits:[]}),at:()=>1},source={schema:'pulmosimu.airway-skeleton/1',ct_sha256:ct,mask_sha256:mask,structure:'airway_lumen',navigation_allowed:false,nodes_ras_mm:[[7,7,7],[8,7,7],[9,7,7]],edges_index_length_mm:[[0,1,1],[1,2,1]]};
+ const w={};runInNewContext(readFileSync(new URL('../anatomy/airway-route.js',import.meta.url),'utf8'),{window:w});const graph=w.PulmoAirwayRoute.open(study,seg,source);
+ assert.equal(graph.plan(0,2,1,.1).length_mm,2);assert.throws(()=>graph.plan(0,2,1,.1,{maxClearanceSamples:1}),/Total clearance computation budget/);
+ assert.throws(()=>graph.plan(0,2,1,.1,{maxClearanceSamples:5000001}),/Invalid total clearance budget/);
+});

@@ -10,3 +10,7 @@ Finite software acceptance: node experimental/tests/run-release-checks.mjs. Cont
 5. Deploy exact reviewed main SHA on the existing Vercel project, verify release provenance and smoke test before promoting. No separate project/branch or unrelated features.
 
 Status: software candidate, not physical acceptance. Clinical navigation, accurate full body tracking, real ultrasound, remote multi-headset collaboration and active force feedback remain outside this accepted scope.
+
+## Release hardening after X03
+
+J planning now uses a per-search cache and a cumulative maximum of 5,000,000 voxel-neighborhood iterations, alongside the existing per-node and visited-node limits. Budget exhaustion is not a proof of route infeasibility. Source inspector literal control bindings are checked for missing or duplicate IDs in the release suite. Still synchronous; workstation profiling and an asynchronous worker remain future optimization if needed.

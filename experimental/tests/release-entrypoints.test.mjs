@@ -14,3 +14,12 @@ for(const page of pages)test('local script dependencies and classic JavaScript s
   }else if(!src&&body.trim()&&!/type=["'](?:module|importmap|application\/json)["']/.test(attrs))assert.doesNotThrow(()=>new Function(body),page);
  }
 });
+
+
+test('source inspector control identifiers are unique and resolve literal bindings',()=>{
+ const html=readFileSync(new URL('../anatomy-inspector.html',import.meta.url),'utf8');
+ const js=readFileSync(new URL('../anatomy/inspector-app.js',import.meta.url),'utf8');
+ const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);
+ assert.equal(ids.length,new Set(ids).size,'duplicate HTML identifiers');
+ const known=new Set(ids);for(const [,id] of js.matchAll(/\$\('([^']+)'\)/g))assert.ok(known.has(id),'Missing inspector element: '+id);
+});

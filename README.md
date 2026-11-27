@@ -208,3 +208,7 @@ Finite-angle rod response, scalar torsion, sampled contact and lagged incrementa
 ## X01–X03 — source-linked imaging physics
 
 Relative optical response and acoustic interface echo formation in the source laboratory. See [X foundation](experimental/X01_X03_IMAGING_PHYSICS.md).
+
+## Release hardening
+
+J route clearance computation now has a cumulative bounded sampling budget and per-search cache; source inspector control bindings are checked in the release suite. Run `node experimental/tests/run-release-checks.mjs` before deployment.
