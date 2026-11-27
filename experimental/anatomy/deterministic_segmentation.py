@@ -2,6 +2,7 @@
 import numpy as np
 from scipy import ndimage as ndi
 from skimage.segmentation import watershed
+from geodesic_refinement import refine
 
 MAX_VOXELS=8_000_000
 CONNECTIVITY=ndi.generate_binary_structure(3,1)
@@ -17,7 +18,7 @@ def seed_mask(shape,seeds):
         out[tuple(p)]=True
     return out
 
-def segment(data,spacing,*,foreground,lower_hu,upper_hu,method="region_growing",background=None,feature=None,min_feature=None):
+def segment(data,spacing,*,foreground,lower_hu,upper_hu,method="region_growing",background=None,feature=None,min_feature=None,refinement=None,intermediates=None):
     x=np.asarray(data,dtype=np.float32);s=np.asarray(spacing,dtype=float)
     if x.ndim!=3 or min(x.shape)<3 or x.size>MAX_VOXELS or not np.isfinite(x).all():
         raise ValueError("Finite bounded 3D ROI required")
@@ -35,7 +36,15 @@ def segment(data,spacing,*,foreground,lower_hu,upper_hu,method="region_growing",
         raise ValueError("Feature threshold without feature")
     fg=seed_mask(x.shape,foreground)
     if np.any(fg&~allowed): raise ValueError("Foreground seed violates admissible region")
-    if method=="region_growing":
+    details=None
+    if method!="geodesic_discrete_contour" and refinement is not None:
+        raise ValueError("Refinement parameters require geodesic contour method")
+    if method=="geodesic_discrete_contour":
+        if not isinstance(refinement,dict): raise ValueError("Explicit refinement parameters required")
+        bg=seed_mask(x.shape,background) if background is not None else np.zeros_like(fg)
+        mask,fields,details=refine(x,s,allowed,fg,bg,**refinement)
+        if intermediates is not None: intermediates.update(fields)
+    elif method=="region_growing":
         if background is not None: raise ValueError("Background markers require watershed")
         mask=ndi.binary_propagation(fg,structure=CONNECTIVITY,mask=allowed)
     elif method=="watershed":
@@ -67,4 +76,5 @@ def segment(data,spacing,*,foreground,lower_hu,upper_hu,method="region_growing",
       "roi_face_foreground_counts":faces,"touches_roi_boundary":any(faces),
       "distance_convention":"negative inside, positive outside; physical voxel-center EDT; padded ROI exterior",
       "review":"PENDING","anatomical_identity_verified":False,"clinical_navigation_allowed":False}
+    if details is not None: report["refinement"]=details
     return mask.astype(np.uint8),signed,report
