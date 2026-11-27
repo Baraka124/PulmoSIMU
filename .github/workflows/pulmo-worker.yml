@@ -2,7 +2,7 @@ name: PulmoSIMU worker regression
 on:
   push:
     branches: [main]
-    paths: ['experimental/anatomy/**', 'requirements-reconstruction.txt', '.github/workflows/pulmo-worker.yml']
+    paths: ['experimental/anatomy/**', 'requirements-reconstruction.txt', 'requirements-registration.txt', '.github/workflows/pulmo-worker.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,5 +20,5 @@ jobs:
       - run: python3 --version
       - run: |
           python3 -m venv .worker-venv
-          .worker-venv/bin/python -m pip install --only-binary=:all: -r requirements-reconstruction.txt
+          .worker-venv/bin/python -m pip install --only-binary=:all: -r requirements-registration.txt
       - run: .worker-venv/bin/python -m unittest discover -s experimental/anatomy -p 'test_inf*_*.py'
