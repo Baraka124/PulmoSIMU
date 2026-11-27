@@ -36,7 +36,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -57,18 +57,31 @@ jobs: dict = {}
 app = FastAPI(
     title="PNEUMO·VR Pipeline Server",
     description="DICOM → airway GLB + meta JSON for procedure planning",
-    version="1.1",
+    version="1.2",
+    docs_url=None, redoc_url=None, openapi_url=None,
 )
 
 # Origins: GitHub Pages URL + localhost for dev
 # Set ALLOWED_ORIGIN env var on Railway to lock down to your Pages URL
-_allowed = os.getenv("ALLOWED_ORIGIN", "*")
+_allowed = os.getenv("ALLOWED_ORIGIN", "https://pulmosimu.vercel.app")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[_allowed] if _allowed != "*" else ["*"],
+    allow_origins=[_allowed] if _allowed != "*" else [],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# INF01: retain legacy algorithms for migration, but disable legacy HTTP routes
+# in every environment until authenticated ingestion and resource limits exist.
+@app.middleware("http")
+async def hosted_guard(request: Request, call_next):
+    if request.url.path == "/" and request.method == "GET":
+        return await call_next(request)
+    return JSONResponse(status_code=503, content={
+        "detail": "Processing disabled pending authenticated study ingestion",
+        "code": "PROCESSING_NOT_ENABLED"
+    })
 
 
 # ── Health check ──────────────────────────────────────────────────
@@ -76,10 +89,11 @@ app.add_middleware(
 async def root():
     return {
         "service": "PNEUMO·VR Pipeline Server",
-        "version": "1.1",
+        "version": "1.2",
+        "status": "healthy",
+        "processing_enabled": False,
         "jobs_active": sum(1 for j in jobs.values() if j["status"] == "running"),
         "jobs_total": len(jobs),
-        "pipeline": str(PIPELINE),
         "pipeline_exists": PIPELINE.exists(),
     }
 

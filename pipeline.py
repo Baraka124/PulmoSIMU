@@ -32,7 +32,7 @@ import pydicom
 import trimesh
 import vtk
 from scipy import ndimage
-from skimage.morphology import skeletonize_3d
+from skimage.morphology import skeletonize
 from skimage.measure import label as sk_label
 
 warnings.filterwarnings("ignore")
@@ -234,7 +234,7 @@ def extract_centerline(airway_mask, spacing):
     print("[4/5] Extracting centerline")
 
     print("    Running 3D skeletonization (may take 1-2 min)...")
-    skeleton = skeletonize_3d(airway_mask)
+    skeleton = skeletonize(airway_mask.astype(bool), method="lee")
 
     skel_vox = np.argwhere(skeleton)   # (N, 3) in voxel coords
     skel_mm  = skel_vox * spacing      # scale to mm

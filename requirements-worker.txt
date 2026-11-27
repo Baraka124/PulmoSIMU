@@ -1,0 +1,9 @@
+# Optional offline CPU worker environment, not yet deployed.
+-r requirements.txt
+numpy==2.2.6
+scipy==1.15.3
+scikit-image==0.25.2
+pydicom==3.0.1
+nibabel==5.3.2
+trimesh==4.6.10
+vtk==9.4.2
