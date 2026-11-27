@@ -54,17 +54,20 @@ def vesselness(data,spacing,scales_mm=(1.0,2.0,3.0),alpha=.5,beta=.5,gamma=100.0
         raise ValueError("Invalid vesselness parameters")
     best=np.zeros_like(x); chosen=np.zeros_like(x)
     for scale in scales:
+        smooth=ndi.gaussian_filter(x,sigma=scale/s,mode="reflect")
         h=np.empty(x.shape+(3,3),dtype=np.float32)
         for i in range(3):
             for j in range(i,3):
                 order=[0,0,0];order[i]+=1;order[j]+=1
-                d=ndi.gaussian_filter(x,sigma=scale/s,order=order,mode="reflect")*(scale**2/(s[i]*s[j]))
+                # Centered finite differences after Gaussian smoothing avoid DC bias
+                # from truncated sampled Gaussian derivative kernels.
+                d=np.gradient(np.gradient(smooth,s[i],axis=i),s[j],axis=j)*scale**2
                 h[...,i,j]=d;h[...,j,i]=d
         eig=np.linalg.eigvalsh(h)
         del h
         eig=np.take_along_axis(eig,np.argsort(np.abs(eig),axis=-1),axis=-1)
         a,b,c=np.moveaxis(eig,-1,0)
-        eps=np.finfo(np.float32).tiny
+        eps=1e-12
         ra=np.abs(b)/np.maximum(np.abs(c),eps)
         rb=np.abs(a)/np.maximum(np.sqrt(np.abs(b*c)),eps)
         strength=a*a+b*b+c*c
@@ -76,4 +79,5 @@ def vesselness(data,spacing,scales_mm=(1.0,2.0,3.0),alpha=.5,beta=.5,gamma=100.0
         best[update]=response[update];chosen[update]=scale
     return best,chosen,{"scales_mm":list(scales),"alpha":alpha,"beta":beta,"gamma_HU":gamma,
                          "polarity":"bright" if bright else "dark","best_scale_zero":"no positive response",
+                         "hessian_discretization":"Gaussian smoothing followed by physical finite differences",
                          "meaning":"tubular image feature, not segmentation or lumen diameter"}
